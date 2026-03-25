@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:is(.dark *));
 
 @theme {
   --color-border: hsl(var(--border));
@@ -58,10 +59,6 @@
     --input: 0 0% 92%;
     --ring: 346.8 77.2% 49.8%;
     --radius: 1rem;
-  }
-
-  html {
-    scrollbar-gutter: stable !important;
   }
 
   .dark {

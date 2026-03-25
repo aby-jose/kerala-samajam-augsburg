@@ -16,7 +16,12 @@ const navItems = [
   { name: "Contact", href: "/contact", icon: Mail },
 ];
 
-export function Navbar() {
+export interface NavbarProps {
+  hideLinks?: boolean;
+  forceLightText?: boolean;
+}
+
+export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProps) {
   const [isOpen, setIsOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
   const pathname = usePathname();
@@ -31,8 +36,8 @@ export function Navbar() {
   // Transparent on ALL pages until scroll.
   const isSolid = scrolled;
 
-  // Hero Video check (Persistent white text on Hero video before scroll)
-  const useLightText = isHomePage && !scrolled && !isOpen;
+  // Hero Video check or forced light text
+  const useLightText = forceLightText || (isHomePage && !scrolled && !isOpen);
 
   return (
     <header
@@ -54,49 +59,58 @@ export function Navbar() {
         </Link>
 
         {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center space-x-8">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 relative py-2 px-1 hover:text-primary",
-                pathname === item.href
-                  ? (useLightText ? "text-white" : "text-primary")
-                  : (useLightText ? "text-white/80" : "text-muted-foreground hover:text-foreground")
-              )}
-            >
-              {item.name}
-              {pathname === item.href && (
-                <motion.div
-                  layoutId="navbar-indicator"
-                  className={cn(
-                    "absolute bottom-0 left-0 right-0 h-0.5",
-                    useLightText ? "bg-white" : "bg-primary"
-                  )}
-                  initial={false}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-            </Link>
-          ))}
-        </nav>
+        {!hideLinks && (
+          <nav className="hidden lg:flex items-center space-x-8">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 relative py-2 px-1 hover:text-primary",
+                  pathname === item.href
+                    ? (useLightText ? "text-white" : "text-primary")
+                    : (useLightText ? "text-white/80" : "text-muted-foreground hover:text-foreground")
+                )}
+              >
+                {item.name}
+                {pathname === item.href && (
+                  <motion.div
+                    layoutId="navbar-indicator"
+                    className={cn(
+                      "absolute bottom-0 left-0 right-0 h-0.5",
+                      useLightText ? "bg-white" : "bg-primary"
+                    )}
+                    initial={false}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  />
+                )}
+              </Link>
+            ))}
+          </nav>
+        )}
 
         <div className="flex items-center space-x-1 sm:space-x-4">
           <div className="hidden lg:block">
             <ThemeToggle className={useLightText ? "text-white hover:bg-white/10" : "text-foreground"} />
           </div>
-          <div className="lg:hidden flex items-center">
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className={cn(
-                "transition-colors p-2 rounded-md",
-                useLightText ? "text-white hover:bg-white/10" : "text-foreground hover:bg-muted"
-              )}
-            >
-              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
+          {!hideLinks && (
+            <div className="lg:hidden flex items-center">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                  "transition-colors p-2 rounded-md",
+                  useLightText ? "text-white hover:bg-white/10" : "text-foreground hover:bg-muted"
+                )}
+              >
+                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </button>
+            </div>
+          )}
+          {hideLinks && (
+            <div className="lg:hidden">
+              <ThemeToggle />
+            </div>
+          )}
         </div>
       </div>
 
