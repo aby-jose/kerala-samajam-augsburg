@@ -32,7 +32,7 @@ export function Hero() {
   };
 
   return (
-    <section className="relative w-full h-[100svh] min-h-[600px] flex items-center overflow-hidden bg-black">
+    <section className="relative w-full h-svh min-h-[600px] flex items-center overflow-hidden bg-black">
       {/* 
           Aggressive Full-Bleed Video Background 
           Uniform cinematic zoom scale (1.3x) across all devices and breakpoints

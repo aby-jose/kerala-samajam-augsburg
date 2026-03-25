@@ -148,7 +148,7 @@ export default function ContactPage() {
             </div>
 
             {/* Main Content: Unified Form (Standardized Inputs) */}
-            <div className="lg:col-span-8 p-8 md:p-12 md:p-16 relative flex flex-col justify-center">
+            <div className="lg:col-span-8 p-8 md:p-12 relative flex flex-col justify-center">
                <div className="absolute top-0 right-0 p-8 opacity-10">
                   <Globe className="h-12 w-12 text-primary animate-spin-slow" />
                </div>
