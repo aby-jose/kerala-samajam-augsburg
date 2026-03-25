@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "mongodb"
+}
+
+model Config {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("current")
+  value     Json // Stores SiteConfig
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  slug          String         @unique
+  title         String
+  description   String
+  date          DateTime
+  location      String
+  imageUrl      String?
+  isPublished   Boolean        @default(false)
+  maxAttendees  Int?
+  registrations Registration[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Registration {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  ticketId    String    @unique // nanoid
+  eventId     String    @db.ObjectId
+  event       Event     @relation(fields: [eventId], references: [id])
+  name        String
+  email       String
+  phone       String?
+  attendees   Int       @default(1)
+  isCheckedIn Boolean   @default(false)
+  checkInTime DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model GalleryItem {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  url       String
+  publicId  String   @unique // Cloudinary public ID
+  caption   String?
+  category  String?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String?
+  email         String?   @unique
+  password      String? // Hashed password for admin
+  role          String    @default("ADMIN")
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
