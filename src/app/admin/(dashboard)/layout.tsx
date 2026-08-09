@@ -1,14 +1,42 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { 
-  BarChart3, 
-  Calendar, 
-  Image as ImageIcon, 
-  Settings, 
+import { useState, useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  BarChart3,
+  Calendar,
+  Image as ImageIcon,
+  Settings,
   LogOut,
-  LayoutDashboard
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  ShieldCheck,
+  Wallet,
+  Sparkles,
+  ClipboardList,
+  Mail,
+  Menu,
+  PanelLeftClose,
+  PanelLeft,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { useSession } from "next-auth/react";
+import NextTopLoader from "nextjs-toploader";
+
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import { useConfig } from "@/components/providers/config-provider";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function AdminLayout({
   children,
@@ -16,66 +44,375 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Mini Sidebar */}
-      <aside className="w-20 md:w-64 border-r border-border/40 flex flex-col bg-secondary/10 backdrop-blur-xl">
-        <div className="p-6 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <span className="text-white font-bold text-xs">KSA</span>
-          </div>
-          <span className="font-bold hidden md:block tracking-tight">Admin Portal</span>
-        </div>
-        
-        <nav className="flex-1 px-4 space-y-2 py-4">
-          <AdminNavLink href="/admin" icon={<LayoutDashboard className="w-5 h-5" />} label="Dashboard" />
-          <AdminNavLink href="/admin/events" icon={<Calendar className="w-5 h-5" />} label="Events" />
-          <AdminNavLink href="/admin/gallery" icon={<ImageIcon className="w-5 h-5" />} label="Gallery" />
-          <AdminNavLink href="#analytics" icon={<BarChart3 className="w-5 h-5" />} label="Analytics" disabled />
-          <AdminNavLink href="#settings" icon={<Settings className="w-5 h-5" />} label="Settings" disabled />
-        </nav>
+    <ConfirmDialogProvider>
+      <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
+      <AdminContent>{children}</AdminContent>
+    </ConfirmDialogProvider>
+  );
+}
 
-        <div className="p-4 border-t border-border/40 space-y-4">
-          <div className="flex justify-center md:justify-start">
-             <ThemeToggle />
-          </div>
-          <AdminNavLink href="/" icon={<LogOut className="w-5 h-5" />} label="Logout" className="text-destructive hover:bg-destructive/10" />
+const NAV_GROUPS: {
+  label: string;
+  items: { href: string; label: string; icon: React.ElementType; isActive: (pathname: string) => boolean }[];
+}[] = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard, isActive: (p) => p === "/admin/dashboard" },
+      { href: "/admin/events", label: "Events", icon: Calendar, isActive: (p) => p.startsWith("/admin/events") },
+      { href: "/admin/registrations", label: "Registrations", icon: Users, isActive: (p) => p.startsWith("/admin/registrations") },
+      { href: "/admin/payments", label: "Payments", icon: Wallet, isActive: (p) => p.startsWith("/admin/payments") },
+    ],
+  },
+  {
+    label: "Community",
+    items: [
+      { href: "/admin/members", label: "Members", icon: Users, isActive: (p) => p.startsWith("/admin/members") },
+      {
+        href: "/admin/membership",
+        label: "Plans",
+        icon: CreditCard,
+        isActive: (p) => p.startsWith("/admin/membership") && !p.includes("/applications"),
+      },
+      {
+        href: "/admin/membership/applications",
+        label: "Applications",
+        icon: ClipboardList,
+        isActive: (p) => p === "/admin/membership/applications",
+      },
+      { href: "/admin/inquiries", label: "Inquiries", icon: Mail, isActive: (p) => p.startsWith("/admin/inquiries") },
+      { href: "/admin/leadership", label: "Leadership", icon: ShieldCheck, isActive: (p) => p.startsWith("/admin/leadership") },
+    ],
+  },
+  {
+    label: "Media",
+    items: [
+      {
+        href: "/admin/gallery",
+        label: "Gallery",
+        icon: ImageIcon,
+        isActive: (p) => p.startsWith("/admin/gallery") && !p.includes("/contributions"),
+      },
+      {
+        href: "/admin/gallery/contributions",
+        label: "Contributions",
+        icon: Sparkles,
+        isActive: (p) => p.startsWith("/admin/gallery/contributions"),
+      },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { href: "/admin/analytics", label: "Analytics", icon: BarChart3, isActive: (p) => p === "/admin/analytics" },
+      { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p === "/admin/settings" },
+    ],
+  },
+];
+
+// Sidebar, topbar and the main panel stay plain black/white — no color
+// tint. The canvas behind them is a plain neutral gray, distinct in both
+// themes, so the panel still reads as sitting "on" something.
+const PANEL_BG = "bg-white dark:bg-black";
+const CANVAS_BG = "bg-[#F0F0F0] dark:bg-[#121212]";
+
+const BREADCRUMB_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  events: "Events",
+  registrations: "Registrations",
+  payments: "Payments",
+  members: "Members",
+  membership: "Membership",
+  applications: "Applications",
+  inquiries: "Inquiries",
+  leadership: "Leadership",
+  gallery: "Gallery",
+  contributions: "Contributions",
+  analytics: "Analytics",
+  settings: "Settings",
+  "check-in": "Check-in",
+};
+
+function AdminContent({ children }: { children: React.ReactNode }) {
+  const config = useConfig();
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/admin/login");
+    }
+  }, [status, router]);
+
+  // Close the mobile drawer on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  const handleLogout = async (e?: React.MouseEvent | Event) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    try {
+      // Manual signout to ensure we hit the correct admin auth endpoint
+      // and bypass any nested SessionProvider context issues.
+      const csrfRes = await fetch("/api/admin/auth/csrf");
+      const { csrfToken } = await csrfRes.json();
+
+      await fetch("/api/admin/auth/signout", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          csrfToken,
+          callbackUrl: "/admin/login",
+          json: "true",
+        }),
+      });
+
+      // Force a hard redirect and replace history entry
+      window.location.replace("/admin/login?logout=true");
+    } catch (error) {
+      console.error("Logout error:", error);
+      window.location.replace("/admin/login?logout=true");
+    }
+  };
+
+  if (status === "loading") {
+    return (
+      <div className={cn("flex min-h-screen items-center justify-center", CANVAS_BG)}>
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!session) return null;
+
+  const crumbs = pathname
+    .split("/")
+    .filter((segment) => BREADCRUMB_LABELS[segment])
+    .map((segment) => BREADCRUMB_LABELS[segment]);
+
+  const userName = session.user?.name || "Administrator";
+  const userEmail = session.user?.email || "";
+  const initials = userName
+    .split(" ")
+    .map((part) => part[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const sidebarBody = (
+    <>
+      <div className="relative flex shrink-0 flex-col items-center gap-2 px-4 py-4">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-black/[0.08]">
+          <img
+            src={config.branding.logoUrl || "/images/logo.png"}
+            alt={config.siteName}
+            className="h-full w-full object-contain"
+          />
         </div>
+        {!isCollapsed && (
+          <div className="w-full text-center">
+            <p className="font-sans text-[13px] font-semibold leading-snug text-foreground">
+              {config.siteName}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">Admin Panel</p>
+          </div>
+        )}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute right-3 top-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.04] hover:text-foreground md:hidden dark:hover:bg-white/[0.06]"
+          aria-label="Close menu"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            {!isCollapsed && (
+              <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                {group.label}
+              </p>
+            )}
+            <div className="space-y-0.5">
+              {group.items.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  active={item.isActive(pathname)}
+                  isCollapsed={isCollapsed}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </>
+  );
+
+  return (
+    <div className={cn("flex h-screen overflow-hidden", CANVAS_BG)}>
+      {/* Desktop sidebar */}
+      <aside
+        className={cn(
+          "z-40 hidden h-full shrink-0 flex-col transition-[width] duration-200 md:flex",
+          PANEL_BG,
+          "shadow-[4px_0_24px_-8px_rgba(0,0,0,0.06)]",
+          isCollapsed ? "w-[72px]" : "w-64"
+        )}
+      >
+        {sidebarBody}
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-auto">
-        <header className="h-16 border-b border-border/40 flex items-center justify-between px-8 bg-background/50 backdrop-blur-md sticky top-0 z-50">
-           <h1 className="text-sm font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Management Console</h1>
-           <div className="flex items-center gap-4">
-              <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center border border-border/40">
-                 <span className="text-[10px] font-bold">AJ</span>
-              </div>
-           </div>
-        </header>
-        <div className="p-8">
-          {children}
+      {/* Mobile drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className={cn("absolute inset-y-0 left-0 flex w-72 flex-col shadow-2xl animate-in slide-in-from-left duration-200", PANEL_BG)}>
+            {sidebarBody}
+          </aside>
         </div>
-      </main>
+      )}
+
+      {/* Main area */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className={cn("z-30 flex h-[72px] shrink-0 items-center gap-3 px-4 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.06)] md:px-8 xl:px-10", PANEL_BG)}>
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-black/[0.04] hover:text-foreground md:hidden dark:hover:bg-white/[0.06]"
+            aria-label="Open menu"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className={cn(
+              "hidden h-9 w-9 items-center justify-center rounded-lg border transition-colors md:flex",
+              "border-black/[0.07] bg-black/[0.02] text-muted-foreground hover:bg-black/[0.05] hover:text-foreground",
+              "dark:border-white/[0.10] dark:bg-white/[0.04] dark:hover:bg-white/[0.08]"
+            )}
+            aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {isCollapsed ? <PanelLeft className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+
+          <nav className="flex min-w-0 items-center gap-1.5" aria-label="Breadcrumb">
+            <span className="hidden text-sm text-muted-foreground sm:inline">Admin</span>
+            {crumbs.map((crumb, i) => (
+              <span key={i} className="flex min-w-0 items-center gap-1.5">
+                <ChevronRight className="hidden h-3.5 w-3.5 shrink-0 text-muted-foreground/40 sm:block" />
+                <span
+                  className={cn(
+                    "truncate",
+                    i === crumbs.length - 1
+                      ? "font-sans text-[15px] font-bold tracking-tight text-foreground"
+                      : "hidden text-sm text-muted-foreground sm:inline"
+                  )}
+                >
+                  {crumb}
+                </span>
+              </span>
+            ))}
+          </nav>
+
+          <div className="ml-auto flex items-center gap-2.5">
+            <ThemeToggle />
+            <div className="mx-0.5 hidden h-6 w-px bg-black/10 sm:block dark:bg-white/10" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary/60 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/40 ring-2 ring-transparent transition-all hover:ring-primary/40"
+                  aria-label="Account menu"
+                >
+                  {initials || "A"}
+                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-black" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 rounded-2xl p-1.5">
+                <div className="flex items-center gap-3 rounded-xl p-2.5">
+                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/40">
+                    {initials || "A"}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
+                    {userEmail && <p className="truncate text-xs text-muted-foreground">{userEmail}</p>}
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={(e) => handleLogout(e as Event)}
+                  className="rounded-lg text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </header>
+
+        <main className="min-h-0 flex-1 overflow-hidden p-3 pb-4 sm:p-4 sm:pb-6 md:p-6 md:pb-8">
+          <div className="h-full w-full">
+            <div
+              className={cn(
+                "h-full overflow-y-auto rounded-3xl p-4 pb-6 sm:p-6 sm:pb-8 md:p-8 md:pb-10",
+                PANEL_BG,
+                "shadow-[0_1px_2px_rgba(0,0,0,0.04),0_24px_48px_-28px_rgba(0,0,0,0.14)]"
+              )}
+            >
+              {children}
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
 
-function AdminNavLink({ href, icon, label, className, disabled }: { href: string; icon: React.ReactNode; label: string; className?: string; disabled?: boolean }) {
+function NavItem({
+  href,
+  label,
+  icon: Icon,
+  active,
+  isCollapsed,
+}: {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  active: boolean;
+  isCollapsed: boolean;
+}) {
   return (
-    <Link 
-      href={disabled ? "#" : href} 
+    <Link
+      href={href}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group",
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-secondary",
-        className
+        "group relative flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition-all",
+        active
+          ? "bg-linear-to-b from-primary to-primary/90 text-primary-foreground shadow-sm shadow-primary/30"
+          : "text-muted-foreground hover:bg-black/[0.04] hover:text-foreground dark:hover:bg-white/[0.06]",
+        isCollapsed && "justify-center px-0"
       )}
     >
-      <div className="shrink-0 text-muted-foreground group-hover:text-primary transition-colors">
-        {icon}
-      </div>
-      <span className="text-sm font-medium hidden md:block text-muted-foreground group-hover:text-foreground">
-        {label}
-      </span>
+      <Icon className={cn("h-[18px] w-[18px] shrink-0", active && "drop-shadow-sm")} />
+      {!isCollapsed && <span className="truncate">{label}</span>}
+      {isCollapsed && (
+        <span className="pointer-events-none absolute left-full z-50 ml-3 whitespace-nowrap rounded-lg bg-foreground px-2.5 py-1.5 text-xs font-medium text-background opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          {label}
+        </span>
+      )}
     </Link>
   );
 }

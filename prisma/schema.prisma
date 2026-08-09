@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "mongodb"
+  url      = env("DATABASE_URL")
 }
 
 model Config {
@@ -19,14 +20,25 @@ model Event {
   title          String
   description    String
   date           DateTime
+  startTime      String?
+  endTime        String?
   location       String
+  address        String?
   imageUrl       String?
+  category       String?
+  price          String?
+  memberPrice    Float?
+  nonMemberPrice Float?
+  isFeatured     Boolean        @default(false)
   isPublished    Boolean        @default(false)
+  requiresLogin  Boolean        @default(false)
   maxAttendees   Int?
   registrations  Registration[]
+  galleryAlbum   GalleryAlbum?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
+
 
 model Registration {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -39,26 +51,214 @@ model Registration {
   attendees    Int      @default(1)
   isCheckedIn  Boolean  @default(false)
   checkInTime  DateTime?
-  createdAt    DateTime @default(now())
+  pricePaid     Float?
+  paymentStatus String   @default("PENDING") // PENDING, PAID, FAILED
+  paymentMethod String   @default("STRIPE")  // STRIPE, CASH
+  stripeId      String?
+  currency      String   @default("EUR")
+  details       Json?
+  createdAt     DateTime @default(now())
+
+  @@unique([eventId, email])
+  @@unique([eventId, phone])
 }
 
-model GalleryItem {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  url       String
-  publicId  String   @unique // Cloudinary public ID
-  caption   String?
-  category  String?
-  createdAt DateTime @default(now())
+model GalleryAlbum {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String?
+  category    String?        @default("Events")
+  eventId     String?        @db.ObjectId @unique
+  event       Event?         @relation(fields: [eventId], references: [id])
+  coverImage  String?        // Cloudinary URL
+  media       GalleryMedia[]
+  contributions MediaContribution[]
+  isPublished Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model GalleryMedia {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  albumId         String       @db.ObjectId
+  album           GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  type            MediaType    @default(IMAGE)
+  url             String
+  publicId        String       @unique
+  width           Int?
+  height          Int?
+  caption         String?
+  faces           FaceDetection[] // Multiple faces per image
+  createdAt       DateTime     @default(now())
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+model FaceDetection {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  mediaId     String       @db.ObjectId
+  media       GalleryMedia @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  descriptor  Float[]      // 128-dimensional face encoding
+  boundingBox Json?        // [x, y, width, height] for click-to-search UI
+  createdAt   DateTime     @default(now())
+}
+
+model Account {
+  id                String  @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String  @db.ObjectId
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.String
+  access_token      String? @db.String
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.String
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  sessionToken String   @unique
+  userId       String   @db.ObjectId
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
   name          String?
   email         String?   @unique
-  password      String?   // Hashed password for admin
-  role          String    @default("ADMIN")
+  password      String?   // Hashed password
+  role          String    @default("MEMBER")
   emailVerified DateTime?
   image         String?
+  accounts      Account[]
+  sessions      Session[]
+  status        String    @default("ACTIVE") // ACTIVE, SUSPENDED, DEACTIVATED
+  phone         String?
+  address       String?
+  city          String?
+  zip           String?
+  dob           DateTime?
+  occupation    String?
+  bio           String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  subscriptions Subscription[]
+  contributions MediaContribution[]
+  faceProfile   UserFaceProfile?
+}
+
+model UserFaceProfile {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId         String   @db.ObjectId @unique
+  user           User     @relation(fields: [userId], references: [id])
+  descriptor     Float[]  // 128-dimensional face encoding
+  updatedAt      DateTime @updatedAt
+}
+
+model MembershipPlan {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  price       Float
+  duration    String   @default("YEARLY")
+  features    String[]
+  isActive    Boolean  @default(true)
+  isPopular   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId           String   @db.ObjectId
+  user             User     @relation(fields: [userId], references: [id])
+  planId           String   @db.ObjectId
+  plan             MembershipPlan @relation(fields: [planId], references: [id])
+  startDate        DateTime @default(now())
+  endDate          DateTime
+  status           String   @default("ACTIVE")
+  paymentStatus    String   @default("PAID")    // PENDING, PAID, FAILED
+  paymentMethod    String   @default("STRIPE")  // STRIPE, CASH
+  stripeId         String?                     // Checkout Session ID
+  stripeSubscriptionId String? @unique         // Stripe Subscription ID
+  isApproved       Boolean  @default(true)      // False for Cash until admin approves
+  details          Json?               // Store extra info like family members or student verification
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+
+model VerificationToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  email      String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([email, token])
+}
+
+model LeadershipMember {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  role      String
+  image     String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MediaContribution {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String   @db.ObjectId
+  user        User     @relation(fields: [userId], references: [id])
+  albumId     String   @db.ObjectId
+  album       GalleryAlbum @relation(fields: [albumId], references: [id])
+  type        MediaType @default(IMAGE)
+  url         String
+  publicId    String   @unique
+  width       Int?
+  height      Int?
+  caption     String?
+  status      ContributionStatus @default(PENDING)
+  rejectionReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum ContributionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ContactMessage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  email     String
+  subject   String
+  message   String
+  status    String   @default("UNREAD") // UNREAD, READ, ARCHIVED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

@@ -2,20 +2,21 @@
 
 import React from "react";
 import { BrowserMultiFormatReader, IScannerControls } from "@zxing/browser";
-import { 
-  ArrowLeft, 
-  Camera, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2,
-  Users
+import {
+  ArrowLeft,
+  Camera,
+  CheckCircle2,
+  XCircle,
+  Loader2
 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { getRegistrationByTicketId, toggleCheckIn } from "@/lib/event-actions";
+import { PageHeader } from "@/components/admin/ui/page-header";
+import { StatusBadge } from "@/components/admin/ui/status-badge";
+import { cardSurface, panelHeader, chipTone, toolbarChip } from "@/components/admin/ui/surface";
 
 interface ScanResult {
   success: boolean;
@@ -29,7 +30,7 @@ export default function QRScannerPage() {
   const { eventId } = useParams();
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const controlsRef = React.useRef<IScannerControls | null>(null);
-  
+
   const [isScanning, setIsScanning] = React.useState(false);
   const [scanResult, setScanResult] = React.useState<ScanResult | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -39,14 +40,14 @@ export default function QRScannerPage() {
     setIsScanning(true);
     setScanResult(null);
     setError(null);
-    
+
     const codeReader = new BrowserMultiFormatReader();
-    
+
     try {
       if (videoRef.current) {
         const controls = await codeReader.decodeFromVideoDevice(
-          undefined, 
-          videoRef.current, 
+          undefined,
+          videoRef.current,
           (result, err) => {
             if (result) {
               handleScan(result.getText());
@@ -86,22 +87,35 @@ export default function QRScannerPage() {
     setScanResult(null);
 
     try {
-      // Simulate API verification
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock verification logic
-      if (ticketId.includes("KSA-")) {
-        setScanResult({
-          success: true,
-          name: "Aby Joseph",
-          attendees: 4,
-          ticketId: ticketId,
-          event: "Vishu Celebration 2026"
-        });
-      } else {
-        setError("Invalid Ticket ID or QR Code structure.");
+      const registration = await getRegistrationByTicketId(ticketId);
+
+      if (!registration) {
+        setError("Invalid ticket: no registration found for this ID.");
+        return;
       }
+
+      if (registration.isCheckedIn) {
+        setError(`${registration.name} is already checked in.`);
+        return;
+      }
+
+      if (eventId !== "all" && registration.eventId !== eventId) {
+        setError(`Ticket is for a different event: ${registration.event?.title}`);
+        return;
+      }
+
+      // Perform real check-in
+      await toggleCheckIn(registration.id, true);
+
+      setScanResult({
+        success: true,
+        name: registration.name,
+        attendees: registration.attendees,
+        ticketId: registration.ticketId,
+        event: registration.event?.title || "Unknown Event"
+      });
     } catch (err) {
+      console.error("Verification failed:", err);
       setError("Failed to verify ticket. Please try again.");
     } finally {
       setIsLoading(false);
@@ -109,164 +123,128 @@ export default function QRScannerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col font-sans">
-      <header className="p-6 flex items-center justify-between border-b border-white/10 shrink-0">
-        <Link 
-          href="/admin/registrations" 
-          onClick={stopScanning}
-          className="flex items-center text-white/70 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="mr-2 h-5 w-5" />
-          Exit Scanner
+    <div className="space-y-6">
+      <PageHeader
+        title="QR check-in"
+        description="Scan attendee tickets to check them in."
+      >
+        <Link href="/admin/registrations" onClick={stopScanning}>
+          <Button variant="outline" className={cn("h-9 rounded-lg", toolbarChip)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to registrations
+          </Button>
         </Link>
-        <h2 className="text-lg font-bold">QR Check-in</h2>
-        <div className="w-20" /> {/* Spacer */}
-      </header>
+      </PageHeader>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-        {/* Scanner Area */}
-        <div className="relative w-full max-w-md aspect-square rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl bg-zinc-900">
-          <AnimatePresence>
-            {!isScanning && !scanResult && !isLoading && !error && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm"
-              >
-                <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6 ring-4 ring-primary/10">
-                  <Camera className="h-10 w-10 text-primary" />
-                </div>
-                <Button size="lg" onClick={startScanning} className="px-8 h-12 font-bold shadow-xl">
-                  Start Scanning
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <video 
-            ref={videoRef} 
-            className={cn(
-              "w-full h-full object-cover",
-              !isScanning && "opacity-30"
-            )} 
-          />
-          
-          {/* Scanning Overlay Animation */}
-          {isScanning && (
-            <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 z-20 pointer-events-none">
-              <div className="h-1 w-full bg-primary shadow-[0_0_20px_rgba(var(--primary),1)] animate-pulse" />
-              <div className="absolute inset-0 border-2 border-primary/20 rounded-lg scale-110" />
+      <div className="mx-auto w-full max-w-md space-y-4">
+        {/* Scanner */}
+        <section className={cn(cardSurface, "overflow-hidden")}>
+          <header className={panelHeader}>
+            <div>
+              <h2 className="font-sans text-sm font-semibold text-foreground">Scanner</h2>
+              <p className="text-xs text-muted-foreground">Point the camera at a ticket QR code.</p>
             </div>
-          )}
-        </div>
-
-        {/* Status / Results Card */}
-        <div className="w-full max-w-md mt-12 min-h-[120px]">
-          {isLoading && (
-            <Card className="bg-white/5 border-white/10 text-white animate-pulse border-none">
-              <CardContent className="p-8 flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary mr-4" />
-                <span className="text-xl font-medium">Verifying Ticket...</span>
-              </CardContent>
-            </Card>
-          )}
-
-          <AnimatePresence mode="wait">
-            {scanResult && (
-              <motion.div 
-                key="success"
-                initial={{ opacity: 0, scale: 0.95, y: 10 }} 
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              >
-                <Card className="bg-green-500/10 border-green-500/40 text-white border-none shadow-2xl overflow-hidden relative">
-                  <div className="absolute top-0 right-0 p-4">
-                    <CheckCircle2 className="h-12 w-12 text-green-500/20" />
+          </header>
+          <div className="p-5">
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-muted">
+              {!isScanning && !scanResult && !isLoading && !error && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/80">
+                  <div className={cn("flex h-14 w-14 items-center justify-center rounded-full", chipTone("primary"))}>
+                    <Camera className="h-6 w-6" />
                   </div>
-                  <CardContent className="p-8">
-                    <div className="flex items-center mb-8">
-                      <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center mr-4">
-                        <CheckCircle2 className="h-7 w-7 text-black" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold">Valid Ticket</h3>
-                        <p className="text-green-500 text-sm font-semibold uppercase tracking-wider">Check-in Success</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4 pt-6 border-t border-white/10">
-                      <div className="flex justify-between items-center">
-                        <span className="text-white/40 text-sm">Attendee</span>
-                        <span className="font-bold text-lg">{scanResult.name}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-white/40 text-sm">Booking Group</span>
-                        <span className="font-bold flex items-center text-lg">
-                          <Users className="h-4 w-4 mr-2 text-primary" />
-                          {scanResult.attendees} People
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
-                        <span className="text-white/40 text-xs">ID</span>
-                        <span className="font-mono text-primary text-sm font-bold">{scanResult.ticketId}</span>
-                      </div>
-                    </div>
+                  <Button onClick={startScanning} className="h-9 rounded-lg">
+                    Start scanning
+                  </Button>
+                </div>
+              )}
 
-                    <Button 
-                      className="w-full mt-8 h-14 text-lg font-black shadow-lg shadow-green-900/20"
-                      onClick={startScanning}
-                    >
-                      Scan Next
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
+              <video
+                ref={videoRef}
+                className={cn(
+                  "h-full w-full object-cover",
+                  !isScanning && "opacity-30"
+                )}
+              />
 
-            {error && (
-              <motion.div 
-                key="error"
-                initial={{ opacity: 0, scale: 0.95, y: 10 }} 
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              {isScanning && (
+                <div className="pointer-events-none absolute inset-x-8 top-1/2 z-20 -translate-y-1/2">
+                  <div className="h-0.5 w-full animate-pulse rounded-full bg-primary" />
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* Status / results */}
+        {isLoading && (
+          <div className={cn(cardSurface, "flex items-center justify-center gap-3 p-6")}>
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Verifying ticket…</span>
+          </div>
+        )}
+
+        {scanResult && (
+          <section className={cn(cardSurface, "animate-in fade-in duration-300")}>
+            <div className={panelHeader}>
+              <div className="flex min-w-0 items-center gap-3">
+                <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", chipTone("emerald"))}>
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-sans text-sm font-semibold text-foreground">Ticket valid</h3>
+                  <p className="truncate text-xs text-muted-foreground">{scanResult.event}</p>
+                </div>
+              </div>
+              <StatusBadge tone="success">Checked in</StatusBadge>
+            </div>
+            <div className="space-y-3 p-5">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">Attendee</span>
+                <span className="text-sm font-medium text-foreground">{scanResult.name}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">Party size</span>
+                <span className="text-sm font-medium text-foreground tabular-nums">
+                  {scanResult.attendees} {scanResult.attendees === 1 ? "person" : "people"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/50 px-3 py-2">
+                <span className="text-xs text-muted-foreground">Ticket ID</span>
+                <span className="font-mono text-xs font-medium text-foreground">{scanResult.ticketId}</span>
+              </div>
+              <Button className="h-9 w-full rounded-lg" onClick={startScanning}>
+                Scan next
+              </Button>
+            </div>
+          </section>
+        )}
+
+        {error && (
+          <section className={cn(cardSurface, "p-6 animate-in fade-in duration-300")}>
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10 text-red-600 dark:text-red-400">
+                <XCircle className="h-6 w-6" />
+              </div>
+              <h3 className="font-sans text-sm font-semibold text-foreground">Check-in failed</h3>
+              <p className="mt-1 max-w-xs text-sm text-muted-foreground">{error}</p>
+              <Button
+                variant="outline"
+                className="mt-4 h-9 w-full rounded-lg"
+                onClick={startScanning}
               >
-                <Card className="bg-red-500/10 border-red-500/40 text-white border-none shadow-2xl">
-                  <CardContent className="p-8 flex flex-col items-center text-center">
-                    <div className="h-20 w-20 rounded-full bg-red-500/20 flex items-center justify-center mb-6">
-                      <XCircle className="h-12 w-12 text-red-500" />
-                    </div>
-                    <h3 className="text-2xl font-bold mb-2">Check-in Failed</h3>
-                    <p className="text-red-500/80 mb-8 max-w-xs">{error}</p>
-                    <Button 
-                      variant="outline" 
-                      className="w-full h-12 border-white/20 text-white hover:bg-white/10 font-bold"
-                      onClick={startScanning}
-                    >
-                      Try Again
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </main>
+                Try again
+              </Button>
+            </div>
+          </section>
+        )}
 
-      {/* Manual Search Helper */}
-      <footer className="p-8 border-t border-white/10 text-center shrink-0">
-        <p className="text-white/40 text-xs mb-4 uppercase tracking-widest">Having trouble scanning?</p>
-        <Link href="/admin/registrations" className="text-primary hover:underline font-bold text-sm">
-          Return to Manual List
-        </Link>
-      </footer>
-
-      <style jsx global>{`
-        @keyframes pulse-ring {
-          0% { transform: scale(0.95); opacity: 0.5; }
-          100% { transform: scale(1.05); opacity: 0.1; }
-        }
-      `}</style>
+        <p className="text-center text-xs text-muted-foreground">
+          Having trouble scanning?{" "}
+          <Link href="/admin/registrations" className="font-medium text-primary hover:underline">
+            Use the registrations list
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

@@ -25,7 +25,9 @@ export interface SiteConfig {
     enableRegistration: boolean;
     enableGallery: boolean;
     enableMembership: boolean;
+    maintenanceMode: boolean;
   };
+  footerText?: string;
 }
 
 export const defaultConfig: SiteConfig = {
@@ -49,5 +51,7 @@ export const defaultConfig: SiteConfig = {
     enableRegistration: true,
     enableGallery: true,
     enableMembership: true,
+    maintenanceMode: false,
   },
+  footerText: "© 2024 Kerala Samajam Augsburg. All rights reserved.",
 };

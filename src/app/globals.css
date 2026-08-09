@@ -29,12 +29,24 @@
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
 
-  --font-serif: var(--font-serif);
-  --font-sans: var(--font-sans);
+  /* Section surfaces — see :root below for the rotation order */
+  --color-surface-1: hsl(var(--surface-1));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-surface-3: hsl(var(--surface-3));
+  --color-surface-deep: hsl(var(--surface-deep));
 
   --radius-lg: 1rem;
   --radius-md: 0.75rem;
   --radius-sm: 0.5rem;
+
+  --z-100: 100;
+  --z-150: 150;
+  --z-200: 200;
+}
+
+@theme inline {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
 }
 
 @layer base {
@@ -59,6 +71,18 @@
     --input: 0 0% 92%;
     --ring: 346.8 77.2% 49.8%;
     --radius: 1rem;
+
+    /* ---------------------------------------------------------------
+       Section surfaces.
+       Stacked sections alternate between these so each band reads as a
+       distinct panel without ever fighting the content. Rotation used on
+       the home page: hero (black) → 1 → 2 → 1 → 3 → deep.
+       Keep the steps this small — the tint should be felt, not seen.
+       --------------------------------------------------------------- */
+    --surface-1: 0 0% 100%;      /* base white */
+    --surface-2: 32 30% 97.6%;   /* warm cream  */
+    --surface-3: 347 44% 98%;    /* faint blush, echoes the primary */
+    --surface-deep: 0 0% 6%;     /* dark contrast band (CTA/footer) */
   }
 
   .dark {
@@ -81,6 +105,13 @@
     --border: 0 0% 12%;
     --input: 0 0% 12%;
     --ring: 346.8 77.2% 49.8%;
+
+    /* Dark mode inverts the idea: the base stays pure black and each
+       following band lifts slightly, so depth still reads top to bottom. */
+    --surface-1: 0 0% 0%;
+    --surface-2: 0 0% 4.3%;
+    --surface-3: 346 14% 5.5%;
+    --surface-deep: 0 0% 3%;
   }
 }
 
@@ -92,7 +123,8 @@
     @apply bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary;
   }
   h1, h2, h3, h4, h5, h6 {
-    @apply font-serif tracking-tight text-foreground;
+    @apply font-serif text-foreground;
+    letter-spacing: -0.015em;
   }
 
   /* Prevent browser autofill from changing input colors */
@@ -105,9 +137,24 @@
   select:-webkit-autofill,
   select:-webkit-autofill:hover,
   select:-webkit-autofill:focus {
-    -webkit-text-fill-color: hsl(var(--foreground)) !important;
-    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--background)) inset !important;
-    transition: background-color 5000s ease-in-out 0s;
+    -webkit-text-fill-color: currentColor !important;
+    -webkit-box-shadow: 0 0 0px 1000px hsl(var(--background)) inset;
+    transition: background-color 5000000s ease-in-out 0s;
+    caret-color: currentColor;
+  }
+
+  /* Support for Firefox and modern browsers */
+  input:autofill,
+  input:autofill:hover,
+  input:autofill:focus,
+  textarea:autofill,
+  textarea:autofill:hover,
+  textarea:autofill:focus,
+  select:autofill,
+  select:autofill:hover,
+  select:autofill:focus {
+    filter: none;
+    transition: background-color 5000000s ease-in-out 0s;
   }
 }
 

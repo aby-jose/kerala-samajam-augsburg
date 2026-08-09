@@ -1,16 +1,18 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { signIn } from "next-auth/react";
+import React, { Suspense, useEffect, useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, ArrowRight, ShieldCheck, AlertCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTheme } from "next-themes";
+import { cn } from "@/lib/utils";
+import { useConfig } from "@/components/providers/config-provider";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -20,9 +22,26 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    }>
+      <AdminLoginForm />
+    </Suspense>
+  );
+}
+
+function AdminLoginForm() {
+  const config = useConfig();
   const router = useRouter();
+  const { data: session, status } = useSession();
+  const [view, setView] = useState<"login" | "forgot">("login");
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetStatus, setResetStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -30,6 +49,15 @@ export default function AdminLoginPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const searchParams = useSearchParams();
+  const isLogout = searchParams.get("logout") === "true";
+
+  useEffect(() => {
+    if (status === "authenticated" && (session?.user as any)?.role === "ADMIN" && !isLogout) {
+      router.push("/admin/dashboard");
+    }
+  }, [status, session, router, isLogout]);
 
   // Default to dark during SSR to prevent flash, then update immediately
   const isDark = !mounted || resolvedTheme === "dark";
@@ -47,131 +75,240 @@ export default function AdminLoginPage() {
     setError(null);
 
     try {
-      const result = await signIn("credentials", {
+      const result = await signIn("admin-credentials", {
         redirect: false,
         email: data.email,
         password: data.password,
+      }, {
+        // @ts-ignore
+        basePath: "/api/admin/auth"
       });
 
       if (result?.error) {
-        setError("Invalid credentials.");
+        setError("Invalid email or password.");
       } else {
         router.push("/admin/dashboard");
         router.refresh();
       }
     } catch (err) {
-      setError("Authentication error.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const onSubmitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setResetStatus(null);
+    try {
+      const { requestPasswordReset } = await import("@/lib/auth-actions");
+      const result = await requestPasswordReset(resetEmail);
+      if (result.error) {
+        setResetStatus({ type: "error", message: result.error });
+      } else {
+        setResetStatus({ type: "success", message: "Reset link sent. Check your email." });
+      }
+    } catch (err) {
+      setResetStatus({ type: "error", message: "Failed to process request." });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const inputClasses = (hasError?: boolean) =>
+    cn(
+      "h-10 w-full rounded-xl border px-3 text-sm outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary",
+      isDark
+        ? "bg-black/40 text-white placeholder:text-white/30 autofill:shadow-[inset_0_0_0_1000px_#0a0a0a]"
+        : "bg-white/70 text-zinc-900 placeholder:text-zinc-400 autofill:shadow-[inset_0_0_0_1000px_#ffffff]",
+      hasError ? "border-red-500/60" : isDark ? "border-white/10" : "border-zinc-300"
+    );
+
+  const labelClasses = cn("text-sm font-medium", isDark ? "text-white/80" : "text-zinc-700");
+  const linkClasses = cn(
+    "text-xs font-medium transition-colors",
+    isDark ? "text-white/60 hover:text-white" : "text-zinc-500 hover:text-zinc-900"
+  );
+  const fieldErrorClasses = cn("mt-1 text-xs", isDark ? "text-red-400" : "text-red-600");
+
+  if (status === "loading" || (status === "authenticated" && (session?.user as any)?.role === "ADMIN")) {
+    return (
+      <div className="flex flex-col items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      className="w-full max-w-[420px]"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="w-full max-w-md"
     >
-      {/* Dual Theme Glass Card: Guaranteed by JS State rendering distinct Tailwind classes */}
-      <div className={`backdrop-blur-xl relative overflow-hidden transition-colors duration-500 rounded-2xl p-10 md:p-14 ${isDark ? 'bg-black/70 border border-white/10 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)]' : 'bg-white/80 border border-white/60 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)]'}`}>
-        
-        {/* Subtle Internal Glow */}
-        <div className="absolute -top-12 -left-12 w-32 h-32 bg-primary/20 rounded-full blur-[60px] opacity-50 pointer-events-none" />
-        
-        <div className="relative z-10 space-y-10">
-          {/* Header */}
+      <div className={cn(
+        "w-full rounded-3xl border p-8 shadow-[0_2px_4px_rgba(0,0,0,0.08),0_32px_64px_-24px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors",
+        isDark ? "border-white/10 bg-zinc-950/70" : "border-zinc-200 bg-white/85"
+      )}>
+        <div className="space-y-6">
           <div className="space-y-4 text-center">
-            <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl mb-2 shadow-sm transition-colors duration-500 ${isDark ? 'bg-white/5 border border-white/10 text-white' : 'bg-primary/5 border border-primary/10 text-primary'}`}>
-              <ShieldCheck className="w-6 h-6" />
+            <div className={cn(
+              "mx-auto flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border p-1.5",
+              isDark ? "border-white/10 bg-white/5" : "border-zinc-200 bg-white"
+            )}>
+              <img src={config.branding.logoUrl || "/images/logo.png"} alt={config.siteName} className="h-full w-full object-contain" />
             </div>
-            <div className="space-y-1.5">
-              <h1 className={`text-2xl font-bold tracking-tight transition-colors duration-500 ${isDark ? 'text-white' : 'text-zinc-900'}`}>Admin Portal</h1>
-              <p className={`text-[13px] font-medium transition-colors duration-500 ${isDark ? 'text-white/40' : 'text-zinc-500'}`}>Verify credentials for institutional access</p>
+            <div className="space-y-1">
+              <h1 className={cn("font-sans text-xl font-semibold tracking-tight", isDark ? "text-white" : "text-zinc-900")}>
+                {view === "login" ? "Admin portal" : "Reset password"}
+              </h1>
+              <p className={cn("text-sm", isDark ? "text-white/60" : "text-zinc-500")}>
+                {view === "login"
+                  ? `Sign in to manage ${config.siteName}`
+                  : "Enter your email and we'll send you a reset link."}
+              </p>
             </div>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="space-y-5">
-              {/* Email */}
-              <div className="space-y-2">
-                <Label className={`text-[10px] font-bold uppercase tracking-widest pl-1 transition-colors duration-500 ${isDark ? 'text-white/30' : 'text-zinc-500'}`}>
-                  Email Address
-                </Label>
-                <input
-                  type="email"
-                  {...register("email")}
-                  placeholder="admin@ksaugsburg.de"
-                  className={`w-full h-12 rounded-lg px-4 text-sm outline-none focus:ring-1 focus:ring-primary transition-all duration-500 ${isDark ? 'bg-black/40 text-white placeholder:text-white/20' : 'bg-white/60 text-zinc-900 placeholder:text-zinc-400'} ${errors.email ? 'border border-red-500/50' : isDark ? 'border border-white/10' : 'border border-zinc-200'}`}
-                />
-                <AnimatePresence mode="wait">
-                  {errors.email && (
-                    <motion.p 
-                      initial={{ opacity: 0, x: -4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="text-[10px] text-red-400 flex items-center gap-1.5 pl-1 font-bold uppercase tracking-tight mt-1"
-                    >
-                      <AlertCircle className="w-3 h-3" /> {errors.email.message}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </div>
+          <AnimatePresence mode="wait">
+            {view === "login" ? (
+              <motion.form
+                key="login-form"
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 8 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                onSubmit={handleSubmit(onSubmit)}
+                className="space-y-5"
+              >
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className={labelClasses}>Email</Label>
+                    <input
+                      id="email"
+                      type="email"
+                      {...register("email")}
+                      placeholder="admin@ksaugsburg.de"
+                      className={inputClasses(!!errors.email)}
+                    />
+                    {errors.email && (
+                      <p className={fieldErrorClasses}>{errors.email.message}</p>
+                    )}
+                  </div>
 
-              {/* Password */}
-              <div className="space-y-2">
-                <Label className={`text-[10px] font-bold uppercase tracking-widest pl-1 transition-colors duration-500 ${isDark ? 'text-white/30' : 'text-zinc-500'}`}>
-                  Access Key
-                </Label>
-                <input
-                  type="password"
-                  {...register("password")}
-                  placeholder="••••••••"
-                  className={`w-full h-12 rounded-lg px-4 text-sm outline-none focus:ring-1 focus:ring-primary transition-all duration-500 ${isDark ? 'bg-black/40 text-white placeholder:text-white/20' : 'bg-white/60 text-zinc-900 placeholder:text-zinc-400'} ${errors.password ? 'border border-red-500/50' : isDark ? 'border border-white/10' : 'border border-zinc-200'}`}
-                />
-                <AnimatePresence mode="wait">
-                  {errors.password && (
-                    <motion.p 
-                      initial={{ opacity: 0, x: -4 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className="text-[10px] text-red-400 flex items-center gap-1.5 pl-1 font-bold uppercase tracking-tight mt-1"
-                    >
-                      <AlertCircle className="w-3 h-3" /> {errors.password.message}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className={labelClasses}>Password</Label>
+                      <button
+                        type="button"
+                        onClick={() => { setView("forgot"); setError(null); }}
+                        className={linkClasses}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <input
+                      id="password"
+                      type="password"
+                      {...register("password")}
+                      placeholder="••••••••"
+                      className={inputClasses(!!errors.password)}
+                    />
+                    {errors.password && (
+                      <p className={fieldErrorClasses}>{errors.password.message}</p>
+                    )}
+                  </div>
+                </div>
 
-            <AnimatePresence>
-              {error && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-bold p-4 rounded-xl text-center uppercase tracking-widest"
+                {error && (
+                  <div className={cn(
+                    "rounded-lg border px-3 py-2 text-sm",
+                    isDark
+                      ? "border-red-500/30 bg-red-500/10 text-red-400"
+                      : "border-red-200 bg-red-50 text-red-600"
+                  )}>
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="h-10 w-full rounded-lg text-sm font-medium"
                 >
-                  {error}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  {isLoading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Signing in…
+                    </span>
+                  ) : (
+                    "Sign in"
+                  )}
+                </Button>
+              </motion.form>
+            ) : (
+              <motion.form
+                key="forgot-form"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                onSubmit={onSubmitReset}
+                className="space-y-5"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="reset-email" className={labelClasses}>Email</Label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="admin@ksaugsburg.de"
+                    required
+                    className={inputClasses()}
+                  />
+                </div>
 
-            <Button 
-              type="submit" 
-              disabled={isLoading}
-              className="w-full h-12 rounded-lg bg-primary hover:opacity-90 text-white font-bold uppercase tracking-[0.2em] text-[10px] transition-all relative overflow-hidden shadow-lg shadow-primary/20 mt-4"
-            >
-              {isLoading ? (
-                <span className="flex items-center gap-2">
-                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full" />
-                  Authenticating...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  Sign In
-                  <ArrowRight className="w-4 h-4" />
-                </span>
-              )}
-            </Button>
-          </form>
+                {resetStatus && (
+                  <div className={cn(
+                    "rounded-lg border px-3 py-2 text-sm",
+                    resetStatus.type === "success"
+                      ? isDark
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : isDark
+                        ? "border-red-500/30 bg-red-500/10 text-red-400"
+                        : "border-red-200 bg-red-50 text-red-600"
+                  )}>
+                    {resetStatus.message}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="h-10 w-full rounded-lg text-sm font-medium"
+                  >
+                    {isLoading ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Sending…
+                      </span>
+                    ) : (
+                      "Send reset link"
+                    )}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => { setView("login"); setResetStatus(null); }}
+                    className={cn("w-full py-2 text-center", linkClasses)}
+                  >
+                    Back to sign in
+                  </button>
+                </div>
+              </motion.form>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </motion.div>

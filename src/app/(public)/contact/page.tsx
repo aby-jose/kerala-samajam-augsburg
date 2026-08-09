@@ -14,15 +14,23 @@ import {
   CheckCircle2,
   Globe,
   MessageSquare,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getContactCaptcha, submitContactForm } from "@/lib/contact-actions";
+import {
+  Accent,
+  Eyebrow,
+  PageHeader,
+} from "@/components/layout/section-heading";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name is required"),
   email: z.string().email("Invalid email address"),
   subject: z.string().min(5, "Subject is required"),
   message: z.string().min(10, "Message must be at least 10 characters"),
+  captchaCode: z.string().min(6, "Security code is required"),
 });
 
 type ContactFormValues = z.infer<typeof contactSchema>;
@@ -30,25 +38,57 @@ type ContactFormValues = z.infer<typeof contactSchema>;
 export default function ContactPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isSent, setIsSent] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [captcha, setCaptcha] = React.useState<{ id: string; code: string } | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
+    defaultValues: {
+      captchaCode: "",
+    }
   });
 
+  const captchaInput = watch("captchaCode");
+
+  const fetchCaptcha = React.useCallback(async () => {
+    const data = await getContactCaptcha();
+    setCaptcha(data);
+    setValue("captchaCode", "");
+  }, [setValue]);
+
+  React.useEffect(() => {
+    fetchCaptcha();
+  }, [fetchCaptcha]);
+
   const onSubmit = async (data: ContactFormValues) => {
+    if (!captcha) return;
+    
     setIsLoading(true);
+    setError(null);
+    
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      console.log("Contact form submission:", data);
-      setIsSent(true);
-      reset();
-    } catch (error) {
-      console.error(error);
+      const result = await submitContactForm({
+        ...data,
+        captchaId: captcha.id,
+      });
+
+      if (result.error) {
+        setError(result.error);
+        fetchCaptcha();
+      } else {
+        setIsSent(true);
+        reset();
+      }
+    } catch (err) {
+      setError("An unexpected error occurred. Please try again.");
+      fetchCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -71,30 +111,25 @@ export default function ContactPage() {
   return (
     <main className="min-h-screen flex flex-col bg-background selection:bg-primary/5">
       
-      {/* 1. Institutional Hero Header */}
-      <section className="pt-40 pb-20 border-b border-border/5 overflow-hidden">
+      {/* 1. Page header — surface 1 */}
+      <section className="pt-40 pb-20 bg-surface-1 overflow-hidden">
         <Container className="max-w-7xl">
            <motion.div
              initial="hidden"
              animate="visible"
              variants={revealVariants}
-             className="text-center space-y-8"
            >
-              <div className="space-y-4 max-w-4xl mx-auto">
-                <span className="text-[10px] font-bold text-primary uppercase tracking-[0.5em] block">Connect with Us</span>
-                <h1 className="text-4xl md:text-5xl font-serif font-medium leading-[1.05] tracking-tight text-foreground">
-                  Get in <span className="text-primary italic font-light">Touch.</span>
-                </h1>
-                <p className="text-base md:text-lg text-muted-foreground leading-relaxed font-light max-w-2xl mx-auto transition-colors duration-500">
-                  Have questions about our initiatives? We are here to help you connect with the heart of Kerala in Augsburg.
-                </p>
-              </div>
+              <PageHeader
+                eyebrow="Contact"
+                title={<>Get in <Accent>Touch</Accent></>}
+                lead="Questions about membership, an event, or moving to Augsburg? Write to us and a member of the committee will get back to you."
+              />
            </motion.div>
         </Container>
       </section>
 
-      {/* 2. Unified Contact Hub */}
-      <section className="py-24 bg-background mb-20">
+      {/* 2. Contact hub — surface 2 */}
+      <section className="py-24 md:py-32 bg-surface-2 border-y border-border">
         <Container className="max-w-6xl">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -107,8 +142,10 @@ export default function ContactPage() {
             <div className="lg:col-span-4 bg-secondary/10 p-8 md:p-12 border-b lg:border-b-0 lg:border-r border-border/50 flex flex-col justify-between">
               <div className="space-y-12">
                 <div className="space-y-4">
-                  <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Our Channels</h3>
-                  <h2 className="text-2xl font-serif font-medium tracking-tight">Direct Path.</h2>
+                  <Eyebrow>Reach us</Eyebrow>
+                  <h2 className="font-sans text-2xl font-extrabold tracking-[-0.03em] text-foreground">
+                    How to Reach Us
+                  </h2>
                 </div>
 
                 <div className="space-y-8">
@@ -136,14 +173,16 @@ export default function ContactPage() {
               </div>
 
               <div className="pt-12 mt-12 border-t border-border/50 hidden lg:block">
-                 <div className="flex -space-x-2 mb-4">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-7 w-7 rounded-full border border-background bg-muted overflow-hidden flex items-center justify-center grayscale">
-                      <img src={`https://i.pravatar.cc/100?u=${i}`} alt="Collaborator" className="h-full w-full object-cover" />
-                    </div>
-                  ))}
-                 </div>
-                 <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 block">500+ Active Members</span>
+                 <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">
+                   Registered association
+                 </span>
+                 <p className="mt-3 font-sans text-sm font-bold tracking-[-0.015em] text-foreground">
+                   Kerala Samajam Augsburg e.V.
+                 </p>
+                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                   Run by volunteers. Every message is read by a member of the
+                   committee.
+                 </p>
               </div>
             </div>
 
@@ -164,9 +203,22 @@ export default function ContactPage() {
                       className="space-y-8 relative z-10"
                     >
                       <div className="space-y-1">
-                         <h3 className="text-3xl font-serif font-medium tracking-tight">Send a Message.</h3>
-                         <p className="text-sm text-muted-foreground font-light">We typically respond within one business day.</p>
+                         <h3 className="font-sans text-3xl font-extrabold tracking-[-0.035em] text-foreground">Send a Message</h3>
+                         <p className="text-sm text-muted-foreground">We read everything that comes in and reply as soon as we can.</p>
                       </div>
+
+                      <AnimatePresence mode="wait">
+                        {error && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="bg-destructive/10 border border-destructive/20 text-destructive text-[10px] font-bold p-4 rounded-xl text-center uppercase tracking-widest flex items-center justify-center gap-2"
+                          >
+                            <AlertCircle className="w-3 h-3" /> {error}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
@@ -227,6 +279,38 @@ export default function ContactPage() {
                         )}
                       </div>
 
+                      {/* Captcha Section */}
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Security Verification</label>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-12 bg-muted/30 border border-border rounded-lg flex items-center justify-center relative overflow-hidden group/cap">
+                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(var(--primary-rgb),0.05),transparent)]" />
+                             <span className="text-xl font-black tracking-[0.3em] font-mono italic select-none opacity-80 group-hover/cap:scale-110 transition-transform">
+                               {captcha?.code || "......"}
+                             </span>
+                             <button 
+                               type="button"
+                               onClick={fetchCaptcha}
+                               className="absolute right-2 p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground"
+                             >
+                               <RefreshCw className="h-4 w-4" />
+                             </button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Code"
+                            maxLength={6}
+                            {...register("captchaCode")}
+                            className={`w-28 h-12 bg-transparent border ${errors.captchaCode ? 'border-destructive' : 'border-border'} hover:border-foreground/30 focus:border-foreground rounded-lg text-center font-bold tracking-widest text-sm transition-colors outline-none placeholder:text-muted-foreground/50 placeholder:font-normal placeholder:tracking-normal uppercase`}
+                          />
+                        </div>
+                        {errors.captchaCode && (
+                          <p className="text-[10px] text-destructive flex items-center gap-1 pl-1">
+                            <AlertCircle className="w-3 h-3" /> {errors.captchaCode.message}
+                          </p>
+                        )}
+                      </div>
+
                       <Button 
                         type="submit" 
                         size="sm" 
@@ -254,13 +338,14 @@ export default function ContactPage() {
                         <CheckCircle2 className="h-8 w-8 text-primary" />
                       </div>
                       <div className="space-y-1">
-                        <h3 className="text-2xl font-serif font-medium tracking-tight">Message Received.</h3>
-                        <p className="text-sm text-muted-foreground font-light max-w-sm mx-auto leading-relaxed">
-                           We have received your query and will respond shortly.
+                        <h3 className="font-sans text-2xl font-extrabold tracking-[-0.03em] text-foreground">Message Sent</h3>
+                        <p className="text-sm text-muted-foreground max-w-sm mx-auto leading-relaxed">
+                           Thank you — your message is with the committee and
+                           someone will be in touch.
                         </p>
                       </div>
                       <Button variant="outline" onClick={() => setIsSent(false)} className="h-10 px-8 rounded-lg border-border hover:bg-background uppercase tracking-[0.2em] text-[10px] font-bold">
-                        Return
+                        Send Another
                       </Button>
                     </motion.div>
                   )}

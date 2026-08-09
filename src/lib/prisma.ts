@@ -7,20 +7,13 @@ const prismaClientSingleton = () => {
 };
 
 declare global {
-  var prisma: undefined | ReturnType<typeof prismaClientSingleton>;
+  var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>;
 }
 
-const getPrisma = () => {
-  if (typeof window !== "undefined") return null as unknown as PrismaClient;
-  if (!globalThis.prisma) {
-    globalThis.prisma = prismaClientSingleton();
-  }
-  return globalThis.prisma;
-};
+export const prisma = (globalThis.prismaGlobal && (globalThis.prismaGlobal as any).contactMessage) 
+  ? globalThis.prismaGlobal 
+  : prismaClientSingleton();
 
-export const prisma = new Proxy({} as PrismaClient, {
-  get: (target, prop) => {
-    const p = getPrisma();
-    return (p as unknown as Record<string | symbol, unknown>)[prop];
-  }
-});
+if (process.env.NODE_ENV !== "production") globalThis.prismaGlobal = prisma;
+
+export const getPrisma = async () => prisma;

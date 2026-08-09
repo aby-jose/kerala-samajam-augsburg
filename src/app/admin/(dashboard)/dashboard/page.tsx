@@ -1,136 +1,208 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Users, 
-  Calendar, 
-  CheckCircle2, 
+"use client";
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Users,
+  Calendar,
+  CheckCircle2,
   TrendingUp,
-  ArrowUpRight,
-  ArrowDownRight
+  ArrowRight,
 } from "lucide-react";
+import { getAdminDashboardStats } from "@/lib/event-actions";
+import { formatDistanceToNow } from "date-fns";
+import { PageHeader } from "@/components/admin/ui/page-header";
+import { StatCard } from "@/components/admin/ui/stat-card";
+import { EmptyState } from "@/components/admin/ui/empty-state";
+import { Skeleton } from "@/components/admin/ui/skeleton";
+import { cardSurface, panelHeader } from "@/components/admin/ui/surface";
+import { cn } from "@/lib/utils";
 
 export default function AdminDashboardPage() {
-  const stats = [
-    { 
-      label: "Total Registrations", 
-      value: "142", 
-      icon: Users, 
-      trend: "+12%", 
-      trendUp: true 
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await getAdminDashboardStats();
+        setStats(data);
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  const statCards = [
+    {
+      label: "Total registrations",
+      value: stats.totalRegistrations.toString(),
+      icon: Users,
+      tone: "primary" as const,
+      delta: stats.regTrend,
+      hint: "vs. last month",
     },
-    { 
-      label: "Upcoming Events", 
-      value: "4", 
-      icon: Calendar, 
-      trend: "Steady", 
-      trendUp: true 
+    {
+      label: "Upcoming events",
+      value: stats.upcomingEvents.toString(),
+      icon: Calendar,
+      tone: "violet" as const,
+      hint: "currently scheduled",
     },
-    { 
-      label: "Check-ins Today", 
-      value: "0", 
-      icon: CheckCircle2, 
-      trend: "N/A", 
-      trendUp: true 
+    {
+      label: "Check-ins",
+      value: stats.checkedInCount.toString(),
+      icon: CheckCircle2,
+      tone: "emerald" as const,
+      hint: "updated in real time",
     },
-    { 
-      label: "Total Revenue", 
-      value: "€2,540", 
-      icon: TrendingUp, 
-      trend: "+8%", 
-      trendUp: true 
+    {
+      label: "Estimated revenue",
+      value: `€${stats.totalRevenue.toLocaleString()}`,
+      icon: TrendingUp,
+      tone: "amber" as const,
+      delta: stats.revTrend,
+      hint: "vs. last month",
     },
   ];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-        <p className="text-muted-foreground">Welcome back to the KSA administrative portal.</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Dashboard"
+        description="Overview of registrations, events and revenue."
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, i) => (
-          <Card key={i} className="border-none shadow-sm">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.label}
-              </CardTitle>
-              <stat.icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <div className="flex items-center text-xs mt-1">
-                {stat.trendUp ? (
-                  <ArrowUpRight className="mr-1 h-3 w-3 text-green-500" />
-                ) : (
-                  <ArrowDownRight className="mr-1 h-3 w-3 text-red-500" />
-                )}
-                <span className={stat.trendUp ? "text-green-500" : "text-red-500 font-medium"}>
-                  {stat.trend}
-                </span>
-                <span className="text-muted-foreground ml-1">from last month</span>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <StatCard
+            key={stat.label}
+            label={stat.label}
+            value={stat.value}
+            icon={stat.icon}
+            tone={stat.tone}
+            delta={stat.delta}
+            hint={stat.hint}
+          />
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Recent Registrations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {[
-                { name: "Aby Joseph", event: "Vishu Celebration", time: "2 hours ago" },
-                { name: "John Doe", event: "Sports Meet", time: "5 hours ago" },
-                { name: "Sarah Smith", event: "Vishu Celebration", time: "1 day ago" },
-                { name: "Mathews P.", event: "Malayalam Class", time: "2 days ago" },
-              ].map((reg, idx) => (
-                <div key={idx} className="flex items-center justify-between group">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs ring-2 ring-background ring-offset-2 ring-offset-primary/5 transition-all group-hover:ring-primary/20">
-                      {reg.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium leading-none">{reg.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{reg.event}</p>
-                    </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">{reg.time}</div>
-                </div>
-              ))}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Recent registrations */}
+        <section className={cardSurface}>
+          <header className={panelHeader}>
+            <div>
+              <h2 className="font-sans text-sm font-semibold text-foreground">Recent registrations</h2>
+              <p className="text-xs text-muted-foreground">Latest sign-ups across all events</p>
             </div>
-          </CardContent>
-        </Card>
+            <Link
+              href="/admin/registrations"
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            >
+              View all
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </header>
+          <div className="divide-y divide-border">
+            {stats.recentRegistrations.map((reg: any, idx: number) => (
+              <div key={idx} className="flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/5 text-xs font-semibold text-primary">
+                    {reg.name.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-foreground">{reg.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{reg.event?.title}</p>
+                  </div>
+                </div>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(reg.createdAt), { addSuffix: true })}
+                </span>
+              </div>
+            ))}
+            {stats.recentRegistrations.length === 0 && (
+              <EmptyState
+                icon={Users}
+                title="No registrations yet"
+                description="New event sign-ups will appear here."
+                className="py-10"
+              />
+            )}
+          </div>
+        </section>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader>
-            <CardTitle>Event Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-              {[
-                { title: "Vishu Celebration", status: "Active", progress: 85 },
-                { title: "Sports Meet", status: "Planning", progress: 40 },
-                { title: "Onam 2026", status: "Draft", progress: 10 },
-              ].map((event, idx) => (
-                <div key={idx} className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{event.title}</span>
-                    <span className="text-muted-foreground">{event.status}</span>
-                  </div>
-                  <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-primary transition-all duration-500" 
-                      style={{ width: `${event.progress}%` }} 
-                    />
-                  </div>
+        {/* Event engagement */}
+        <section className={cardSurface}>
+          <header className={panelHeader}>
+            <div>
+              <h2 className="font-sans text-sm font-semibold text-foreground">Event capacity</h2>
+              <p className="text-xs text-muted-foreground">Registrations against capacity per event</p>
+            </div>
+          </header>
+          <div className="space-y-5 px-5 py-5 sm:px-6">
+            {stats.eventStatus.map((event: any, idx: number) => (
+              <div key={idx} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-4 text-sm">
+                  <span className="truncate font-medium text-foreground">{event.title}</span>
+                  <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">{event.status}</span>
                 </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-all duration-500"
+                    style={{ width: `${event.progress}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+            {stats.eventStatus.length === 0 && (
+              <EmptyState
+                icon={Calendar}
+                title="No active events"
+                description="Create an event to start tracking engagement."
+                tone="violet"
+                className="py-6"
+              />
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className={cn(cardSurface, "p-5")}>
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-3 h-8 w-16" />
+            <Skeleton className="mt-2 h-3 w-32" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className={cn(cardSurface, "p-5")}>
+            <Skeleton className="h-4 w-40" />
+            <div className="mt-4 space-y-3">
+              {Array.from({ length: 4 }).map((_, j) => (
+                <Skeleton key={j} className="h-10 w-full" />
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        ))}
       </div>
     </div>
   );

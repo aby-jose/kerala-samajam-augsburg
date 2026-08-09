@@ -7,10 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 
 const {
   Decimal,
-  DbNull,
-  JsonNull,
-  AnyNull,
-  NullTypes,
+  objectEnumValues,
   makeStrictEnum,
   Public,
   getRuntime,
@@ -24,12 +21,12 @@ exports.Prisma = Prisma
 exports.$Enums = {}
 
 /**
- * Prisma Client JS version: 7.5.0
- * Query Engine version: 280c870be64f457428992c43c1f6d557fab6e29e
+ * Prisma Client JS version: 6.19.3
+ * Query Engine version: c2990dca591cba766e3b7ef5d9e8a84796e47ab7
  */
 Prisma.prismaVersion = {
-  client: "7.5.0",
-  engine: "280c870be64f457428992c43c1f6d557fab6e29e"
+  client: "6.19.3",
+  engine: "c2990dca591cba766e3b7ef5d9e8a84796e47ab7"
 }
 
 Prisma.PrismaClientKnownRequestError = () => {
@@ -101,11 +98,15 @@ In case this error is unexpected for you, please report it in https://pris.ly/pr
 /**
  * Shorthand utilities for JSON filtering
  */
-Prisma.DbNull = DbNull
-Prisma.JsonNull = JsonNull
-Prisma.AnyNull = AnyNull
+Prisma.DbNull = objectEnumValues.instances.DbNull
+Prisma.JsonNull = objectEnumValues.instances.JsonNull
+Prisma.AnyNull = objectEnumValues.instances.AnyNull
 
-Prisma.NullTypes = NullTypes
+Prisma.NullTypes = {
+  DbNull: objectEnumValues.classes.DbNull,
+  JsonNull: objectEnumValues.classes.JsonNull,
+  AnyNull: objectEnumValues.classes.AnyNull
+}
 
 
 
@@ -126,9 +127,18 @@ exports.Prisma.EventScalarFieldEnum = {
   title: 'title',
   description: 'description',
   date: 'date',
+  startTime: 'startTime',
+  endTime: 'endTime',
   location: 'location',
+  address: 'address',
   imageUrl: 'imageUrl',
+  category: 'category',
+  price: 'price',
+  memberPrice: 'memberPrice',
+  nonMemberPrice: 'nonMemberPrice',
+  isFeatured: 'isFeatured',
   isPublished: 'isPublished',
+  requiresLogin: 'requiresLogin',
   maxAttendees: 'maxAttendees',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -144,16 +154,67 @@ exports.Prisma.RegistrationScalarFieldEnum = {
   attendees: 'attendees',
   isCheckedIn: 'isCheckedIn',
   checkInTime: 'checkInTime',
+  pricePaid: 'pricePaid',
+  paymentStatus: 'paymentStatus',
+  paymentMethod: 'paymentMethod',
+  stripeId: 'stripeId',
+  currency: 'currency',
+  details: 'details',
   createdAt: 'createdAt'
 };
 
-exports.Prisma.GalleryItemScalarFieldEnum = {
+exports.Prisma.GalleryAlbumScalarFieldEnum = {
   id: 'id',
+  title: 'title',
+  description: 'description',
+  category: 'category',
+  eventId: 'eventId',
+  coverImage: 'coverImage',
+  isPublished: 'isPublished',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.GalleryMediaScalarFieldEnum = {
+  id: 'id',
+  albumId: 'albumId',
+  type: 'type',
   url: 'url',
   publicId: 'publicId',
+  width: 'width',
+  height: 'height',
   caption: 'caption',
-  category: 'category',
   createdAt: 'createdAt'
+};
+
+exports.Prisma.FaceDetectionScalarFieldEnum = {
+  id: 'id',
+  mediaId: 'mediaId',
+  descriptor: 'descriptor',
+  boundingBox: 'boundingBox',
+  createdAt: 'createdAt'
+};
+
+exports.Prisma.AccountScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  type: 'type',
+  provider: 'provider',
+  providerAccountId: 'providerAccountId',
+  refresh_token: 'refresh_token',
+  access_token: 'access_token',
+  expires_at: 'expires_at',
+  token_type: 'token_type',
+  scope: 'scope',
+  id_token: 'id_token',
+  session_state: 'session_state'
+};
+
+exports.Prisma.SessionScalarFieldEnum = {
+  id: 'id',
+  sessionToken: 'sessionToken',
+  userId: 'userId',
+  expires: 'expires'
 };
 
 exports.Prisma.UserScalarFieldEnum = {
@@ -164,6 +225,101 @@ exports.Prisma.UserScalarFieldEnum = {
   role: 'role',
   emailVerified: 'emailVerified',
   image: 'image',
+  status: 'status',
+  phone: 'phone',
+  address: 'address',
+  city: 'city',
+  zip: 'zip',
+  dob: 'dob',
+  occupation: 'occupation',
+  bio: 'bio',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.UserFaceProfileScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  descriptor: 'descriptor',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MembershipPlanScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  description: 'description',
+  price: 'price',
+  duration: 'duration',
+  features: 'features',
+  isActive: 'isActive',
+  isPopular: 'isPopular',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.SubscriptionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  planId: 'planId',
+  startDate: 'startDate',
+  endDate: 'endDate',
+  status: 'status',
+  paymentStatus: 'paymentStatus',
+  paymentMethod: 'paymentMethod',
+  stripeId: 'stripeId',
+  isApproved: 'isApproved',
+  details: 'details',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.VerificationTokenScalarFieldEnum = {
+  id: 'id',
+  identifier: 'identifier',
+  token: 'token',
+  expires: 'expires'
+};
+
+exports.Prisma.PasswordResetTokenScalarFieldEnum = {
+  id: 'id',
+  email: 'email',
+  token: 'token',
+  expires: 'expires'
+};
+
+exports.Prisma.LeadershipMemberScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  role: 'role',
+  image: 'image',
+  order: 'order',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.MediaContributionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  albumId: 'albumId',
+  type: 'type',
+  url: 'url',
+  publicId: 'publicId',
+  width: 'width',
+  height: 'height',
+  caption: 'caption',
+  status: 'status',
+  rejectionReason: 'rejectionReason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+};
+
+exports.Prisma.ContactMessageScalarFieldEnum = {
+  id: 'id',
+  name: 'name',
+  email: 'email',
+  subject: 'subject',
+  message: 'message',
+  status: 'status',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 };
@@ -177,14 +333,35 @@ exports.Prisma.QueryMode = {
   default: 'default',
   insensitive: 'insensitive'
 };
+exports.MediaType = exports.$Enums.MediaType = {
+  IMAGE: 'IMAGE',
+  VIDEO: 'VIDEO'
+};
 
+exports.ContributionStatus = exports.$Enums.ContributionStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED'
+};
 
 exports.Prisma.ModelName = {
   Config: 'Config',
   Event: 'Event',
   Registration: 'Registration',
-  GalleryItem: 'GalleryItem',
-  User: 'User'
+  GalleryAlbum: 'GalleryAlbum',
+  GalleryMedia: 'GalleryMedia',
+  FaceDetection: 'FaceDetection',
+  Account: 'Account',
+  Session: 'Session',
+  User: 'User',
+  UserFaceProfile: 'UserFaceProfile',
+  MembershipPlan: 'MembershipPlan',
+  Subscription: 'Subscription',
+  VerificationToken: 'VerificationToken',
+  PasswordResetToken: 'PasswordResetToken',
+  LeadershipMember: 'LeadershipMember',
+  MediaContribution: 'MediaContribution',
+  ContactMessage: 'ContactMessage'
 };
 
 /**

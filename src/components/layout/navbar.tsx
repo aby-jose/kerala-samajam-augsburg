@@ -1,17 +1,29 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Calendar, Info, Home, Image as ImageIcon, Mail } from "lucide-react";
+import { Menu, X, Calendar, Info, Home, Image as ImageIcon, Mail, Users, LogIn, User as UserIcon, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./theme-toggle";
+import { LoginModal } from "../auth/login-modal";
+import { useSession, signOut } from "next-auth/react";
+import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { useConfig } from "../providers/config-provider";
 
 const navItems = [
   { name: "Home", href: "/", icon: Home },
   { name: "About", href: "/about", icon: Info },
   { name: "Events", href: "/events", icon: Calendar },
+  { name: "Membership", href: "/membership", icon: Users },
   { name: "Gallery", href: "/gallery", icon: ImageIcon },
   { name: "Contact", href: "/contact", icon: Mail },
 ];
@@ -21,135 +33,361 @@ export interface NavbarProps {
   forceLightText?: boolean;
 }
 
+function AuthQueryHandler({ onLoginRequested }: { onLoginRequested: () => void }) {
+  const { status } = useSession();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Handle auto-opening login modal from query params
+  React.useEffect(() => {
+    if (searchParams.get("auth") === "login" && status === "unauthenticated") {
+      onLoginRequested();
+      // Clean up the URL to prevent opening on refresh
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("auth");
+      const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+      router.replace(newUrl, { scroll: false });
+    }
+  }, [searchParams, status, pathname, router, onLoginRequested]);
+
+  return null;
+}
+
 export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProps) {
+  const config = useConfig();
   const [isOpen, setIsOpen] = React.useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
+  const { data: session, status } = useSession();
   const pathname = usePathname();
   const isHomePage = pathname === "/";
 
   React.useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll);
+    handleScroll(); // Check initial position for page refreshes
+    window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Transparent on ALL pages until scroll.
-  const isSolid = scrolled;
+  React.useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => { document.body.style.overflow = "unset"; };
+  }, [isOpen]);
 
-  // Hero Video check or forced light text
+  // Transparent on ALL pages until scroll, but force solid when mobile menu is open.
+  const isSolid = scrolled || isOpen;
   const useLightText = forceLightText || (isHomePage && !scrolled && !isOpen);
 
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+
+  const siteWords = config.siteName.split(" ");
+  const siteNameStart = siteWords.slice(0, -1).join(" ");
+  const siteNameEnd = siteWords[siteWords.length - 1];
+
   return (
-    <header
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
-        isSolid
-          ? "bg-background/80 backdrop-blur-xl border-b border-border shadow-sm py-2"
-          : "bg-transparent border-b border-transparent py-4"
-      )}
-    >
-      <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-        <Link href="/" className="group flex items-center gap-2 transition-opacity hover:opacity-90">
-          <span className={cn(
-            "text-xl md:text-2xl font-sans font-semibold tracking-tight transition-colors duration-300",
-            useLightText ? "text-white" : "text-foreground"
-          )}>
-            Kerala Samajam <span className="text-primary">&nbsp;Augsburg</span>
-          </span>
-        </Link>
-
-        {/* Desktop Navigation */}
-        {!hideLinks && (
-          <nav className="hidden lg:flex items-center space-x-8">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "text-xs font-bold uppercase tracking-[0.2em] transition-all duration-300 relative py-2 px-1 hover:text-primary",
-                  pathname === item.href
-                    ? (useLightText ? "text-white" : "text-primary")
-                    : (useLightText ? "text-white/80" : "text-muted-foreground hover:text-foreground")
-                )}
-              >
-                {item.name}
-                {pathname === item.href && (
-                  <motion.div
-                    layoutId="navbar-indicator"
-                    className={cn(
-                      "absolute bottom-0 left-0 right-0 h-0.5",
-                      useLightText ? "bg-white" : "bg-primary"
-                    )}
-                    initial={false}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  />
-                )}
-              </Link>
-            ))}
-          </nav>
+    <>
+      <Suspense fallback={null}>
+        <AuthQueryHandler onLoginRequested={() => setIsLoginModalOpen(true)} />
+      </Suspense>
+      <header
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+          isSolid
+            ? "bg-background/85 backdrop-blur-xl border-b border-border/60 shadow-[0_1px_20px_-8px_rgba(0,0,0,0.15)]"
+            : "bg-transparent border-b border-transparent"
         )}
+      >
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 h-16 lg:h-[72px] flex items-center justify-between gap-4">
+          {/* Brand */}
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0 transition-opacity hover:opacity-85">
+            <img
+              src={config.branding.logoUrl || "/images/logo.png"}
+              alt={config.siteName}
+              className="h-9 lg:h-10 w-auto"
+            />
+            <span
+              className={cn(
+                "text-[15px] lg:text-base font-semibold tracking-tight whitespace-nowrap transition-colors duration-300 hidden sm:block",
+                useLightText ? "text-white" : "text-foreground"
+              )}
+            >
+              {siteNameStart && <>{siteNameStart} </>}
+              <span className="text-primary">{siteNameEnd}</span>
+            </span>
+          </Link>
 
-        <div className="flex items-center space-x-1 sm:space-x-4">
-          <div className="hidden lg:block">
-            <ThemeToggle className={useLightText ? "text-white hover:bg-white/10" : "text-foreground"} />
-          </div>
+          {/* Desktop Navigation */}
           {!hideLinks && (
-            <div className="lg:hidden flex items-center">
-              <button
-                onClick={() => setIsOpen(!isOpen)}
-                className={cn(
-                  "transition-colors p-2 rounded-md",
-                  useLightText ? "text-white hover:bg-white/10" : "text-foreground hover:bg-muted"
-                )}
-              >
-                {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-              </button>
-            </div>
-          )}
-          {hideLinks && (
-            <div className="lg:hidden">
-              <ThemeToggle />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile Navigation */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden border-t border-border bg-background/95 backdrop-blur-xl overflow-hidden"
-          >
-            <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col space-y-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Main Menu</span>
-                <ThemeToggle />
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {navItems.map((item) => (
+            <nav
+              className={cn(
+                "hidden lg:flex items-center gap-0.5 p-1 rounded-full border transition-colors duration-300",
+                useLightText
+                  ? "bg-white/[0.08] border-white/15 backdrop-blur-md"
+                  : "bg-muted/50 border-border/60"
+              )}
+            >
+              {navItems.map((item) => {
+                const active = isActive(item.href);
+                return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    onClick={() => setIsOpen(false)}
                     className={cn(
-                      "text-xl font-medium py-3 px-4 rounded-xl transition-all duration-200 flex items-center gap-4",
-                      pathname === item.href
-                        ? "bg-primary/10 text-primary"
-                        : "text-foreground hover:bg-muted"
+                      "relative px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200",
+                      active
+                        ? (useLightText ? "text-white" : "text-primary")
+                        : (useLightText
+                            ? "text-white/70 hover:text-white"
+                            : "text-muted-foreground hover:text-foreground")
                     )}
                   >
-                    <item.icon className={cn("h-5 w-5", pathname === item.href ? "text-primary" : "text-muted-foreground")} />
-                    {item.name}
+                    {active && (
+                      <motion.span
+                        layoutId="navbar-pill"
+                        className={cn(
+                          "absolute inset-0 rounded-full",
+                          useLightText
+                            ? "bg-white/15 border border-white/10"
+                            : "bg-background shadow-sm border border-border/60"
+                        )}
+                        transition={{ type: "spring", stiffness: 350, damping: 32 }}
+                      />
+                    )}
+                    <span className="relative z-10">{item.name}</span>
                   </Link>
-                ))}
-              </div>
+                );
+              })}
+            </nav>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <div className="hidden lg:block">
+              <ThemeToggle className={useLightText ? "text-white hover:bg-white/10" : "text-foreground"} />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </header>
+
+            <div
+              className={cn(
+                "hidden lg:block h-6 w-px mx-1 transition-colors duration-300",
+                useLightText ? "bg-white/20" : "bg-border"
+              )}
+            />
+
+            {/* Auth Section */}
+            {status === "loading" ? (
+              <div className="h-10 w-10 flex items-center justify-center">
+                <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : session ? (
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className={cn(
+                      "flex items-center gap-2.5 pl-1.5 pr-3 h-10 rounded-full border transition-all duration-200",
+                      useLightText
+                        ? "border-white/15 hover:bg-white/10"
+                        : "border-border/60 hover:bg-muted"
+                    )}
+                  >
+                    <div className="h-7 w-7 rounded-full overflow-hidden shrink-0">
+                      {session.user?.image ? (
+                        <img src={session.user.image} alt={session.user.name || ""} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="h-full w-full bg-primary/15 flex items-center justify-center text-primary text-[11px] font-bold">
+                          {session.user?.name?.substring(0, 1).toUpperCase() || "U"}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        "text-sm font-medium truncate max-w-[110px] hidden sm:block",
+                        useLightText ? "text-white" : "text-foreground"
+                      )}
+                    >
+                      {session.user?.name?.split(" ")[0] || "Account"}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-xl p-1.5 shadow-lg border-border/60 bg-background/95 backdrop-blur-xl mt-2">
+                  <div className="px-3 py-2.5">
+                    <p className="text-sm font-semibold text-foreground truncate">{session.user?.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{session.user?.email}</p>
+                  </div>
+
+                  <DropdownMenuSeparator />
+
+                  <Link href="/profile">
+                    <DropdownMenuItem className="rounded-lg py-2 px-3 cursor-pointer">
+                      <UserIcon className="mr-2 h-4 w-4 opacity-70" />
+                      <span className="text-sm">My Profile</span>
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link href="/profile">
+                    <DropdownMenuItem className="rounded-lg py-2 px-3 cursor-pointer">
+                      <Calendar className="mr-2 h-4 w-4 opacity-70" />
+                      <span className="text-sm">My Events</span>
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuItem
+                    className="rounded-lg py-2 px-3 cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                    onClick={() => signOut({ callbackUrl: "/" })}
+                  >
+                    <LogOut className="mr-2 h-4 w-4 opacity-70" />
+                    <span className="text-sm font-medium">Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button
+                onClick={() => setIsLoginModalOpen(true)}
+                className={cn(
+                  "h-10 px-5 rounded-full text-sm font-semibold transition-all duration-300",
+                  useLightText
+                    ? "bg-white text-black hover:bg-white/90 shadow-lg"
+                    : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
+                )}
+              >
+                <LogIn className="h-4 w-4 mr-2 opacity-80" />
+                Sign In
+              </Button>
+            )}
+
+            {!hideLinks && (
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                aria-label={isOpen ? "Close menu" : "Open menu"}
+                className={cn(
+                  "lg:hidden p-2 rounded-lg transition-colors",
+                  useLightText ? "text-white hover:bg-white/10" : "text-foreground hover:bg-muted"
+                )}
+              >
+                {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            )}
+            {hideLinks && (
+              <div className="lg:hidden">
+                <ThemeToggle />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Navigation */}
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+              className="lg:hidden border-t border-border/60 bg-background/95 backdrop-blur-xl overflow-y-auto max-h-[calc(100vh-64px)]"
+            >
+              <div className="px-4 sm:px-6 py-5 pb-8 flex flex-col gap-5">
+                <nav className="flex flex-col gap-1">
+                  {navItems.map((item) => {
+                    const active = isActive(item.href);
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsOpen(false)}
+                        className={cn(
+                          "flex items-center gap-3.5 py-3 px-4 rounded-xl text-base font-medium transition-colors",
+                          active
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground hover:bg-muted"
+                        )}
+                      >
+                        <item.icon className={cn("h-5 w-5", active ? "text-primary" : "text-muted-foreground")} />
+                        {item.name}
+                      </Link>
+                    );
+                  })}
+                </nav>
+
+                <div className="h-px bg-border/60" />
+
+                {status === "loading" ? (
+                  <div className="py-4 flex justify-center">
+                    <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : session ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3.5 px-1">
+                      <div className="h-11 w-11 rounded-full overflow-hidden shrink-0 border border-border/60">
+                        {session.user?.image ? (
+                          <img src={session.user.image} alt={session.user.name || ""} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full bg-primary/15 flex items-center justify-center text-primary font-bold">
+                            {session.user?.name?.substring(0, 1).toUpperCase() || "U"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{session.user?.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{session.user?.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Link
+                        href="/profile"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center justify-center gap-2 py-3 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        <UserIcon className="w-4 h-4 text-primary" />
+                        Profile
+                      </Link>
+                      <Link
+                        href="/events/my"
+                        onClick={() => setIsOpen(false)}
+                        className="flex items-center justify-center gap-2 py-3 rounded-xl border border-border/60 text-sm font-medium hover:bg-muted transition-colors"
+                      >
+                        <Calendar className="w-4 h-4 text-primary" />
+                        My Events
+                      </Link>
+                    </div>
+
+                    <button
+                      onClick={() => signOut({ callbackUrl: "/" })}
+                      className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-destructive border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setIsOpen(false);
+                      setIsLoginModalOpen(true);
+                    }}
+                    className="flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-semibold text-primary-foreground bg-primary hover:bg-primary/90 transition-colors"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    Sign In
+                  </button>
+                )}
+
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-medium text-muted-foreground">Appearance</span>
+                  <ThemeToggle />
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </header>
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+    </>
   );
 }

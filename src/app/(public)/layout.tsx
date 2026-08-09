@@ -1,18 +1,33 @@
+import { AuthProvider } from "@/components/providers/auth-provider";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
+import NextTopLoader from "nextjs-toploader";
+import { getConfig } from "@/lib/config-utils";
+import { ConfigProvider } from "@/components/providers/config-provider";
 
-export default function PublicLayout({
+import { ToastProvider } from "@/components/ui/toast";
+
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const config = await getConfig();
+
   return (
-    <div className="flex flex-col min-h-screen">
-      <Navbar />
-      <main className="flex-1">
-        {children}
-      </main>
-      <Footer />
-    </div>
+    <AuthProvider basePath="/api/auth">
+      <ConfigProvider initialConfig={config}>
+        <ToastProvider>
+          <div className="flex flex-col min-h-screen">
+            <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
+            <Navbar />
+            <main className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </div>
+        </ToastProvider>
+      </ConfigProvider>
+    </AuthProvider>
   );
 }

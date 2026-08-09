@@ -1,13 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Outfit, Urbanist } from "next/font/google";
+import { Newsreader, Manrope } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 
-const outfit = Outfit({ subsets: ["latin"], variable: "--font-sans" });
-const urbanist = Urbanist({ subsets: ["latin"], variable: "--font-serif" });
+const manrope = Manrope({
+  subsets: ["latin"],
+  variable: "--font-manrope",
+  display: "swap",
+});
+const newsreader = Newsreader({
+  subsets: ["latin"],
+  variable: "--font-newsreader",
+  style: ["normal", "italic"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Kerala Samajam Augsburg (KSA) | Malayali Community in Germany",
@@ -39,8 +48,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body 
-        className={cn("min-h-screen bg-background font-sans antialiased scroll-smooth", outfit.variable, urbanist.variable)}
         suppressHydrationWarning
+        className={cn("min-h-screen bg-background font-sans antialiased scroll-smooth", manrope.variable, newsreader.variable)}
       >
         <Providers>
           {children}

@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/utils";
 interface EventCardProps {
   event: {
     id: string;
+    slug: string;
     title: string;
     date: string;
     location: string;
@@ -26,7 +27,7 @@ export function EventCard({ event }: EventCardProps) {
       transition={{ duration: 0.6, ease: "easeOut" }}
       className="group"
     >
-      <Link href={`/events/${event.id}`} className="block space-y-6">
+      <Link href={`/events/${event.slug}`} className="block space-y-6">
         {/* Immersive Video Aspect Image - Premium Frame */}
         <div className="relative aspect-video rounded-3xl overflow-hidden border border-border/10 shadow-sm transition-all duration-700 group-hover:shadow-2xl group-hover:-translate-y-1.5 bg-muted">
           <img 

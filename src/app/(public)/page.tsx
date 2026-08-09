@@ -2,27 +2,79 @@
 
 import { motion, Variants } from "framer-motion";
 import { Hero } from "@/components/layout/hero";
-import { Countdown } from "@/components/layout/countdown";
 import { EventsShowcase } from "@/components/layout/events-showcase";
+import { GalleryStrip } from "@/components/layout/gallery-strip";
+import { LeadershipRow } from "@/components/layout/leadership-row";
+import { JoinSteps } from "@/components/layout/join-steps";
 import { Container } from "@/components/layout/container";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
-  MapPin,
-  Calendar,
+  Accent,
+  Eyebrow,
+  SectionLead,
+  SectionTitle,
+} from "@/components/layout/section-heading";
+import { Button } from "@/components/ui/button";
+import {
   ArrowRight,
+  ArrowUpRight,
+  Flower2,
   HeartHandshake,
-  Globe,
-  Lightbulb,
+  Languages,
+  Music,
+  GraduationCap,
   Users,
-  ChevronRight,
-  Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils";
 
-// Mock upcoming events for the home page teaser
-const upcomingEvents = [
+import React, { useState, useEffect } from "react";
+import { getUpcomingEvents } from "@/lib/event-actions";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+const pillars = [
+  {
+    title: "Festivals and Celebrations",
+    icon: Flower2,
+    desc: "Onam, Vishu, Christmas and Deepavali — cooked and run by members, every year.",
+  },
+  {
+    title: "Help Settling In",
+    icon: HeartHandshake,
+    desc: "Anmeldung, flats, schools, insurance. Ask, and someone who has done it will help.",
+  },
+  {
+    title: "Malayalam Classes",
+    icon: Languages,
+    desc: "Weekend lessons so children born here keep speaking the language at home.",
+  },
+  {
+    title: "Music, Dance and Theatre",
+    icon: Music,
+    desc: "Classical dance, chenda and stage productions. No audition needed.",
+  },
+  {
+    title: "Study and Work Guidance",
+    icon: GraduationCap,
+    desc: "Ausbildung, applications and interviews, from members who have been through it.",
+  },
+  {
+    title: "Part of the City",
+    icon: Users,
+    desc: "Augsburg's cultural calendar and charity drives, open to everyone.",
+  },
+];
+
+// Facts we can state without qualification. Swap in live figures
+// (member count, events per year) once they are worth quoting.
+const facts = [
+  { value: "2012", label: "Founded" },
+  { value: "e.V.", label: "Registered Verein" },
+  { value: "Augsburg", label: "And the towns around" },
+];
+
+// Placeholder events, shown until the real calendar loads. Past ones are
+// filtered out below, same as the live data.
+const mockEvents = [
   {
     id: "1",
     title: "Grand Onam Celebration 2026",
@@ -53,11 +105,46 @@ const upcomingEvents = [
     date: "2026-07-12T11:00:00",
     location: "Augsburg City Park",
     description: "Join your KSA family for a day of fun, food, and friendship. A perfect opportunity for the community to connect and celebrate together.",
-    image: "/images/events/summer.jpg",
+    image: "/images/events/Summer.jpg",
   },
 ];
 
+// Anything before today is done with — the showcase never displays it.
+const isUpcoming = (date: string) => {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  return new Date(date) >= startOfToday;
+};
+
 export default function Home() {
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>(() =>
+    mockEvents.filter((e) => isUpcoming(e.date))
+  );
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const realEvents = await getUpcomingEvents();
+        // Map the real events to the format expected by the showcase.
+        // An empty result is meaningful — it means nothing is scheduled —
+        // so the placeholders are dropped either way.
+        setUpcomingEvents(
+          realEvents.slice(0, 4).map((e) => ({
+            id: e.id,
+            slug: e.slug,
+            title: e.title,
+            date: e.date.toISOString(),
+            location: e.location,
+            description: e.description,
+            image: e.imageUrl || "/images/placeholder.jpg",
+          }))
+        );
+      } catch (error) {
+        console.error("Failed to fetch real events:", error);
+      }
+    };
+    fetchEvents();
+  }, []);
   const revealVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
     visible: {
@@ -71,98 +158,132 @@ export default function Home() {
     <main className="min-h-screen flex flex-col bg-background">
       <Hero />
 
-      {/* Our Vision Section - Redesigned */}
-      <section className="pt-20 pb-12 md:pt-32 md:pb-16 relative overflow-hidden bg-background">
-        <Container>
-          <motion.div
-            className="text-center max-w-3xl mx-auto mb-20"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={revealVariants}
-          >
-            <span className="text-primary font-bold uppercase tracking-[0.2em] text-[10px] mb-4 block">Our North Star</span>
-            <h2 className="text-4xl md:text-6xl font-serif font-medium mb-6 leading-[1.1]">
-              Bridging Heritage with <span className="text-primary italic">Modernity</span>.
-            </h2>
-            <p className="text-lg md:text-xl text-muted-foreground leading-relaxed">
-              Kerala Samajam Augsburg (KSA) is a sanctuary for our culture, striving to maintain our vibrant identity while fostering meaningful integration.
-            </p>
-          </motion.div>
+      {/* ================= Who we are — surface 1 ================= */}
+      <section id="vision" className="scroll-mt-20 relative bg-surface-1 py-24 md:py-32 overflow-hidden">
+        {/* Ambient background accent */}
+        <div className="pointer-events-none absolute -top-24 right-0 h-[420px] w-[420px] rounded-full bg-primary/[0.06] blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-0 h-64 w-64 rounded-full bg-primary/[0.04] blur-3xl" />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
-            {[
-              { title: "Cultural Preservation", icon: Globe, desc: "Keeping our traditions alive for the next generation." },
-              { title: "Community Integration", icon: HeartHandshake, desc: "Building bridges with the local Augsburg community." },
-              { title: "Youth Mentorship", icon: Lightbulb, desc: "Empowering our youth to lead with vision." },
-              { title: "Social Connectivity", icon: Users, desc: "Creating a home away from home for every Malayali." }
-            ].map((item, idx) => (
-              <motion.div
-                key={idx}
-                className="p-6 md:p-8 rounded-3xl bg-muted/30 border border-border/50 hover:border-primary/30 transition-all group"
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                variants={{
-                  hidden: { opacity: 0, y: 20 },
-                  visible: {
-                    opacity: 1,
-                    y: 0,
-                    transition: { delay: idx * 0.1, duration: 0.5 }
-                  }
-                }}
+        <Container className="relative">
+          <div className="grid grid-cols-1 gap-x-16 gap-y-14 lg:grid-cols-12 lg:gap-y-0">
+            {/* Sticky intro */}
+            <motion.div
+              className="lg:col-span-5 lg:sticky lg:top-28 lg:self-start"
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.7, ease: EASE }}
+            >
+              <Eyebrow>About us</Eyebrow>
+
+              <SectionTitle className="mt-6">
+                About <Accent>Kerala</Accent> Samajam Augsburg
+              </SectionTitle>
+
+              <SectionLead className="mt-6 max-w-lg">
+                It started in 2012, when a handful of families cooked one Onam
+                sadhya together. Today KSA is a registered Verein with members
+                across Augsburg and the towns around it — still cooking, still
+                teaching the language, and still answering the phone when
+                someone new needs a hand.
+              </SectionLead>
+
+              {/* Fact strip */}
+              <dl className="mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-border bg-border">
+                {facts.map((fact) => (
+                  <div key={fact.label} className="bg-surface-1 px-4 py-5">
+                    <dt className="font-sans text-lg font-extrabold tracking-[-0.03em] text-foreground sm:text-xl">
+                      {fact.value}
+                    </dt>
+                    <dd className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                      {fact.label}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+
+              <Link
+                href="/about"
+                className="group mt-10 inline-flex items-center gap-2 text-sm font-semibold text-foreground"
               >
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <item.icon className="w-6 h-6 text-primary" />
-                </div>
-                <h4 className="text-xl font-bold mb-3">{item.title}</h4>
-                <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>
-              </motion.div>
-            ))}
-          </div>
+                <span className="border-b border-foreground/30 pb-0.5 transition-colors group-hover:border-primary group-hover:text-primary">
+                  Read our full story
+                </span>
+                <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
+              </Link>
+            </motion.div>
 
-          <motion.div
-            className="relative rounded-4xl overflow-hidden aspect-4/5 md:aspect-21/9 shadow-2xl"
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            variants={revealVariants}
-          >
-            <img
-              src="https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?q=80&w=2000&auto=format&fit=crop"
-              alt="Community Gathering"
-              className="object-cover w-full h-full"
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent flex items-end p-8 md:p-12">
-              <div className="max-w-xl">
-                <div className="text-3xl md:text-4xl font-serif text-white mb-2">10+ Years of Legacy</div>
-                <div className="text-white/70 text-sm md:text-base">Serving the Malayali community in Augsburg since 2012.</div>
-              </div>
-            </div>
-          </motion.div>
+            {/* Pillar grid — hairline rules instead of floating cards */}
+            <motion.div
+              className="grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-border bg-border sm:grid-cols-2 lg:col-span-7"
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-80px" }}
+              variants={{
+                hidden: {},
+                visible: { transition: { staggerChildren: 0.08 } },
+              }}
+            >
+              {pillars.map((item, i) => (
+                <motion.div
+                  key={item.title}
+                  variants={{
+                    hidden: { opacity: 0, y: 16 },
+                    visible: {
+                      opacity: 1,
+                      y: 0,
+                      transition: { duration: 0.6, ease: EASE },
+                    },
+                  }}
+                  className="group relative bg-surface-1 p-7 transition-colors duration-300 hover:bg-muted/50 md:p-8"
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-1 text-primary transition-colors duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                      <item.icon strokeWidth={1.6} className="h-5 w-5" />
+                    </span>
+                    <span className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                  </div>
+
+                  <h3 className="mt-6 font-sans text-[17px] font-bold leading-snug tracking-[-0.015em] text-foreground">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {item.desc}
+                  </p>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
         </Container>
       </section>
 
-      {/* Upcoming Events Section - Redesigned */}
-      <section className="pt-8 pb-32 relative overflow-hidden bg-background">
+      {/* ================= Events — surface 2 ================= */}
+      <section className="relative overflow-hidden border-y border-border bg-surface-2 py-24 md:py-32">
         <Container>
           <motion.div
-            className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-8"
+            className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end"
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={revealVariants}
           >
             <div className="max-w-2xl">
-              <span className="text-primary font-bold uppercase tracking-[0.4em] text-[9px] mb-3 block opacity-50">
-                Save The Date
-              </span>
-              <h2 className="text-4xl md:text-5xl font-serif font-medium leading-[1.2] text-foreground tracking-tight">
-                Events <span className="text-primary italic">&</span> Gatherings
-              </h2>
+              <Eyebrow>Events</Eyebrow>
+              <SectionTitle className="mt-6">
+                Upcoming <Accent>Events</Accent>
+              </SectionTitle>
+              <SectionLead className="mt-5 max-w-lg">
+                Everything on the calendar right now. Members hear about new
+                dates first, and everyone is welcome at most of them.
+              </SectionLead>
             </div>
-            <Link href="/events" className="pb-1">
-              <Button variant="outline" className="text-[9px] font-bold uppercase tracking-[0.2em] rounded-full px-8 h-12 border-primary/20 hover:bg-primary hover:text-white transition-all">
+            <Link href="/events" className="shrink-0">
+              <Button
+                variant="outline"
+                className="h-12 rounded-full border-border bg-surface-1 px-8 text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-300 hover:border-primary hover:bg-primary hover:text-primary-foreground"
+              >
                 Full Calendar
                 <ArrowRight className="ml-2 h-3.5 w-3.5" />
               </Button>
@@ -173,27 +294,69 @@ export default function Home() {
         </Container>
       </section>
 
-      {/* Call to Action */}
-      <section className="py-32 relative overflow-hidden bg-black text-center border-t border-border/50">
-        <Container>
+      {/* ================= Gallery — surface 1 ================= */}
+      <GalleryStrip />
+
+      {/* ================= Committee — surface 3 ================= */}
+      <LeadershipRow />
+
+      {/* ================= How to join — surface 1 ================= */}
+      <JoinSteps />
+
+      {/* ================= Join — deep band ================= */}
+      <section className="relative overflow-hidden bg-surface-deep py-28 md:py-36">
+        <div className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.09) 1px, transparent 0)",
+            backgroundSize: "28px 28px",
+            maskImage:
+              "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+          }}
+        />
+
+        <Container className="relative">
           <motion.div
-            className="max-w-3xl mx-auto"
+            className="mx-auto max-w-3xl text-center"
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true }}
             variants={revealVariants}
           >
-            <h2 className="text-4xl md:text-5xl font-serif font-medium mb-6 text-white leading-tight">
-              Become a part of the <span className="text-primary">KSA Family</span>
-            </h2>
-            <p className="text-lg text-zinc-400 mb-10 mx-auto max-w-xl">
-              Together, we preserve our heritage and build a stronger, more connected future in Augsburg.
-            </p>
-            <Link href="/contact">
-              <Button size="lg" className="h-14 px-10 text-base font-semibold shadow-none">
-                Join KSA Today
-              </Button>
-            </Link>
+            <div className="flex justify-center">
+              <Eyebrow tone="dark">Join us</Eyebrow>
+            </div>
+
+            <SectionTitle tone="dark" className="mt-7 md:text-5xl">
+              Become a Member of <Accent>KSA</Accent>
+            </SectionTitle>
+
+            <SectionLead tone="dark" className="mx-auto mt-6 max-w-xl">
+              Join the families who keep this going — and get every invitation,
+              every class and every celebration for the year ahead.
+            </SectionLead>
+
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link href="/membership" className="group w-full sm:w-auto">
+                <Button className="h-12 w-full rounded-full px-9 text-[14px] font-bold shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 sm:w-auto">
+                  Apply for Membership
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
+                </Button>
+              </Link>
+              <Link href="/contact" className="w-full sm:w-auto">
+                <Button
+                  variant="ghost"
+                  className="h-12 w-full rounded-full border border-white/15 bg-white/[0.06] px-9 text-[14px] font-semibold text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
+                >
+                  Ask a Question First
+                </Button>
+              </Link>
+            </div>
           </motion.div>
         </Container>
       </section>

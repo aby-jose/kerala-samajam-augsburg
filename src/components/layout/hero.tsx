@@ -1,124 +1,162 @@
 "use client";
 
-import { motion, Variants } from "framer-motion";
-import { ArrowRight, Compass } from "lucide-react";
+import { useRef } from "react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+} from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import Link from "next/link";
 
-export function Hero() {
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2
-      }
-    },
-  };
+const EASE = [0.16, 1, 0.3, 1] as const;
 
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, x: -20 },
-    visible: {
-      opacity: 1,
-      x: 0,
-      transition: {
-        type: "spring",
-        stiffness: 100,
-        damping: 20
-      }
-    },
-  };
+const fade = (delay: number) => ({
+  initial: { opacity: 0, y: 20, filter: "blur(10px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  transition: { duration: 1.3, ease: EASE, delay },
+});
+
+export function Hero() {
+  const ref = useRef<HTMLElement>(null);
+  const reduced = useReducedMotion();
+
+  // Fade + drift the whole composition as the next section takes over.
+  const { scrollYProgress } = useScroll({
+    target: ref,
+    offset: ["start start", "end start"],
+  });
+  const videoY = useTransform(scrollYProgress, [0, 1], ["0%", "18%"]);
+  const contentY = useTransform(scrollYProgress, [0, 1], [0, 70]);
+  const contentOpacity = useTransform(scrollYProgress, [0, 0.65], [1, 0]);
 
   return (
-    <section className="relative w-full h-svh min-h-[600px] flex items-center overflow-hidden bg-black">
-      {/* 
-          Aggressive Full-Bleed Video Background 
-          Uniform cinematic zoom scale (1.3x) across all devices and breakpoints
-      */}
-      <div className="absolute -inset-[2px] z-0 overflow-hidden select-none pointer-events-none">
-        <video
-          autoPlay
-          muted
-          loop
-          playsInline
-          className="absolute inset-0 w-full h-full object-cover scale-[1.3]"
-          poster="https://images.pexels.com/photos/2349168/pexels-photo-2349168.jpeg?auto=compress&cs=tinysrgb&w=1920"
+    <section
+      ref={ref}
+      className="relative isolate w-full h-svh min-h-[640px] overflow-hidden bg-black"
+    >
+      {/* ---------- Full-bleed video ---------- */}
+      <motion.div
+        aria-hidden
+        style={reduced ? undefined : { y: videoY }}
+        className="absolute -inset-px z-0 select-none pointer-events-none"
+      >
+        <motion.div
+          initial={reduced ? false : { scale: 1.14 }}
+          animate={{ scale: 1 }}
+          transition={{ duration: 6, ease: EASE }}
+          className="absolute inset-0"
         >
-          <source
-            src="/videoplayback.mp4"
-            type="video/mp4"
-          />
-        </video>
-        {/* Subtle cinematic gradient overlay for readability and depth */}
-        <div className="absolute inset-0 bg-black/45" />
+          <video
+            autoPlay={!reduced}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            disablePictureInPicture
+            poster="/hero-poster.jpg"
+            className="absolute inset-0 h-full w-full object-cover"
+          >
+            <source src="/hero.mp4" type="video/mp4" />
+          </video>
+        </motion.div>
+      </motion.div>
+
+      {/* ---------- Legibility scrims ----------
+          Bottom-weighted rather than a flat wash, so the footage stays visible
+          in the upper two thirds while the type sits on solid darkness. */}
+      <div aria-hidden className="absolute inset-0 z-10 pointer-events-none">
+        {/* vertical: dark under the navbar, settling to black at the base */}
+        <div className="absolute inset-0 bg-linear-to-b from-black/70 via-black/30 to-black/90" />
+        {/* centred wash so the type sits on even darkness */}
+        <div className="absolute inset-0 bg-black/25" />
+        {/* vignette, centred on the composition */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 65% at 50% 50%, transparent 0%, rgba(0,0,0,0.6) 100%)",
+          }}
+        />
+        {/* film grain */}
+        <div
+          className="absolute inset-0 opacity-[0.14] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          }}
+        />
+        {/* settle to pure black at the base so the next section joins seamlessly */}
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-black to-transparent" />
       </div>
 
-      <Container className="relative z-10 pt-20">
-        <div className="max-w-7xl mx-auto flex flex-col items-center justify-center">
-          <motion.div
-            className="w-full max-w-2xl text-center"
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-          >
-            <motion.div variants={itemVariants} className="flex justify-center mb-6">
-              <span className="inline-flex items-center px-4 py-1.5 rounded-full text-[10px] font-bold bg-primary text-white tracking-[0.2em] uppercase shadow-lg shadow-primary/20">
-                <Compass className="h-3 w-3 mr-2" />
-                Kerala Samajam Augsburg • Est. 2012
-              </span>
-            </motion.div>
-
-            <motion.h1
-              variants={itemVariants}
-              className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-serif font-medium tracking-tight leading-[1.1] text-white mb-6 text-balance"
-            >
-              Where Tradition <span className="text-primary italic">Meets</span> the Horizon.
-            </motion.h1>
-
-            <motion.p
-              variants={itemVariants}
-              className="text-lg md:text-xl text-white/90 mb-10 mx-auto max-w-2xl leading-relaxed font-light"
-            >
-              A vibrant home for our community in Augsburg. We preserve our cultural identity while building a shared, meaningful future together.
-            </motion.p>
-
-            <motion.div
-              variants={itemVariants}
-              className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            >
-              <Link href="/contact" className="w-full sm:w-auto">
-                <Button size="lg" className="h-14 px-10 text-base font-bold rounded-full shadow-xl w-full sm:w-auto hover:translate-y-[-2px] transition-all bg-primary hover:bg-primary/90">
-                  Join Community
-                </Button>
-              </Link>
-              <Link href="/events" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="h-14 px-10 text-base font-bold rounded-full w-full sm:w-auto border-white/20 bg-white/5 text-white backdrop-blur-md hover:bg-white/15 transition-all">
-                  Explore Events
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </motion.div>
-          </motion.div>
-        </div>
-      </Container>
-
-      {/* Scroll indicator - Hidden on very small height screens */}
+      {/* ---------- Content ---------- */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 1 }}
-        className="absolute bottom-10 right-10 z-10 hidden sm:flex items-center gap-4 text-white/40"
+        style={reduced ? undefined : { y: contentY, opacity: contentOpacity }}
+        className="relative z-20 flex h-full flex-col items-center justify-center pt-24 pb-16"
       >
-        <span className="text-[10px] uppercase tracking-[0.4em] font-medium">Scroll to explore</span>
-        <div className="w-12 h-px bg-white/20 relative overflow-hidden">
+        <Container className="flex flex-col items-center text-center">
+          {/* Eyebrow */}
           <motion.div
-            animate={{ x: [-48, 48] }}
-            transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-            className="absolute top-0 left-0 h-full w-1/2 bg-primary/60"
-          />
-        </div>
+            {...fade(0.25)}
+            className="inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 backdrop-blur-md"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+              Kerala Samajam Augsburg
+            </span>
+          </motion.div>
+
+          {/* Headline */}
+          <motion.h1
+            {...fade(0.4)}
+            className="mt-7 max-w-4xl text-balance font-sans text-[2.25rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl md:text-6xl"
+          >
+            A home for{" "}
+            <span className="bg-linear-to-br from-primary to-primary/70 bg-clip-text font-serif font-normal italic tracking-[-0.015em] text-transparent">
+              Kerala
+            </span>{" "}
+            in the heart of Augsburg
+          </motion.h1>
+
+          {/* Sub-copy */}
+          <motion.p
+            {...fade(0.55)}
+            className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 md:text-base"
+          >
+            The Malayali community in Bavaria — celebrating our culture,
+            supporting each other, and building a home away from home since
+            2012.
+          </motion.p>
+
+          {/* Actions */}
+          <motion.div
+            {...fade(0.7)}
+            className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center"
+          >
+            <Link href="/membership" className="group">
+              <Button className="h-12 w-full rounded-full px-8 text-[14px] font-bold shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-primary/35 sm:w-auto">
+                Become a Member
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
+              </Button>
+            </Link>
+
+            <Link href="/events" className="group">
+              <Button
+                variant="ghost"
+                className="h-12 w-full rounded-full border border-white/20 bg-white/[0.06] px-8 text-[14px] font-semibold text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
+              >
+                Upcoming Events
+              </Button>
+            </Link>
+          </motion.div>
+        </Container>
       </motion.div>
     </section>
   );

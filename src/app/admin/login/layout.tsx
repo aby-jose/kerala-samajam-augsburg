@@ -1,7 +1,7 @@
 "use client";
 
-import { Navbar } from "@/components/layout/navbar";
 import Image from "next/image";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export default function LoginLayout({
   children,
@@ -9,27 +9,27 @@ export default function LoginLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="h-screen w-full relative flex flex-col items-center justify-center bg-zinc-950 overflow-hidden">
-      {/* Cinematic Nature Background */}
+    <div className="relative flex h-screen w-full flex-col items-center justify-center overflow-hidden bg-zinc-950">
+      {/* Kerala nature background */}
       <div className="absolute inset-0 z-0 select-none">
         <Image
           src="/images/nature-bg.png"
-          alt="Kerala Nature Background"
+          alt=""
           fill
           className="object-cover opacity-60"
           priority
         />
-        {/* Stronger overlay for high-impact glassmorphism */}
-        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/20 to-black/80" />
+        {/* Darkening overlay for card legibility */}
+        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/30 to-black/70" />
       </div>
 
-      {/* Theme Adaptive Navbar (Forced Light Text) */}
-      <div className="absolute top-0 left-0 right-0 z-50">
-        <Navbar hideLinks forceLightText />
+      {/* Top controls */}
+      <div className="absolute right-6 top-6 z-50 flex items-center">
+        <ThemeToggle className="text-white hover:bg-white/10" />
       </div>
 
-      {/* Centered Content Area */}
-      <main className="relative z-10 w-full flex items-center justify-center p-6">
+      {/* Centered content */}
+      <main className="relative z-10 flex w-full items-center justify-center p-6">
         {children}
       </main>
     </div>
