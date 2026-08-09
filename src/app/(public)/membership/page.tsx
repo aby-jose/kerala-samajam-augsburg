@@ -6,6 +6,10 @@ export const metadata = {
   description: "Join the KSA family and become a part of the vibrant Malayali community in Augsburg.",
 };
 
+// Plans are edited from the admin panel and drive a payment flow, so they are
+// read per request rather than baked in at build time.
+export const dynamic = "force-dynamic";
+
 export default async function MembershipPage() {
   const plans = await getActiveMembershipPlans();
   
