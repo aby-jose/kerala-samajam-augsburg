@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Upload, X, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -23,13 +23,34 @@ export default function ImageUpload({
   const [preview, setPreview] = useState<string | null>(defaultValue || null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
+
+  const releaseObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+  };
+
+  // Follow the value owned by the parent form, so reopening a modal for a
+  // different record (or a blank one) never keeps the previous preview.
+  useEffect(() => {
+    releaseObjectUrl();
+    setPreview(defaultValue || null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [defaultValue]);
+
+  useEffect(() => releaseObjectUrl, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     // Local preview
+    releaseObjectUrl();
     const objectUrl = URL.createObjectURL(file);
+    objectUrlRef.current = objectUrl;
     setPreview(objectUrl);
     setError(null);
     setIsUploading(true);
@@ -43,6 +64,7 @@ export default function ImageUpload({
     } catch (err) {
       console.error("Upload failed", err);
       setError("Failed to upload image. Check your connection.");
+      releaseObjectUrl();
       setPreview(defaultValue || null);
     } finally {
       setIsUploading(false);
@@ -51,7 +73,9 @@ export default function ImageUpload({
 
   const clearImage = (e: React.MouseEvent) => {
     e.stopPropagation();
+    releaseObjectUrl();
     setPreview(null);
+    setError(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     onUploadComplete("", "");
   };

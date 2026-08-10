@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import {
@@ -12,18 +11,8 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { Button } from "@/components/ui/button";
-import { getActiveMembershipPlans } from "@/lib/membership-actions";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
-
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  duration: string;
-  features: string[];
-  isPopular: boolean;
-}
 
 const steps = [
   {
@@ -41,16 +30,6 @@ const steps = [
 ];
 
 export function JoinSteps() {
-  const [plans, setPlans] = useState<Plan[]>([]);
-
-  useEffect(() => {
-    getActiveMembershipPlans()
-      .then((data) => setPlans(data as Plan[]))
-      .catch((error) => console.error("Failed to load membership plans:", error));
-  }, []);
-
-  const shownPlans = plans.slice(0, 3);
-
   return (
     <section className="relative overflow-hidden bg-surface-1 py-24 md:py-32">
       <Container>
@@ -117,58 +96,6 @@ export function JoinSteps() {
             </motion.li>
           ))}
         </motion.ol>
-
-        {/* Live plans, once any are published */}
-        {shownPlans.length > 0 && (
-          <motion.div
-            className="mt-6 grid gap-px overflow-hidden rounded-3xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease: EASE }}
-          >
-            {shownPlans.map((plan) => (
-              <div key={plan.id} className="relative bg-surface-1 p-7 md:p-9">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-sans text-[15px] font-bold tracking-[-0.015em] text-foreground">
-                    {plan.name}
-                  </h3>
-                  {plan.isPopular && (
-                    <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-primary">
-                      Most chosen
-                    </span>
-                  )}
-                </div>
-
-                <p className="mt-5 flex items-baseline gap-1.5">
-                  <span className="font-sans text-3xl font-extrabold tracking-[-0.04em] text-foreground">
-                    €{plan.price}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    / {plan.duration.toLowerCase()}
-                  </span>
-                </p>
-
-                {plan.features?.length > 0 && (
-                  <ul className="mt-5 space-y-2">
-                    {plan.features.slice(0, 3).map((feature) => (
-                      <li
-                        key={feature}
-                        className="flex items-start gap-2.5 text-sm text-muted-foreground"
-                      >
-                        <Check
-                          className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary"
-                          strokeWidth={2.5}
-                        />
-                        <span className="leading-snug">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ))}
-          </motion.div>
-        )}
       </Container>
     </section>
   );

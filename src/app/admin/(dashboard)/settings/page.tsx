@@ -17,6 +17,9 @@ import {
   Layers,
   Upload,
   Image as ImageIcon,
+  Landmark,
+  Plus,
+  Trash2,
   X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -59,12 +62,42 @@ const settingsSchema = z.object({
     enableMembership: z.boolean(),
     maintenanceMode: z.boolean(),
   }),
+  /**
+   * Facts about the association that the legal documents pull in as
+   * {{placeholders}}. They live here rather than in the prose so that
+   * replacing a board member is a settings edit, not a new document version
+   * — and therefore does not re-prompt every member for consent.
+   */
+  legal: z.object({
+    entityName: z.string().min(2, "Registered name is required"),
+    legalForm: z.string().optional().or(z.literal("")),
+    street: z.string().optional().or(z.literal("")),
+    postalCode: z.string().optional().or(z.literal("")),
+    city: z.string().optional().or(z.literal("")),
+    country: z.string().optional().or(z.literal("")),
+    registerCourt: z.string().optional().or(z.literal("")),
+    registerNumber: z.string().optional().or(z.literal("")),
+    vatId: z.string().optional().or(z.literal("")),
+    // No `.default()` here — it would make the schema's input and output
+    // types diverge, which react-hook-form's resolver rejects. getConfig()
+    // always merges the defaults in, so the array is never missing.
+    boardMembers: z.array(z.string()),
+    responsiblePerson: z.string().optional().or(z.literal("")),
+    responsiblePersonAddress: z.string().optional().or(z.literal("")),
+    dpoName: z.string().optional().or(z.literal("")),
+    dpoEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
+    supervisoryAuthority: z.string().optional().or(z.literal("")),
+    hostingProvider: z.string().optional().or(z.literal("")),
+    bankName: z.string().optional().or(z.literal("")),
+    iban: z.string().optional().or(z.literal("")),
+  }),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 const tabs = [
   { id: "general", label: "General", icon: Globe, description: "Basic site info and contact details" },
+  { id: "organisation", label: "Organisation", icon: Landmark, description: "Registered details used by the legal pages" },
   { id: "branding", label: "Branding", icon: Palette, description: "Colors, logos and visual identity" },
   { id: "features", label: "Modules", icon: Layers, description: "Toggle site features and maintenance" },
   { id: "email", label: "Email", icon: Mail, description: "Outgoing mail and notifications" },
@@ -237,6 +270,157 @@ export default function SettingsPage() {
                       <Label htmlFor="footerText" className="text-sm font-medium">Footer text</Label>
                       <Input id="footerText" {...register("footerText")} className="h-9 rounded-lg" placeholder="© 2024 Your Organization. All rights reserved." />
                     </div>
+                  </div>
+                </section>
+              )}
+
+              {activeTab === "organisation" && (
+                <section className={cardSurface}>
+                  <header className={panelHeader}>
+                    <div className="flex items-center gap-3">
+                      <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", chipTone("amber"))}>
+                        <Landmark className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h2 className="font-sans text-sm font-semibold text-foreground">Organisation</h2>
+                        <p className="text-xs text-muted-foreground">Registered details the Impressum and privacy pages pull in.</p>
+                      </div>
+                    </div>
+                  </header>
+
+                  <div className="space-y-6 p-5">
+                    <p className="rounded-lg border border-border bg-muted/30 p-4 text-xs leading-relaxed text-muted-foreground">
+                      These fields are inserted into the legal pages wherever a{" "}
+                      <code className="rounded bg-background px-1 py-0.5 font-mono text-[11px]">{"{{placeholder}}"}</code>{" "}
+                      appears, so changing a board member here updates the Impressum
+                      without publishing a new document version — and without asking
+                      members to consent again. Anything left blank shows on the public
+                      page as an amber &ldquo;to be completed&rdquo; marker.
+                    </p>
+
+                    <FieldGroup title="Registered entity">
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Registered name</Label>
+                          <Input {...register("legal.entityName")} className="h-9 rounded-lg" placeholder="Kerala Samajam Augsburg e.V." />
+                          {errors.legal?.entityName && (
+                            <p className="mt-1 text-xs text-red-600">{errors.legal.entityName.message}</p>
+                          )}
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Legal form</Label>
+                          <Input {...register("legal.legalForm")} className="h-9 rounded-lg" placeholder="Eingetragener Verein (e.V.)" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div className="space-y-2 md:col-span-2">
+                          <Label className="text-sm font-medium">Street and number</Label>
+                          <Input {...register("legal.street")} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Postal code</Label>
+                          <Input {...register("legal.postalCode")} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">City</Label>
+                          <Input {...register("legal.city")} className="h-9 rounded-lg" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Country</Label>
+                        <Input {...register("legal.country")} className="h-9 rounded-lg md:max-w-xs" />
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup
+                      title="Register entry"
+                      hint="§ 5 DDG requires the register court and number for a registered association."
+                    >
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Register court</Label>
+                          <Input {...register("legal.registerCourt")} className="h-9 rounded-lg" placeholder="Amtsgericht Augsburg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Register number</Label>
+                          <Input {...register("legal.registerNumber")} className="h-9 rounded-lg" placeholder="VR 1234" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">VAT ID</Label>
+                          <Input {...register("legal.vatId")} className="h-9 rounded-lg" placeholder="Leave blank if none" />
+                        </div>
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup
+                      title="Board (§ 26 BGB)"
+                      hint="Everyone authorised to represent the association. Listed in the Impressum."
+                    >
+                      <BoardMembersField
+                        members={watch("legal.boardMembers") || []}
+                        onChange={(members) => setValue("legal.boardMembers", members, { shouldDirty: true })}
+                      />
+                    </FieldGroup>
+
+                    <FieldGroup
+                      title="Responsible for content (§ 18 Abs. 2 MStV)"
+                      hint="A named person with a postal address — an email alone is not sufficient."
+                    >
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Name</Label>
+                          <Input {...register("legal.responsiblePerson")} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Address</Label>
+                          <Input {...register("legal.responsiblePersonAddress")} className="h-9 rounded-lg" />
+                        </div>
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup
+                      title="Data protection officer"
+                      hint="Optional under § 38 BDSG for small associations — but a DPO is required whenever processing needs a DPIA, which server-side face recognition likely does. Leave blank only after taking that decision deliberately."
+                    >
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Name</Label>
+                          <Input {...register("legal.dpoName")} className="h-9 rounded-lg" placeholder="Leave blank if none appointed" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Email</Label>
+                          <Input {...register("legal.dpoEmail")} className="h-9 rounded-lg" />
+                          {errors.legal?.dpoEmail && (
+                            <p className="mt-1 text-xs text-red-600">{errors.legal.dpoEmail.message}</p>
+                          )}
+                        </div>
+                      </div>
+                    </FieldGroup>
+
+                    <FieldGroup title="Processing and payments">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Supervisory authority</Label>
+                        <Input {...register("legal.supervisoryAuthority")} className="h-9 rounded-lg" />
+                        <p className="text-xs text-muted-foreground">Where members can complain. For Bavaria this is the BayLDA in Ansbach.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Hosting provider</Label>
+                          <Input {...register("legal.hostingProvider")} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">Bank</Label>
+                          <Input {...register("legal.bankName")} className="h-9 rounded-lg" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium">IBAN</Label>
+                          <Input {...register("legal.iban")} className="h-9 rounded-lg font-mono text-xs" />
+                        </div>
+                      </div>
+                    </FieldGroup>
                   </div>
                 </section>
               )}
@@ -526,6 +710,76 @@ export default function SettingsPage() {
           </form>
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Titled block inside the Organisation tab, so the form reads as sections. */
+function FieldGroup({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-4 border-t border-border pt-6 first:border-0 first:pt-0">
+      <div className="space-y-1">
+        <h3 className="font-sans text-sm font-semibold text-foreground">{title}</h3>
+        {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Repeatable list — the board changes at every AGM. */
+function BoardMembersField({
+  members,
+  onChange,
+}: {
+  members: string[];
+  onChange: (members: string[]) => void;
+}) {
+  const rows = members.length > 0 ? members : [""];
+
+  return (
+    <div className="space-y-2">
+      {rows.map((member, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            value={member}
+            onChange={(e) => {
+              const next = [...rows];
+              next[index] = e.target.value;
+              onChange(next);
+            }}
+            placeholder="Name and role, e.g. Anna Müller (1. Vorsitzende)"
+            className="h-9 rounded-lg"
+          />
+          <button
+            type="button"
+            onClick={() => onChange(rows.filter((_, i) => i !== index))}
+            disabled={rows.length === 1}
+            aria-label="Remove board member"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-30 dark:hover:bg-red-500/10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => onChange([...rows, ""])}
+        className="h-9 rounded-lg border-dashed"
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        Add board member
+      </Button>
     </div>
   );
 }

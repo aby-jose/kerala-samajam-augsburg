@@ -1,21 +1,22 @@
 "use client";
 import React, { useState } from "react";
 
-import { motion, Variants } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Container } from "@/components/layout/container";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Check, 
-  Sparkles, 
-  Users, 
-  GraduationCap, 
-  User, 
-  Globe, 
-  HeartHandshake, 
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  Sparkles,
+  Users,
+  GraduationCap,
+  User,
+  Globe,
+  HeartHandshake,
   Calendar,
-  Vote
+  Vote,
+  Wallet
 } from "lucide-react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -30,14 +31,7 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 
-const revealVariants: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { type: "spring", stiffness: 50, damping: 20, duration: 0.8 }
-  },
-};
+const EASE = [0.16, 1, 0.3, 1] as const;
 
 const getPlanIcon = (name: string) => {
   const lowerName = name.toLowerCase();
@@ -45,6 +39,202 @@ const getPlanIcon = (name: string) => {
   if (lowerName.includes("family")) return Users;
   return User;
 };
+
+/** Plans are stored as a Float, so a whole euro amount should not read "€60.00". */
+const formatPrice = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2);
+
+/** The DB keeps duration as a shouty enum — never show it raw. */
+const periodLabel = (duration: string) => {
+  switch ((duration || "").toUpperCase()) {
+    case "MONTHLY":
+      return "per month";
+    case "LIFETIME":
+      return "one-time";
+    default:
+      return "per year";
+  }
+};
+
+/** The same dotted texture the dark bands on /about and the home page carry. */
+const DOT_TEXTURE: React.CSSProperties = {
+  backgroundImage:
+    "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.10) 1px, transparent 0)",
+  backgroundSize: "22px 22px",
+  maskImage: "radial-gradient(ellipse 90% 70% at 50% 0%, black, transparent)",
+  WebkitMaskImage:
+    "radial-gradient(ellipse 90% 70% at 50% 0%, black, transparent)",
+};
+
+/**
+ * One tier.
+ *
+ * The recommended plan is not a light card wearing a coloured ring — it is the
+ * page's dark band shrunk to card size, with the glow, the dot texture and the
+ * primary hairline it carries everywhere else. That makes it the obvious pick
+ * in the row without introducing a treatment the site does not already use.
+ */
+function PlanCard({
+  plan,
+  index,
+  onSelect,
+}: {
+  plan: any;
+  index: number;
+  onSelect: () => void;
+}) {
+  const featured = Boolean(plan.isPopular);
+  const Icon = getPlanIcon(plan.name);
+
+  return (
+    <div
+      className={cn(
+        "group relative flex h-full flex-col overflow-hidden rounded-[1.25rem] border p-6 transition-all duration-500 md:p-7",
+        featured
+          ? "border-white/10 bg-surface-deep shadow-[0_30px_70px_-40px_rgba(0,0,0,0.75)] hover:border-white/20"
+          : "border-border bg-surface-1 hover:border-foreground/20"
+      )}
+    >
+      {featured && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 -top-24 h-60 w-60 rounded-full bg-primary/25 blur-[90px] transition-opacity duration-700 group-hover:opacity-80"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-30"
+            style={DOT_TEXTURE}
+          />
+          {/* Lit top edge — the one line of colour on the card. */}
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-primary to-transparent"
+          />
+        </>
+      )}
+
+      <div className="relative flex items-center justify-between gap-3">
+        <span
+          className={cn(
+            "grid h-10 w-10 shrink-0 place-items-center rounded-xl border transition-colors duration-300",
+            featured
+              ? "border-primary/25 bg-primary/15 text-white"
+              : "border-primary/10 bg-primary/[0.08] text-primary group-hover:border-primary/25 group-hover:bg-primary/[0.16]"
+          )}
+        >
+          <Icon strokeWidth={1.6} className="h-[18px] w-[18px]" />
+        </span>
+
+        {featured ? (
+          /* Dot + tracked caps, i.e. the site's eyebrow, in badge form. */
+          <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-primary/30 bg-primary/15 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+            <span className="h-1 w-1 rounded-full bg-primary" />
+            Most chosen
+          </span>
+        ) : (
+          <span className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+        )}
+      </div>
+
+      <h3
+        className={cn(
+          "relative mt-5 font-sans text-[17px] font-bold leading-snug tracking-[-0.02em]",
+          featured ? "text-white" : "text-foreground"
+        )}
+      >
+        {plan.name}
+      </h3>
+      {plan.description && (
+        // Clamped so one wordy plan cannot push its price out of line with the
+        // others in the row.
+        <p
+          className={cn(
+            "relative mt-1.5 line-clamp-2 text-[13px] leading-relaxed",
+            featured ? "text-white/55" : "text-muted-foreground"
+          )}
+        >
+          {plan.description}
+        </p>
+      )}
+
+      <div
+        className={cn(
+          "relative mt-5 border-t pt-5",
+          featured ? "border-white/10" : "border-border"
+        )}
+      >
+        <div className="flex items-start gap-1">
+          <span
+            className={cn(
+              "mt-1 font-sans text-base font-bold tracking-[-0.02em]",
+              featured ? "text-white/50" : "text-muted-foreground"
+            )}
+          >
+            €
+          </span>
+          <span
+            className={cn(
+              "font-sans text-[2.25rem] font-extrabold leading-none tracking-[-0.045em]",
+              featured ? "text-white" : "text-foreground"
+            )}
+          >
+            {formatPrice(plan.price)}
+          </span>
+        </div>
+        <span
+          className={cn(
+            "mt-2 block text-[10px] font-semibold uppercase tracking-[0.18em]",
+            featured ? "text-white/45" : "text-muted-foreground"
+          )}
+        >
+          {periodLabel(plan.duration)}
+        </span>
+      </div>
+
+      <ul className="relative mt-5 space-y-2.5">
+        {plan.features.map((feature: string, i: number) => (
+          <li key={i} className="flex items-start gap-2.5">
+            <span
+              className={cn(
+                "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full",
+                featured ? "bg-primary/20" : "bg-primary/10"
+              )}
+            >
+              <Check strokeWidth={3} className="h-2.5 w-2.5 text-primary" />
+            </span>
+            <span
+              className={cn(
+                "text-[13px] leading-snug",
+                featured ? "text-white/70" : "text-foreground/75"
+              )}
+            >
+              {feature}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="relative mt-auto pt-7">
+        <Button
+          onClick={onSelect}
+          variant={featured ? "default" : "outline"}
+          className={cn(
+            "group/btn h-11 w-full rounded-full text-[10px] font-bold uppercase tracking-[0.18em] transition-all duration-500 hover:-translate-y-0.5",
+            featured
+              ? "shadow-lg shadow-primary/25"
+              : "border-border bg-surface-1 text-foreground hover:border-primary hover:bg-primary hover:text-primary-foreground"
+          )}
+        >
+          Become a Member
+          <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform duration-500 group-hover/btn:translate-x-1" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 const benefits = [
   {
@@ -81,11 +271,38 @@ const benefits = [
 
 export default function MembershipClient({ plans }: { plans: any[] }) {
   const { data: session } = useSession();
+  const reduced = useReducedMotion();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const displayPlans = [...plans].sort((a, b) => a.price - b.price);
+
+  const rise: Variants = {
+    hidden: { opacity: 0, y: reduced ? 0 : 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } },
+  };
+
+  const stagger: Variants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
+  };
+
+  /**
+   * The column count follows the number of plans so the row always ends flush
+   * — four tiers go four-across on xl rather than leaving one orphan on a
+   * second row, and a short list is centred instead of stretched wide.
+   */
+  const gridCols =
+    displayPlans.length === 1
+      ? "mx-auto max-w-sm"
+      : displayPlans.length === 2
+      ? "mx-auto max-w-3xl sm:grid-cols-2"
+      : displayPlans.length === 3
+      ? "mx-auto max-w-5xl sm:grid-cols-2 lg:grid-cols-3"
+      : displayPlans.length === 4
+      ? "sm:grid-cols-2 xl:grid-cols-4"
+      : "sm:grid-cols-2 lg:grid-cols-3";
 
   const handleJoin = (plan: any) => {
     setSelectedPlan(plan);
@@ -97,9 +314,10 @@ export default function MembershipClient({ plans }: { plans: any[] }) {
   };
 
   return (
-    <main className="min-h-screen pt-36 pb-20 bg-background selection:bg-primary/20">
-      {/* Page header — surface 1 */}
-      <section className="py-24 bg-surface-1">
+    <main className="flex min-h-screen flex-col bg-background selection:bg-primary/20">
+      {/* Page header — surface 1. Top padding lives here, not on <main>, so the
+          page opens under the transparent navbar like /events and /about do. */}
+      <section className="bg-surface-1 pb-20 pt-40">
         <Container>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -116,75 +334,80 @@ export default function MembershipClient({ plans }: { plans: any[] }) {
       </section>
 
       {/* Membership tiers — surface 2 */}
-      <section className="py-24 md:py-32 bg-surface-2 border-y border-border">
-        <Container>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {displayPlans.map((plan, idx) => {
-              const isHighlight = plan.isPopular;
-              
-              return (
-                <motion.div
-                  key={plan.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.1 }}
-                >
-                  <Card className={cn(
-                    "h-full flex flex-col rounded-2xl border",
-                    isHighlight 
-                      ? "border-primary/50 shadow-xl shadow-primary/5 ring-1 ring-primary/20" 
-                      : "border-border/40 hover:border-border"
-                  )}>
-                    <CardHeader className="p-8 pb-4">
-                      <div className="flex justify-between items-start mb-6">
-                        <div className="h-12 w-12 rounded-xl bg-secondary flex items-center justify-center">
-                          <User className="w-6 h-6 text-primary" />
-                        </div>
-                        {isHighlight && (
-                          <Badge className="bg-primary text-white rounded-lg px-3 py-1 text-[10px] font-bold border-none transition-none">
-                            Recommended
-                          </Badge>
-                        )}
-                      </div>
-                      <CardTitle className="text-2xl font-bold tracking-tight">{plan.name}</CardTitle>
-                      <CardDescription className="text-sm font-medium uppercase tracking-wider text-muted-foreground pt-1">
-                        {plan.duration} Commitment
-                      </CardDescription>
-                    </CardHeader>
-                    
-                    <CardContent className="p-8 pt-0 grow space-y-8">
-                      <div className="flex items-baseline gap-1 pt-4 border-t border-border/40">
-                         <span className="text-4xl font-bold tracking-tighter">€{plan.price}</span>
-                         <span className="text-sm text-muted-foreground font-medium lowercase">/ {plan.duration}</span>
-                      </div>
-                      
-                      <ul className="space-y-4">
-                        {plan.features.map((feature: string, i: number) => (
-                          <li key={i} className="flex items-start gap-3">
-                            <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                            <span className="text-sm text-foreground/80 leading-snug">{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                    
-                    <CardFooter className="p-8 pt-0">
-                        <Button 
-                          variant={isHighlight ? "default" : "outline"} 
-                          onClick={() => handleJoin(plan)}
-                          className={cn(
-                            "w-full h-12 rounded-xl text-sm font-bold transition-none",
-                            isHighlight ? "shadow-lg shadow-primary/20" : ""
-                          )}
-                        >
-                        Select Tier
-                      </Button>
-                    </CardFooter>
-                  </Card>
+      <section className="relative overflow-hidden border-y border-border bg-surface-2 py-24 md:py-32">
+        <Container className="relative max-w-7xl">
+          {/* Header: title left, the one line of context right — same split as
+              the "What we do" index on the home page. */}
+          <motion.div
+            className="grid grid-cols-1 items-end gap-x-16 gap-y-6 lg:grid-cols-12"
+            variants={rise}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-100px" }}
+          >
+            <div className="lg:col-span-7">
+              <Eyebrow>Plans</Eyebrow>
+              <SectionTitle className="mt-6">
+                Pick the one that <Accent>fits</Accent>
+              </SectionTitle>
+            </div>
+            <SectionLead className="lg:col-span-5">
+              A student on their own, a single member, or the whole family
+              under one fee. Everything a tier covers is listed on it — no
+              small print underneath.
+            </SectionLead>
+          </motion.div>
+
+          {displayPlans.length === 0 ? (
+            <div className="mt-14 flex flex-col items-start gap-5 rounded-[1.5rem] border border-dashed border-border px-7 py-12">
+              <span className="grid h-12 w-12 place-items-center rounded-full border border-border bg-surface-1 text-muted-foreground">
+                <Wallet className="h-5 w-5" strokeWidth={1.6} />
+              </span>
+              <div>
+                <p className="font-sans text-lg font-bold tracking-[-0.015em] text-foreground">
+                  Plans are being updated
+                </p>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  The fees for the coming year are not published yet. Write to
+                  us and we will tell you what membership costs today.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <motion.div
+              className={cn("mt-14 grid grid-cols-1 gap-5 md:mt-16", gridCols)}
+              variants={stagger}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-60px" }}
+            >
+              {displayPlans.map((plan, idx) => (
+                <motion.div key={plan.id} variants={rise} className="h-full">
+                  <PlanCard
+                    plan={plan}
+                    index={idx}
+                    onSelect={() => handleJoin(plan)}
+                  />
                 </motion.div>
-              );
-            })}
+              ))}
+            </motion.div>
+          )}
+
+          {/* Never end the grid on a hard stop — someone unsure which tier fits
+              needs a way out that is not the back button. */}
+          <div className="mt-12 flex flex-col items-start gap-3 border-t border-border pt-7 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Not sure which one fits your family? Ask us before you pay.
+            </p>
+            <Link
+              href="/contact"
+              className="group inline-flex items-center gap-2 text-sm font-semibold text-foreground"
+            >
+              <span className="border-b border-foreground/30 pb-0.5 transition-colors group-hover:border-primary group-hover:text-primary">
+                Talk to us first
+              </span>
+              <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
+            </Link>
           </div>
         </Container>
       </section>

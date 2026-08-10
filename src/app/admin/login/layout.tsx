@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 
 export default function LoginLayout({
   children,
@@ -21,11 +20,6 @@ export default function LoginLayout({
         />
         {/* Darkening overlay for card legibility */}
         <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/30 to-black/70" />
-      </div>
-
-      {/* Top controls */}
-      <div className="absolute right-6 top-6 z-50 flex items-center">
-        <ThemeToggle className="text-white hover:bg-white/10" />
       </div>
 
       {/* Centered content */}

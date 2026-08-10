@@ -18,13 +18,14 @@ import {
   Sparkles,
   ClipboardList,
   Mail,
+  Scale,
+  FileCheck,
   Menu,
   PanelLeftClose,
   PanelLeft,
   ChevronRight,
   X,
 } from "lucide-react";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSession } from "next-auth/react";
 import NextTopLoader from "nextjs-toploader";
 
@@ -102,6 +103,23 @@ const NAV_GROUPS: {
     ],
   },
   {
+    label: "Legal",
+    items: [
+      {
+        href: "/admin/legal",
+        label: "Documents",
+        icon: Scale,
+        isActive: (p) => p.startsWith("/admin/legal") && !p.includes("/consents"),
+      },
+      {
+        href: "/admin/legal/consents",
+        label: "Consents",
+        icon: FileCheck,
+        isActive: (p) => p.startsWith("/admin/legal/consents"),
+      },
+    ],
+  },
+  {
     label: "System",
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3, isActive: (p) => p === "/admin/analytics" },
@@ -131,6 +149,14 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   analytics: "Analytics",
   settings: "Settings",
   "check-in": "Check-in",
+  legal: "Legal",
+  consents: "Consents",
+  imprint: "Imprint",
+  privacy: "Privacy Policy",
+  terms: "Terms of Use",
+  withdrawal: "Right of Withdrawal",
+  cookies: "Cookie Policy",
+  accessibility: "Accessibility",
 };
 
 function AdminContent({ children }: { children: React.ReactNode }) {
@@ -329,8 +355,6 @@ function AdminContent({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2.5">
-            <ThemeToggle />
-            <div className="mx-0.5 hidden h-6 w-px bg-black/10 sm:block dark:bg-white/10" />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

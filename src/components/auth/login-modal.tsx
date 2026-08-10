@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { registerUser, requestPasswordReset, getNewCaptcha } from "@/lib/auth-actions";
+import { SignupConsent } from "@/components/legal/consent-checkbox";
 import { RefreshCw } from "lucide-react";
 import { useConfig } from "../providers/config-provider";
 import { Accent } from "@/components/layout/section-heading";
@@ -47,6 +48,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const [name, setName] = useState("");
   const [captcha, setCaptcha] = useState<{ id: string; code: string } | null>(null);
   const [captchaInput, setCaptchaInput] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
 
   // Prevent background scroll
   React.useEffect(() => {
@@ -73,9 +76,16 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (view === "signup" && !acceptedTerms) {
+      setConsentError("Please accept the Terms of Use and Privacy Policy.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
+    setConsentError(null);
 
     try {
       if (view === "login") {
@@ -103,7 +113,8 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           email, 
           password,
           captchaId: captcha?.id,
-          captchaCode: captchaInput
+          captchaCode: captchaInput,
+          acceptedTerms,
         });
         if (result.error) {
           setError(result.error);
@@ -111,6 +122,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
         } else {
           setSuccess(result.message || "Account created! Please check your email to verify.");
           setView("login");
+          setAcceptedTerms(false);
           refreshCaptcha();
         }
       } else if (view === "forgot-password") {
@@ -417,6 +429,22 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                           />
                         </div>
                         <p className="mt-2 px-1 text-[10px] text-muted-foreground">Type the code shown above to continue.</p>
+                      </div>
+                    )}
+
+                    {/* The account is the basis of the contract, so agreement
+                        is captured here and recorded against the version live
+                        at signup. */}
+                    {view === "signup" && (
+                      <div className="pb-6">
+                        <SignupConsent
+                          checked={acceptedTerms}
+                          onChange={(value) => {
+                            setAcceptedTerms(value);
+                            if (value) setConsentError(null);
+                          }}
+                          error={consentError}
+                        />
                       </div>
                     )}
 

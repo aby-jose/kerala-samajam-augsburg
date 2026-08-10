@@ -14,6 +14,75 @@ model Config {
   updatedAt    DateTime @updatedAt
 }
 
+/// A live, admin-editable legal document (Impressum, Datenschutz, AGB, …).
+/// `de` is the legally binding version; `en` is the courtesy translation for
+/// the membership. Both hold a LegalContent JSON blob — see lib/legal-schema.ts.
+model LegalDocument {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug            String   @unique // imprint | privacy | terms | withdrawal | cookies | accessibility
+  version         Int      @default(1)
+  requiresConsent Boolean  @default(false) // does a new version re-prompt members?
+  isPublished     Boolean  @default(true)
+  effectiveFrom   DateTime @default(now())
+  de              Json
+  en              Json
+  changeNote      String? // shown verbatim in the re-consent modal
+  revisions       LegalRevision[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Immutable snapshot of a published version. Never updated, never deleted —
+/// this is what proves *which wording* a member actually agreed to.
+model LegalRevision {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  documentId  String        @db.ObjectId
+  document    LegalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  slug        String
+  version     Int
+  de          Json
+  en          Json
+  changeNote  String?
+  publishedAt DateTime      @default(now())
+  publishedBy String?
+
+  @@unique([slug, version])
+}
+
+/// Art. 7(1) GDPR accountability record: who agreed to what, when, and how.
+/// `userId` is null for anonymous subjects (contact form), which are keyed by
+/// a hashed email in `subjectKey`. IPs are stored hashed, never raw.
+model UserConsent {
+  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String?   @db.ObjectId
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectKey String // userId, or sha256(email) for anonymous subjects
+  type       String // DOCUMENT | COOKIE | BIOMETRIC | PHOTO
+  slug       String? // document slug, for type = DOCUMENT
+  version    Int?
+  granted    Boolean   @default(true)
+  source     String // signup | reconsent | membership | registration | contact | profile
+  ipHash     String?
+  userAgent  String?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, slug])
+  @@index([subjectKey])
+}
+
+/// Cookie banner choice for anonymous visitors. Mirrored in the first-party
+/// `ksa_consent` cookie; the row exists so the choice is provable server-side.
+model CookieConsent {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  consentId     String   @unique // nanoid, also written to the cookie
+  categories    Json // { essential, functional, media }
+  policyVersion Int
+  userAgent     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 model Event {
   id             String         @id @default(auto()) @map("_id") @db.ObjectId
   slug           String         @unique
@@ -156,6 +225,14 @@ model User {
   subscriptions Subscription[]
   contributions MediaContribution[]
   faceProfile   UserFaceProfile?
+
+  // --- Privacy / GDPR ---
+  consents            UserConsent[]
+  /// Art. 17 erasure request. Financial records carry a statutory 10-year
+  /// retention (§147 AO, §257 HGB), so erasure anonymises the profile rather
+  /// than purging the rows — see `anonymizedAt`.
+  deletionRequestedAt DateTime?
+  anonymizedAt        DateTime?
 }
 
 model UserFaceProfile {

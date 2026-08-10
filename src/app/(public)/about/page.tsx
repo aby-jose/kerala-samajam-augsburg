@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { Container } from "@/components/layout/container";
 import { motion, Variants } from "framer-motion";
 import { 
@@ -8,36 +7,16 @@ import {
   Target, 
   Heart
 } from "lucide-react";
-import { EventsCTA } from "@/components/layout/events-cta";
+import { EventsBand } from "@/components/layout/events-band";
+import { LeadershipRow } from "@/components/layout/leadership-row";
 import {
   Accent,
   Eyebrow,
   PageHeader,
-  SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
 
-import { getLeadershipMembers } from "@/lib/leadership-actions";
-import { Loader2 } from "lucide-react";
-
 export default function AboutPage() {
-  const [team, setTeam] = React.useState<any[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const fetchTeam = async () => {
-      try {
-        const data = await getLeadershipMembers();
-        setTeam(data);
-      } catch (error) {
-        console.error("Failed to load team members:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchTeam();
-  }, []);
-
   const revealVariants: Variants = {
     hidden: { opacity: 0, y: 15 },
     visible: { 
@@ -147,74 +126,12 @@ export default function AboutPage() {
         </Container>
       </section>
 
-      {/* 3. Committee — surface 3 */}
-      <section className="py-24 md:py-32 bg-surface-3 border-b border-border">
-        <Container className="max-w-7xl">
-          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
-            <div className="max-w-xl">
-               <Eyebrow>Committee</Eyebrow>
-               <SectionTitle className="mt-6">
-                  Our <Accent>Committee</Accent>
-               </SectionTitle>
-            </div>
-            <SectionLead className="max-w-sm md:text-right">
-               The volunteers who run KSA this year. Every one of them has a day
-               job and answers messages anyway.
-            </SectionLead>
-          </div>
+      {/* 3. Committee — surface 3. Same component the home page uses, so the two
+          stay in sync; here it lists everyone rather than previewing eight. */}
+      <LeadershipRow limit={0} showEmptyState seamless />
 
-          <motion.div 
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-100px" }}
-          >
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 w-full col-span-full">
-              <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mt-4">Loading...</p>
-            </div>
-          ) : team.length === 0 ? (
-            <div className="col-span-full rounded-3xl border border-dashed border-border py-20 text-center">
-               <p className="font-sans text-lg font-bold tracking-[-0.015em] text-foreground">Committee Not Listed Yet</p>
-               <p className="mt-2 text-sm text-muted-foreground">This year&apos;s committee will be published here shortly.</p>
-            </div>
-          ) : (
-            team.map((member, idx) => (
-              <motion.div
-                key={member.id}
-                variants={revealVariants}
-                className="group space-y-6"
-              >
-                <div className="relative aspect-4/5 rounded-3xl overflow-hidden border border-border/10 shadow-sm transition-all duration-700 group-hover:shadow-2xl group-hover:-translate-y-2">
-                  {member.image ? (
-                    <img 
-                      src={member.image} 
-                      alt={member.name} 
-                      className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-105" 
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-secondary flex items-center justify-center text-muted-foreground/20">
-                      <Heart className="w-12 h-12" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="space-y-2 px-1 text-center sm:text-left">
-                  <h4 className="font-sans text-lg font-bold tracking-[-0.015em] text-foreground transition-colors duration-300 group-hover:text-primary">{member.name}</h4>
-                  <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{member.role}</span>
-                  <div className="h-0.5 w-4 bg-primary/30 group-hover:w-16 transition-all duration-700 rounded-full" />
-                </div>
-              </motion.div>
-            ))
-          )}
-          </motion.div>
-        </Container>
-      </section>
-
-      {/* 4. Upcoming Action Banner (7xl Component) */}
-      <EventsCTA />
+      {/* 4. What's on next — deep band */}
+      <EventsBand />
     </main>
   );
 }

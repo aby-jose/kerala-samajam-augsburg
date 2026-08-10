@@ -9,6 +9,7 @@ import { getContactAdminNotificationEmail, getContactUserConfirmationEmail } fro
 import { getServerSession } from "next-auth";
 import { adminAuthOptions } from "./auth";
 import { getConfig } from "./config-utils";
+import { recordAnonymousConsent } from "./legal-actions";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -17,6 +18,11 @@ const contactSchema = z.object({
   message: z.string().min(10, "Message must be at least 10 characters"),
   captchaId: z.string().min(1, "Captcha ID is required"),
   captchaCode: z.string().min(6, "Captcha code is required"),
+  // Art. 6(1)(a) GDPR — the sender must actively agree before we store their
+  // message and reply to it.
+  privacyConsent: z.literal(true, {
+    message: "Please accept the Privacy Policy to send your message.",
+  }),
 });
 
 // Simple in-memory rate limiting (optional: use Redis in production)
@@ -78,6 +84,14 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
         message,
       },
     });
+
+    // The sender has no account, so the consent record is keyed by a hash of
+    // their email — provable, without storing another copy of the address.
+    try {
+      await recordAnonymousConsent(email, "contact");
+    } catch (consentError) {
+      console.error("Failed to record contact consent:", consentError);
+    }
 
     // 4. Send Notification Email to Admin
     const config = await getConfig();

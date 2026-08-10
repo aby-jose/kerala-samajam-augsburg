@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useForm, SubmitHandler, useFieldArray } from "react-hook-form";
+import React, { useState } from "react";
+import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import {
@@ -38,6 +38,25 @@ const localPlanSchema = z.object({
 
 type LocalPlanFormValues = z.infer<typeof localPlanSchema>;
 
+// Features are wrapped as objects while editing and unwrapped again on submit.
+// A plan with no features still opens with one empty row to type into.
+function toFormValues(initialData?: any): LocalPlanFormValues {
+  return {
+    id: initialData?.id,
+    name: initialData?.name || "",
+    description: initialData?.description || "",
+    price: initialData?.price || 0,
+    duration: initialData?.duration || "YEARLY",
+    features: initialData?.features?.length
+      ? initialData.features.map((f: string) => ({ value: f }))
+      : [{ value: "" }],
+    isActive: initialData?.isActive ?? true,
+    isPopular: initialData?.isPopular ?? false,
+  };
+}
+
+// The parent mounts this fresh (and keyed) per opening, so the initial values
+// are read once here rather than reset into an already-mounted form.
 export default function MembershipPlanModal({ isOpen, onClose, initialData }: MembershipPlanModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { success, error } = useToast();
@@ -46,56 +65,14 @@ export default function MembershipPlanModal({ isOpen, onClose, initialData }: Me
     register,
     handleSubmit,
     control,
-    reset,
     watch,
     setValue,
+    getValues,
     formState: { errors },
   } = useForm<LocalPlanFormValues>({
     resolver: zodResolver(localPlanSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      price: 0,
-      duration: "YEARLY",
-      features: [{ value: "" }],
-      isActive: true,
-      isPopular: false,
-    },
+    defaultValues: toFormValues(initialData),
   });
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "features",
-  });
-
-  useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        reset({
-          id: initialData.id,
-          name: initialData.name || "",
-          description: initialData.description || "",
-          price: initialData.price || 0,
-          duration: initialData.duration || "YEARLY",
-          features: initialData.features?.length > 0
-            ? initialData.features.map((f: string) => ({ value: f }))
-            : [{ value: "" }],
-          isActive: initialData.isActive ?? true,
-          isPopular: initialData.isPopular ?? false,
-        });
-      } else {
-        reset({
-          name: "",
-          description: "",
-          price: 0,
-          duration: "YEARLY",
-          features: [{ value: "" }],
-          isActive: true,
-          isPopular: false,
-        });
-      }
-    }
-  }, [isOpen, initialData, reset]);
 
   const onSubmit: SubmitHandler<any> = async (data) => {
     setIsSubmitting(true);
@@ -214,38 +191,58 @@ export default function MembershipPlanModal({ isOpen, onClose, initialData }: Me
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => append({ value: "" })}
+                  onClick={() =>
+                    setValue("features", [...getValues("features"), { value: "" }])
+                  }
                   className="h-8 gap-1.5 rounded-lg px-2 text-xs font-medium text-primary hover:bg-primary/10 hover:text-primary"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add feature
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Input
-                        {...register(`features.${index}.value` as any)}
-                        placeholder={`Feature ${index + 1}`}
-                        className="h-9 rounded-lg"
-                      />
-                    </div>
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => remove(index)}
-                        className="h-9 w-9 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                        aria-label="Remove feature"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+              {/* Controlled rows: the value on screen always comes from form
+                  state, so an appended row cannot inherit a stale DOM value. */}
+              <Controller
+                control={control}
+                name="features"
+                render={({ field }) => (
+                  <div className="space-y-2">
+                    {field.value.map((row, index) => (
+                      <div key={index} className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            value={row.value}
+                            onChange={(e) =>
+                              field.onChange(
+                                field.value.map((r, i) =>
+                                  i === index ? { value: e.target.value } : r
+                                )
+                              )
+                            }
+                            onBlur={field.onBlur}
+                            placeholder={`Feature ${index + 1}`}
+                            className="h-9 rounded-lg"
+                          />
+                        </div>
+                        {field.value.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              field.onChange(field.value.filter((_, i) => i !== index))
+                            }
+                            className="h-9 w-9 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                            aria-label="Remove feature"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              />
             </div>
 
             <div className="flex flex-col gap-3">

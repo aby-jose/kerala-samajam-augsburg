@@ -227,7 +227,20 @@ export default function AdminMembershipPage() {
         }
       />
 
-      <MembershipPlanModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); fetchPlans(); }} initialData={selectedPlan} />
+      {/* Keyed and mounted per opening so no form state carries over from the
+          plan that was open before. */}
+      {isModalOpen && (
+        <MembershipPlanModal
+          key={selectedPlan?.id ?? "new"}
+          isOpen
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedPlan(null);
+            fetchPlans();
+          }}
+          initialData={selectedPlan}
+        />
+      )}
     </div>
   );
 }

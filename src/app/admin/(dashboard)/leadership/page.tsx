@@ -262,14 +262,18 @@ export default function AdminLeadershipPage() {
         }
       />
 
-      <LeadershipMemberModal
-        isOpen={isModalOpen}
-        onClose={() => {
-          setIsModalOpen(false);
-          fetchMembers();
-        }}
-        initialData={selectedMember}
-      />
+      {isModalOpen && (
+        <LeadershipMemberModal
+          key={selectedMember?.id ?? "new"}
+          isOpen={isModalOpen}
+          onClose={() => {
+            setIsModalOpen(false);
+            setSelectedMember(null);
+            fetchMembers();
+          }}
+          initialData={selectedMember}
+        />
+      )}
     </div>
   );
 }

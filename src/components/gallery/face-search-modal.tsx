@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/toast";
 import { searchMediaByFace } from "@/lib/gallery-actions";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { BiometricConsentGate } from "@/components/legal/biometric-consent-gate";
 
 const MODEL_URL = "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/";
 
@@ -222,6 +223,8 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+          {/* Nothing below runs until explicit Art. 9 consent is on record. */}
+          <BiometricConsentGate>
           {isCameraActive ? (
             <div className="space-y-6">
               <div className="relative aspect-video w-full rounded-3xl overflow-hidden border-4 border-primary/20 shadow-2xl bg-black">
@@ -318,8 +321,20 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
                     <CheckCircle2 className="w-3 h-3 text-primary" /> Privacy Note
                   </h4>
+                  {/*
+                    The old wording said nothing was stored at all, which read
+                    as if no biometrics existed — while face descriptors for
+                    gallery photos are held server-side. Both halves are stated
+                    now so the note is actually accurate.
+                  */}
                   <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">
-                    Your reference photo is processed locally in your browser and never stored on our servers.
+                    Your reference photo is processed in your browser and is never
+                    uploaded. Face descriptors for gallery photos are stored on our
+                    servers and deleted with the photo — see the{" "}
+                    <Link href="/legal/privacy" className="not-italic font-semibold text-primary underline underline-offset-2">
+                      Privacy Policy
+                    </Link>
+                    .
                   </p>
                 </div>
               </div>
@@ -381,6 +396,7 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
               </div>
             </div>
           )}
+          </BiometricConsentGate>
         </div>
         <canvas ref={canvasRef} className="hidden" />
       </motion.div>

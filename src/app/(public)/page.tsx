@@ -2,6 +2,7 @@
 
 import { motion, Variants } from "framer-motion";
 import { Hero } from "@/components/layout/hero";
+import { AboutIntro } from "@/components/layout/about-intro";
 import { EventsShowcase } from "@/components/layout/events-showcase";
 import { GalleryStrip } from "@/components/layout/gallery-strip";
 import { LeadershipRow } from "@/components/layout/leadership-row";
@@ -14,63 +15,11 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { Button } from "@/components/ui/button";
-import {
-  ArrowRight,
-  ArrowUpRight,
-  Flower2,
-  HeartHandshake,
-  Languages,
-  Music,
-  GraduationCap,
-  Users,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import React, { useState, useEffect } from "react";
 import { getUpcomingEvents } from "@/lib/event-actions";
-
-const EASE = [0.16, 1, 0.3, 1] as const;
-
-const pillars = [
-  {
-    title: "Festivals and Celebrations",
-    icon: Flower2,
-    desc: "Onam, Vishu, Christmas and Deepavali — cooked and run by members, every year.",
-  },
-  {
-    title: "Help Settling In",
-    icon: HeartHandshake,
-    desc: "Anmeldung, flats, schools, insurance. Ask, and someone who has done it will help.",
-  },
-  {
-    title: "Malayalam Classes",
-    icon: Languages,
-    desc: "Weekend lessons so children born here keep speaking the language at home.",
-  },
-  {
-    title: "Music, Dance and Theatre",
-    icon: Music,
-    desc: "Classical dance, chenda and stage productions. No audition needed.",
-  },
-  {
-    title: "Study and Work Guidance",
-    icon: GraduationCap,
-    desc: "Ausbildung, applications and interviews, from members who have been through it.",
-  },
-  {
-    title: "Part of the City",
-    icon: Users,
-    desc: "Augsburg's cultural calendar and charity drives, open to everyone.",
-  },
-];
-
-// Facts we can state without qualification. Swap in live figures
-// (member count, events per year) once they are worth quoting.
-const facts = [
-  { value: "2012", label: "Founded" },
-  { value: "e.V.", label: "Registered Verein" },
-  { value: "Augsburg", label: "And the towns around" },
-];
 
 // Placeholder events, shown until the real calendar loads. Past ones are
 // filtered out below, same as the live data.
@@ -159,105 +108,7 @@ export default function Home() {
       <Hero />
 
       {/* ================= Who we are — surface 1 ================= */}
-      <section id="vision" className="scroll-mt-20 relative bg-surface-1 py-24 md:py-32 overflow-hidden">
-        {/* Ambient background accent */}
-        <div className="pointer-events-none absolute -top-24 right-0 h-[420px] w-[420px] rounded-full bg-primary/[0.06] blur-3xl" />
-        <div className="pointer-events-none absolute bottom-0 left-0 h-64 w-64 rounded-full bg-primary/[0.04] blur-3xl" />
-
-        <Container className="relative">
-          <div className="grid grid-cols-1 gap-x-16 gap-y-14 lg:grid-cols-12 lg:gap-y-0">
-            {/* Sticky intro */}
-            <motion.div
-              className="lg:col-span-5 lg:sticky lg:top-28 lg:self-start"
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-100px" }}
-              transition={{ duration: 0.7, ease: EASE }}
-            >
-              <Eyebrow>About us</Eyebrow>
-
-              <SectionTitle className="mt-6">
-                About <Accent>Kerala</Accent> Samajam Augsburg
-              </SectionTitle>
-
-              <SectionLead className="mt-6 max-w-lg">
-                It started in 2012, when a handful of families cooked one Onam
-                sadhya together. Today KSA is a registered Verein with members
-                across Augsburg and the towns around it — still cooking, still
-                teaching the language, and still answering the phone when
-                someone new needs a hand.
-              </SectionLead>
-
-              {/* Fact strip */}
-              <dl className="mt-10 grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-border bg-border">
-                {facts.map((fact) => (
-                  <div key={fact.label} className="bg-surface-1 px-4 py-5">
-                    <dt className="font-sans text-lg font-extrabold tracking-[-0.03em] text-foreground sm:text-xl">
-                      {fact.value}
-                    </dt>
-                    <dd className="mt-1 text-[11px] leading-snug text-muted-foreground">
-                      {fact.label}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-
-              <Link
-                href="/about"
-                className="group mt-10 inline-flex items-center gap-2 text-sm font-semibold text-foreground"
-              >
-                <span className="border-b border-foreground/30 pb-0.5 transition-colors group-hover:border-primary group-hover:text-primary">
-                  Read our full story
-                </span>
-                <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-primary" />
-              </Link>
-            </motion.div>
-
-            {/* Pillar grid — hairline rules instead of floating cards */}
-            <motion.div
-              className="grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-border bg-border sm:grid-cols-2 lg:col-span-7"
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true, margin: "-80px" }}
-              variants={{
-                hidden: {},
-                visible: { transition: { staggerChildren: 0.08 } },
-              }}
-            >
-              {pillars.map((item, i) => (
-                <motion.div
-                  key={item.title}
-                  variants={{
-                    hidden: { opacity: 0, y: 16 },
-                    visible: {
-                      opacity: 1,
-                      y: 0,
-                      transition: { duration: 0.6, ease: EASE },
-                    },
-                  }}
-                  className="group relative bg-surface-1 p-7 transition-colors duration-300 hover:bg-muted/50 md:p-8"
-                >
-                  <div className="flex items-start justify-between">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-1 text-primary transition-colors duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-                      <item.icon strokeWidth={1.6} className="h-5 w-5" />
-                    </span>
-                    <span className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                  </div>
-
-                  <h3 className="mt-6 font-sans text-[17px] font-bold leading-snug tracking-[-0.015em] text-foreground">
-                    {item.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {item.desc}
-                  </p>
-                </motion.div>
-              ))}
-            </motion.div>
-          </div>
-        </Container>
-      </section>
+      <AboutIntro />
 
       {/* ================= Events — surface 2 ================= */}
       <section className="relative overflow-hidden border-y border-border bg-surface-2 py-24 md:py-32">

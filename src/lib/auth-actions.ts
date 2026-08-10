@@ -7,16 +7,24 @@ import bcrypt from "bcrypt";
 import { nanoid } from "nanoid";
 import { sendEmail } from "@/lib/email";
 import { getConfig } from "@/lib/config-utils";
+import { recordDocumentConsents } from "@/lib/legal-actions";
 
 export async function getNewCaptcha() {
   return generateCaptcha();
 }
 
 export async function registerUser(formData: any) {
-  const { name, email, password, captchaId, captchaCode } = formData;
+  const { name, email, password, captchaId, captchaCode, acceptedTerms } = formData;
 
   if (!name || !email || !password || !captchaId || !captchaCode) {
     return { error: "Missing required fields" };
+  }
+
+  // Checked server-side as well as in the form: the account is the basis of
+  // the contractual relationship, so it must not be created without a record
+  // that the terms and privacy policy were accepted.
+  if (!acceptedTerms) {
+    return { error: "Please accept the Terms of Use and Privacy Policy to continue." };
   }
 
   // 1. Verify Captcha
@@ -45,6 +53,17 @@ export async function registerUser(formData: any) {
         emailVerified: null, // User must verify email
       },
     });
+
+    // Record what was agreed to, at the versions live right now. This is the
+    // Art. 7(1) evidence that consent was given, and the baseline the
+    // re-consent gate compares future versions against.
+    try {
+      await recordDocumentConsents(user.id, ["privacy", "terms"], "signup");
+    } catch (consentError) {
+      // Never fail a signup over the audit write — but make it loud, because
+      // a missing record is a compliance gap, not a cosmetic one.
+      console.error("Failed to record signup consent:", consentError);
+    }
 
     // 4. Generate Verification Token
     const token = nanoid(32);

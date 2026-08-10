@@ -33,8 +33,9 @@ export async function saveConfig(config: SiteConfig) {
       },
     });
 
-    revalidatePath("/");
-    revalidatePath("/admin/config");
+    // The brand colour lives on the root layout, so every cached route has to
+    // go — "/" alone would leave the rest of the site on the old colour.
+    revalidatePath("/", "layout");
     return { success: true };
   } catch (error) {
     console.error("Failed to save config:", error);

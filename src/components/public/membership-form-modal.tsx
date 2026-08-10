@@ -38,6 +38,8 @@ import {
 } from "@/lib/membership-actions";
 import { sendVerificationOTP, verifyOTP, uploadStudentId } from "@/lib/verification-actions";
 import { cn } from "@/lib/utils";
+import { ConsentCheckbox, LegalLink } from "@/components/legal/consent-checkbox";
+import { ConsentBlockedNotice, useLegalConsent } from "@/components/legal/consent-gate";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { updateProfile } from "@/lib/profile-actions";
@@ -81,6 +83,10 @@ export default function MembershipFormModal({
   const [institution, setInstitution] = useState("");
   const [familyMembers, setFamilyMembers] = useState<{name: string, relation: 'ADULT' | 'CHILD'}[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<"STRIPE" | "CASH">("STRIPE");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acknowledgedWithdrawal, setAcknowledgedWithdrawal] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const { hasPending: hasPendingConsent, promptConsent } = useLegalConsent();
 
   const isStudentPlan = plan.name.toLowerCase().includes("student");
   const isFamilyPlan = plan.name.toLowerCase().includes("family");
@@ -243,6 +249,24 @@ export default function MembershipFormModal({
   };
 
   const handleSubmit = async () => {
+    // The student path submits an application for review rather than paying,
+    // so it has its own consent tick further up; everything else routes
+    // through the payment step and must be ticked there.
+    if (isStudentPlan && !acceptedTerms) {
+      setConsentError("Please accept the Terms of Use and Privacy Policy.");
+      return;
+    }
+
+    if (!isStudentPlan && (!acceptedTerms || !acknowledgedWithdrawal)) {
+      setConsentError("Please confirm both statements to continue.");
+      return;
+    }
+
+    if (hasPendingConsent) {
+      promptConsent();
+      return;
+    }
+
     setIsSubmitting(true);
     const details: any = {};
     if (isStudentPlan) {
@@ -575,10 +599,27 @@ export default function MembershipFormModal({
                  )}
 
                  {isStudentPlan && (
-                    <div className="pt-4">
-                       <Button 
-                         onClick={handleSubmit} 
-                         disabled={isSubmitting || !idUrl || !institution} 
+                    <div className="pt-4 space-y-4">
+                       {/* No payment step on this path, so consent is taken
+                           here — a student ID is a document about an
+                           identifiable person and must not be uploaded
+                           without agreement. */}
+                       <ConsentCheckbox
+                          checked={acceptedTerms}
+                          onChange={(value) => {
+                             setAcceptedTerms(value);
+                             if (value) setConsentError(null);
+                          }}
+                          error={consentError}
+                       >
+                          I accept the <LegalLink slug="terms">Terms of Use</LegalLink> and
+                          have read the <LegalLink slug="privacy">Privacy Policy</LegalLink>,
+                          including how my proof of student status is handled.
+                       </ConsentCheckbox>
+
+                       <Button
+                         onClick={handleSubmit}
+                         disabled={isSubmitting || !idUrl || !institution || !acceptedTerms}
                          className="w-full h-12 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-primary/10"
                        >
                           {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
@@ -601,10 +642,69 @@ export default function MembershipFormModal({
                      <span className="text-[10px] font-bold uppercase tracking-widest">Cash / SEPA</span>
                    </button>
                  </div>
-                 
-                 <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full h-14 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20">
+
+                 {/*
+                   § 312j Abs. 2 BGB requires the essential terms to sit
+                   directly above the order button, not a scroll away.
+                 */}
+                 <div className="rounded-2xl border border-border bg-muted/30 p-5 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Plan</span>
+                       <span className="text-sm font-semibold text-foreground">{plan.name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">Term</span>
+                       <span className="text-sm font-medium text-foreground capitalize">{plan.duration.toLowerCase()}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border/60 pt-2.5">
+                       <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70">Total</span>
+                       <span className="text-lg font-black text-primary">€{plan.price.toFixed(2)}</span>
+                    </div>
+                 </div>
+
+                 <ConsentBlockedNotice />
+
+                 <div className="space-y-3">
+                    <ConsentCheckbox
+                       checked={acceptedTerms}
+                       onChange={(value) => {
+                          setAcceptedTerms(value);
+                          if (value) setConsentError(null);
+                       }}
+                       error={consentError}
+                    >
+                       I accept the <LegalLink slug="terms">Terms of Use</LegalLink> and have
+                       read the <LegalLink slug="privacy">Privacy Policy</LegalLink>.
+                    </ConsentCheckbox>
+
+                    {/* Separate from the terms tick: the withdrawal
+                        instruction is its own statutory duty, and a member
+                        must be able to see they were told about it. */}
+                    <ConsentCheckbox
+                       checked={acknowledgedWithdrawal}
+                       onChange={(value) => {
+                          setAcknowledgedWithdrawal(value);
+                          if (value) setConsentError(null);
+                       }}
+                    >
+                       I have been informed of my{" "}
+                       <LegalLink slug="withdrawal">right of withdrawal</LegalLink> and the
+                       14-day period that applies to this membership.
+                    </ConsentCheckbox>
+                 </div>
+
+                 {/*
+                   § 312j Abs. 3 BGB prescribes the wording on this button. A
+                   label that does not make the payment obligation explicit
+                   means no contract is formed at all.
+                 */}
+                 <Button
+                    onClick={handleSubmit}
+                    disabled={isSubmitting || !acceptedTerms || !acknowledgedWithdrawal}
+                    className="w-full h-14 rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-xl shadow-primary/20"
+                 >
                     {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    Pay €{plan.price.toFixed(2)} & Activate
+                    Order with obligation to pay · €{plan.price.toFixed(2)}
                  </Button>
               </motion.div>
            )}

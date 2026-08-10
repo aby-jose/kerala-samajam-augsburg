@@ -17,6 +17,17 @@ export function truncate(str: string, length: number) {
   return str.length > length ? str.substring(0, length) + "..." : str;
 }
 
+/**
+ * Pull a message out of a caught value without widening it to `any`.
+ * A server action can reject with an Error, a string, or something else
+ * entirely, so the fallback matters.
+ */
+export function getErrorMessage(error: unknown, fallback = "Something went wrong."): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string" && error) return error;
+  return fallback;
+}
+
 export function exportToCSV(headers: string[], data: any[][], filename: string) {
   const csvContent = [
     headers.join(","),

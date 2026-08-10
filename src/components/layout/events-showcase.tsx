@@ -26,6 +26,12 @@ interface Event {
 
 interface EventsShowcaseProps {
   events: Event[];
+  /**
+   * Show a skeleton rather than the "nothing scheduled" card while the
+   * calendar is still in flight. Pages that seed with placeholder events
+   * (the home page) never need this; pages that start empty do.
+   */
+  isLoading?: boolean;
 }
 
 const fullDate = (d: string) =>
@@ -35,18 +41,13 @@ const fullDate = (d: string) =>
     year: "numeric",
   });
 
-const dayNum = (d: string) => String(new Date(d).getDate()).padStart(2, "0");
-
-const monthShort = (d: string) =>
-  new Date(d).toLocaleDateString("en-GB", { month: "short" });
-
-export function EventsShowcase({ events }: EventsShowcaseProps) {
+export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
   const displayEvents = useMemo(() => events.slice(0, 4), [events]);
   const [selectedId, setSelectedId] = useState(displayEvents[0]?.id);
   const [isPaused, setIsPaused] = useState(false);
 
   // The list can be swapped underneath us (mock data → fetched events),
-  // which would otherwise leave the rail with nothing highlighted.
+  // which would otherwise leave the card pointing at an event that is gone.
   useEffect(() => {
     if (!displayEvents.some((e) => e.id === selectedId)) {
       setSelectedId(displayEvents[0]?.id);
@@ -70,6 +71,18 @@ export function EventsShowcase({ events }: EventsShowcaseProps) {
 
   const selectedEvent =
     displayEvents.find((e) => e.id === selectedId) || displayEvents[0];
+  const currentIndex = Math.max(
+    displayEvents.findIndex((e) => e.id === selectedEvent?.id),
+    0
+  );
+
+  // Still fetching. Hold the exact shape of the card so the page does not
+  // jump, and so "No Events Scheduled" never flashes before the data lands.
+  if (isLoading && !selectedEvent) {
+    return (
+      <div className="h-[560px] w-full animate-pulse rounded-3xl border border-border bg-muted/40 lg:h-[520px]" />
+    );
+  }
 
   // Nothing upcoming. Say so plainly rather than collapsing the section.
   if (!selectedEvent) {
@@ -102,150 +115,158 @@ export function EventsShowcase({ events }: EventsShowcaseProps) {
 
   return (
     <div
-      className="grid items-stretch gap-6 lg:grid-cols-12 lg:gap-8"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
       {/* ---------- Featured event ---------- */}
-      <div className="group relative overflow-hidden rounded-3xl border border-border bg-zinc-900 aspect-4/5 sm:aspect-16/10 lg:col-span-7 lg:aspect-16/11">
+      {/* Two columns rather than a full-bleed crop. Event artwork is a poster
+          — it carries the date, the price and the venue in the image itself —
+          so it is shown whole and the type sits beside it, never on top of it.
+          Same rule the event page and the /about band already follow. */}
+      <div className="group relative overflow-hidden rounded-3xl border border-border bg-zinc-900">
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedEvent.id}
-            initial={{ opacity: 0, scale: 1.03 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.99 }}
-            transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute inset-0"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="relative"
           >
+            {/* The poster doubles as its own backdrop, blurred well past
+                legibility so it reads as colour only and the frame is never
+                empty beside a narrow one. */}
             <img
               src={selectedEvent.image}
-              alt={selectedEvent.title}
-              className="absolute inset-0 h-full w-full object-cover brightness-[0.55] transition-transform duration-[2500ms] ease-out group-hover:scale-105"
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-45 blur-[70px]"
             />
-            {/* Bottom-weighted scrim so the type sits on solid darkness */}
-            <div className="absolute inset-0 bg-linear-to-t from-black via-black/55 to-transparent" />
-            <div className="absolute inset-0 bg-linear-to-r from-black/70 to-transparent" />
+            <div aria-hidden className="absolute inset-0 bg-black/60" />
 
-            <div className="absolute inset-0 flex flex-col justify-end p-6 sm:p-8 md:p-10">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <span className="rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
-                  {fullDate(selectedEvent.date)}
-                </span>
-                <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
-                  <MapPin className="h-3 w-3" strokeWidth={2} />
-                  {selectedEvent.location}
-                </span>
-              </div>
+            <div className="relative grid items-center gap-9 px-6 pb-14 pt-9 sm:px-9 lg:min-h-[520px] lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:px-12 lg:py-14">
+              {/* ---- The poster, uncropped ---- */}
+              {/* No aspect box and no object-cover: the height comes from the
+                  artwork, capped so a very tall poster cannot run away with
+                  the section. */}
+              <Link
+                href={`/events/${selectedEvent.slug ?? selectedEvent.id}`}
+                className="flex justify-center lg:order-2"
+              >
+                <img
+                  src={selectedEvent.image}
+                  alt={selectedEvent.title}
+                  className="block max-h-[320px] w-auto max-w-full rounded-2xl border border-white/10 object-contain shadow-2xl shadow-black/60 transition-transform duration-[1200ms] ease-out group-hover:scale-[1.02] sm:max-h-[400px] lg:max-h-[440px]"
+                />
+              </Link>
 
-              <h3 className="mt-5 max-w-xl font-sans text-2xl font-extrabold leading-[1.1] tracking-[-0.03em] text-white text-balance md:text-3xl lg:text-[2rem]">
-                {selectedEvent.title}
-              </h3>
+              {/* ---- The pitch ---- */}
+              <div className="lg:order-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                    {fullDate(selectedEvent.date)}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
+                    <MapPin className="h-3 w-3" strokeWidth={2} />
+                    {selectedEvent.location}
+                  </span>
+                </div>
 
-              <p className="mt-3 max-w-md text-sm leading-relaxed text-white/65 line-clamp-2">
-                {selectedEvent.description}
-              </p>
+                <h3 className="mt-5 font-sans text-2xl font-extrabold leading-[1.1] tracking-[-0.03em] text-white text-balance md:text-4xl">
+                  {selectedEvent.title}
+                </h3>
 
-              <div className="mt-7 flex flex-col items-start gap-6 border-t border-white/10 pt-6 sm:flex-row sm:items-end sm:justify-between">
-                <Countdown targetDate={selectedEvent.date} />
-                <Link href={`/events/${selectedEvent.slug ?? selectedEvent.id}`}>
-                  <Button className="h-11 rounded-full px-7 text-[11px] font-bold uppercase tracking-[0.18em] shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5">
-                    Details
-                    <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                  </Button>
-                </Link>
+                <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/65 line-clamp-3">
+                  {selectedEvent.description}
+                </p>
+
+                <div className="mt-8 flex flex-col items-start gap-6 border-t border-white/10 pt-7 sm:flex-row sm:items-end sm:justify-between sm:gap-10">
+                  <Countdown targetDate={selectedEvent.date} />
+
+                  {/* ml-auto, not just justify-between: the countdown only
+                      exists after mount, and without it the lone button would
+                      render hard left and then jump. */}
+                  <Link
+                    href={`/events/${selectedEvent.slug ?? selectedEvent.id}`}
+                    className="group/cta shrink-0 sm:ml-auto"
+                  >
+                    <Button className="relative h-12 overflow-hidden rounded-full px-8 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/30 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45">
+                      {/* The pill is the only solid colour on the card, so it
+                          gets the one flourish: a single light sweep on hover. */}
+                      <span
+                        aria-hidden
+                        className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/25 to-transparent transition-transform duration-[900ms] ease-out group-hover/cta:translate-x-full"
+                      />
+                      <span className="relative flex items-center">
+                        View Details
+                        <ArrowRight
+                          className="ml-2.5 h-3.5 w-3.5 transition-transform duration-500 group-hover/cta:translate-x-1"
+                          strokeWidth={2.4}
+                        />
+                      </span>
+                    </Button>
+                  </Link>
+                </div>
+
+                {/* Sequential navigation. It lives in the type column rather
+                    than floating in a corner — a corner control would sit on
+                    the poster, which is the one thing this layout protects. */}
+                {displayEvents.length > 1 && (
+                  <div className="mt-8 flex items-center gap-4">
+                    <span className="font-mono text-[10px] tracking-[0.2em] text-white/50">
+                      {String(currentIndex + 1).padStart(2, "0")} /{" "}
+                      {String(displayEvents.length).padStart(2, "0")}
+                    </span>
+                    {([-1, 1] as const).map((dir) => (
+                      <button
+                        key={dir}
+                        type="button"
+                        aria-label={dir === -1 ? "Previous event" : "Next event"}
+                        onClick={() => step(dir)}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.06] text-white backdrop-blur-md transition-all duration-300 hover:bg-white/15 active:scale-95"
+                      >
+                        {dir === -1 ? (
+                          <ChevronLeft className="h-4.5 w-4.5" />
+                        ) : (
+                          <ChevronRight className="h-4.5 w-4.5" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </motion.div>
         </AnimatePresence>
 
-        {/* Manual navigation */}
+        {/* Direct jumps. A segmented rail along the bottom edge rather than
+            dots in the corner — the corner belongs to the CTA now, and the
+            rail reads as position without competing with anything. */}
         {displayEvents.length > 1 && (
-          <div className="absolute right-5 top-5 z-20 flex gap-2 sm:right-6 sm:top-6">
-            {([-1, 1] as const).map((dir) => (
+          <div className="absolute inset-x-0 bottom-0 z-20 flex gap-px">
+            {displayEvents.map((event) => (
               <button
-                key={dir}
+                key={event.id}
                 type="button"
-                aria-label={dir === -1 ? "Previous event" : "Next event"}
-                onClick={() => step(dir)}
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-black/25 text-white backdrop-blur-md transition-all duration-300 hover:bg-white/15 active:scale-95"
+                onClick={() => setSelectedId(event.id)}
+                aria-label={`Show ${event.title}`}
+                aria-current={event.id === selectedEvent.id}
+                className="group/seg flex-1 pt-4"
               >
-                {dir === -1 ? (
-                  <ChevronLeft className="h-4.5 w-4.5" />
-                ) : (
-                  <ChevronRight className="h-4.5 w-4.5" />
-                )}
+                <span
+                  className={cn(
+                    "block h-[3px] w-full transition-colors duration-500",
+                    event.id === selectedEvent.id
+                      ? "bg-primary"
+                      : "bg-white/20 group-hover/seg:bg-white/45"
+                  )}
+                />
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* ---------- Upcoming rail ---------- */}
-      <div className="flex flex-col lg:col-span-5">
-        <span className="mb-4 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          <span className="h-px w-6 bg-border" />
-          Up next
-        </span>
-
-        <ul className="flex flex-1 flex-col divide-y divide-border border-y border-border">
-          {displayEvents.map((event) => {
-            const active = event.id === selectedEvent.id;
-            return (
-              <li key={event.id} className="flex-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(event.id)}
-                  aria-current={active}
-                  className={cn(
-                    "group flex h-full w-full min-h-[84px] items-center gap-4 px-4 py-4 text-left transition-colors duration-300 -mx-4 sm:-mx-5 sm:px-5",
-                    active ? "bg-primary/[0.05]" : "hover:bg-foreground/[0.03]"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border transition-colors duration-300",
-                      active
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-surface-1 text-foreground group-hover:border-primary/40"
-                    )}
-                  >
-                    <span className="font-sans text-lg font-extrabold leading-none tracking-[-0.03em]">
-                      {dayNum(event.date)}
-                    </span>
-                    <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] opacity-70">
-                      {monthShort(event.date)}
-                    </span>
-                  </span>
-
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        "block truncate font-sans text-[15px] font-bold tracking-[-0.01em] transition-colors",
-                        active ? "text-primary" : "text-foreground"
-                      )}
-                    >
-                      {event.title}
-                    </span>
-                    <span className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <MapPin className="h-3 w-3 shrink-0" strokeWidth={2} />
-                      <span className="truncate">{event.location}</span>
-                    </span>
-                  </span>
-
-                  <ChevronRight
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-all duration-300",
-                      active
-                        ? "text-primary"
-                        : "-translate-x-1 text-muted-foreground opacity-0 group-hover:translate-x-0 group-hover:opacity-100"
-                    )}
-                  />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
     </div>
   );
 }

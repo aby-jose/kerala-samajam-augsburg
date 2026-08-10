@@ -27,6 +27,8 @@ import { useSession } from "next-auth/react";
 import { LoginModal } from "@/components/auth/login-modal";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { PrivacyConsent } from "@/components/legal/consent-checkbox";
+import { ConsentBlockedNotice, useLegalConsent } from "@/components/legal/consent-gate";
 
 const registrationSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -34,6 +36,9 @@ const registrationSchema = z.object({
   phone: z.string().min(5, "Phone number is required"),
   attendees: z.number().min(1, "At least 1 attendee").max(10, "Max 10 per registration"),
   captchaCode: z.string().min(1, "Captcha is required"),
+  privacyConsent: z.literal(true, {
+    message: "Please accept the Privacy Policy to register.",
+  }),
 });
 
 type FormValues = z.infer<typeof registrationSchema>;
@@ -57,6 +62,7 @@ export function RegistrationForm({
 }: RegistrationFormProps) {
   const confirm = useConfirm();
   const { data: session } = useSession();
+  const { hasPending: hasPendingConsent, promptConsent } = useLegalConsent();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [ticketId, setTicketId] = useState("");
@@ -84,10 +90,13 @@ export function RegistrationForm({
     defaultValues: {
       attendees: 1,
       captchaCode: "",
+      // Never pre-ticked — consent has to be a positive act.
+      privacyConsent: false as unknown as true,
     },
   });
 
   const attendees = watch("attendees");
+  const privacyConsent = watch("privacyConsent");
   const currentPricePerPerson = isMember ? (memberPrice ?? 0) : (nonMemberPrice ?? 0);
   const totalPrice = currentPricePerPerson * (attendees || 1);
 
@@ -133,6 +142,13 @@ export function RegistrationForm({
   const onSubmit: SubmitHandler<FormValues> = async (data) => {
     if (requiresLogin && !session) {
       setIsLoginModalOpen(true);
+      return;
+    }
+
+    // A member whose acceptance is behind the current terms cannot take on a
+    // new obligation until they have seen what changed.
+    if (hasPendingConsent) {
+      promptConsent();
       return;
     }
 
@@ -467,8 +483,24 @@ export function RegistrationForm({
           </div>
         )}
 
-        <Button 
-          type="submit" 
+        <ConsentBlockedNotice />
+
+        <PrivacyConsent
+          checked={!!privacyConsent}
+          onChange={(value) =>
+            setValue("privacyConsent", value as true, { shouldValidate: true })
+          }
+          error={errors.privacyConsent?.message}
+        />
+
+        {/*
+          § 312j Abs. 3 BGB: where the registration obliges the attendee to
+          pay, the button itself must say so in prescribed, unambiguous
+          wording. A button that merely says "Submit" does not form a
+          contract at all, so the label switches on the total.
+        */}
+        <Button
+          type="submit"
           disabled={isSubmitting}
           className="w-full h-11 bg-primary hover:bg-primary/90 text-white font-bold text-[10px] uppercase tracking-widest rounded-lg shadow-sm transition-all"
         >
@@ -476,16 +508,22 @@ export function RegistrationForm({
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <>
-              {requiresLogin && !session ? "Sign in to Register" : "Submit Registration"}
+              {requiresLogin && !session
+                ? "Sign in to Register"
+                : totalPrice > 0
+                  ? `Order with obligation to pay · €${totalPrice.toFixed(2)}`
+                  : "Submit Registration"}
               <ArrowRight className="ml-2 w-3.5 h-3.5" />
             </>
           )}
         </Button>
 
-        <p className="text-[9px] text-center text-muted-foreground/60 font-medium leading-relaxed max-w-[240px] mx-auto">
-          {requiresLogin 
-            ? "Access is limited to Kerala Samajam members." 
-            : "Registration data is handled according to our privacy policy."}
+        <p className="text-[9px] text-center text-muted-foreground/60 font-medium leading-relaxed max-w-[260px] mx-auto">
+          {requiresLogin
+            ? "Access is limited to Kerala Samajam members."
+            : totalPrice > 0
+              ? "Events are held on a fixed date, so the statutory right of withdrawal does not apply (§ 312g (2) no. 9 BGB)."
+              : "Your details are used only to manage this registration."}
         </p>
       </form>
       </div>

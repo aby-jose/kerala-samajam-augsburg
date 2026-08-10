@@ -6,7 +6,6 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Calendar, Info, Home, Image as ImageIcon, Mail, Users, LogIn, User as UserIcon, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "./theme-toggle";
 import { LoginModal } from "../auth/login-modal";
 import { useSession, signOut } from "next-auth/react";
 import { Button } from "../ui/button";
@@ -81,7 +80,13 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
 
   // Transparent on ALL pages until scroll, but force solid when mobile menu is open.
   const isSolid = scrolled || isOpen;
-  const useLightText = forceLightText || (isHomePage && !scrolled && !isOpen);
+
+  // Pages that open on a dark section rather than a white one. The navbar sits
+  // over them while it is still transparent, so its type has to invert until
+  // the solid background takes over on scroll. `/events` itself is light — only
+  // a single event page below it is dark.
+  const hasDarkTop = isHomePage || /^\/events\/[^/]+$/.test(pathname);
+  const useLightText = forceLightText || (hasDarkTop && !scrolled && !isOpen);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -105,15 +110,17 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
       >
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 h-16 lg:h-[72px] flex items-center justify-between gap-4">
           {/* Brand */}
-          <Link href="/" className="flex items-center gap-2.5 min-w-0 shrink-0 transition-opacity hover:opacity-85">
+          {/* Shrinkable rather than `shrink-0`: on a narrow phone the name
+              ellipsises instead of pushing the actions off the screen. */}
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 transition-opacity hover:opacity-85">
             <img
               src={config.branding.logoUrl || "/images/logo.png"}
               alt={config.siteName}
-              className="h-9 lg:h-10 w-auto"
+              className="h-9 lg:h-10 w-auto shrink-0"
             />
             <span
               className={cn(
-                "text-[15px] lg:text-base font-semibold tracking-tight whitespace-nowrap transition-colors duration-300 hidden sm:block",
+                "truncate text-[13px] font-semibold tracking-tight transition-colors duration-300 sm:text-[15px] lg:text-base",
                 useLightText ? "text-white" : "text-foreground"
               )}
             >
@@ -168,16 +175,6 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <div className="hidden lg:block">
-              <ThemeToggle className={useLightText ? "text-white hover:bg-white/10" : "text-foreground"} />
-            </div>
-
-            <div
-              className={cn(
-                "hidden lg:block h-6 w-px mx-1 transition-colors duration-300",
-                useLightText ? "bg-white/20" : "bg-border"
-              )}
-            />
 
             {/* Auth Section */}
             {status === "loading" ? (
@@ -249,15 +246,18 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
             ) : (
               <Button
                 onClick={() => setIsLoginModalOpen(true)}
+                aria-label="Sign in"
                 className={cn(
-                  "h-10 px-5 rounded-full text-sm font-semibold transition-all duration-300",
+                  "h-10 shrink-0 rounded-full px-4 text-sm font-semibold transition-all duration-300 sm:px-5",
                   useLightText
                     ? "bg-white text-black hover:bg-white/90 shadow-lg"
                     : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
                 )}
               >
-                <LogIn className="h-4 w-4 mr-2 opacity-80" />
-                Sign In
+                {/* Icon-only on a phone so the brand name has room. The mobile
+                    menu still carries a full-width "Sign In" of its own. */}
+                <LogIn className="h-4 w-4 opacity-80 sm:mr-2" />
+                <span className="hidden sm:inline">Sign In</span>
               </Button>
             )}
 
@@ -272,11 +272,6 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
               >
                 {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
-            )}
-            {hideLinks && (
-              <div className="lg:hidden">
-                <ThemeToggle />
-              </div>
             )}
           </div>
         </div>
@@ -377,11 +372,6 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
                     Sign In
                   </button>
                 )}
-
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-medium text-muted-foreground">Appearance</span>
-                  <ThemeToggle />
-                </div>
               </div>
             </motion.div>
           )}

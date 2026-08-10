@@ -2,10 +2,15 @@
 
 import React from "react";
 import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+
+type CountdownSize = "default" | "sm";
 
 interface CountdownProps {
   targetDate: string | Date;
   className?: string;
+  /** `sm` is for clocks that sit over artwork, where the default would dominate. */
+  size?: CountdownSize;
 }
 
 interface TimeLeft {
@@ -20,9 +25,18 @@ interface TimeLeft {
  * so a -10% shift per unit always lands on the right number regardless of
  * the type size it inherits.
  */
-const Digit = ({ value }: { value: number }) => {
+const Digit = ({ value, size }: { value: number; size: CountdownSize }) => {
+  // The reel row and its window must share a height class, or a -10% shift
+  // per unit stops landing on the right number.
+  const rowHeight = size === "sm" ? "h-7" : "h-8 sm:h-9 md:h-12";
+
   return (
-    <div className="relative h-9 w-[0.62em] overflow-hidden tabular-nums md:h-12">
+    <div
+      className={cn(
+        "relative w-[0.62em] overflow-hidden tabular-nums",
+        rowHeight
+      )}
+    >
       <motion.div
         animate={{ y: `-${value * 10}%` }}
         transition={{ type: "spring", stiffness: 100, damping: 20, mass: 1 }}
@@ -31,7 +45,7 @@ const Digit = ({ value }: { value: number }) => {
         {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
           <div
             key={num}
-            className="flex h-9 items-center justify-center md:h-12"
+            className={cn("flex items-center justify-center", rowHeight)}
           >
             {num}
           </div>
@@ -41,7 +55,11 @@ const Digit = ({ value }: { value: number }) => {
   );
 };
 
-export function Countdown({ targetDate, className }: CountdownProps) {
+export function Countdown({
+  targetDate,
+  className,
+  size = "default",
+}: CountdownProps) {
   const [timeLeft, setTimeLeft] = React.useState<TimeLeft | null>(null);
 
   React.useEffect(() => {
@@ -74,20 +92,38 @@ export function Countdown({ targetDate, className }: CountdownProps) {
     { label: "Secs", value: timeLeft.seconds },
   ];
 
+  const isSm = size === "sm";
+
   return (
-    <div className={`flex items-start gap-2 sm:gap-3 ${className ?? ""}`}>
+    <div
+      className={cn(
+        "flex items-start",
+        isSm ? "gap-1.5" : "gap-1.5 sm:gap-2 md:gap-3",
+        className
+      )}
+    >
       {timeItems.map((item) => (
         <div key={item.label} className="flex flex-col items-center">
-          <div className="flex items-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.07] px-2.5 font-sans text-xl font-extrabold tracking-[-0.03em] text-white backdrop-blur-md md:text-[1.75rem]">
+          <div
+            className={cn(
+              "flex items-center gap-0.5 rounded-xl border border-white/10 bg-white/[0.07] font-sans font-extrabold tracking-[-0.03em] text-white backdrop-blur-md",
+              isSm ? "px-2 text-base" : "px-2 text-lg sm:px-2.5 sm:text-xl md:text-[1.75rem]"
+            )}
+          >
             {item.value
               .toString()
               .padStart(2, "0")
               .split("")
               .map((digit, dIdx) => (
-                <Digit key={dIdx} value={parseInt(digit)} />
+                <Digit key={dIdx} value={parseInt(digit)} size={size} />
               ))}
           </div>
-          <span className="mt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-white/55 md:text-[10px]">
+          <span
+            className={cn(
+              "font-bold uppercase tracking-[0.2em] text-white/55",
+              isSm ? "mt-1.5 text-[8px]" : "mt-1.5 text-[9px] sm:mt-2 md:text-[10px]"
+            )}
+          >
             {item.label}
           </span>
         </div>

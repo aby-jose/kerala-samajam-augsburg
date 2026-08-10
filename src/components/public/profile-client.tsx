@@ -37,6 +37,7 @@ import { useSearchParams } from "next/navigation";
 import MembershipSuccessOverlay from "./membership-success-overlay";
 import { initiateSubscriptionPayment, cancelSubscription } from "@/lib/membership-actions";
 import { updateProfile } from "@/lib/profile-actions";
+import { PrivacyPanel } from "@/components/legal/privacy-panel";
 import { uploadProfileImage } from "@/lib/upload-actions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -246,6 +247,15 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                 )}
               >
                 <History className="w-4 h-4" /> Payment History
+              </button>
+              <button
+                onClick={() => setActiveTab("privacy")}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-bold transition-all",
+                  activeTab === "privacy" ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20" : "hover:bg-secondary text-muted-foreground"
+                )}
+              >
+                <ShieldCheck className="w-4 h-4" /> Privacy &amp; Consent
               </button>
             </div>
 
@@ -543,6 +553,8 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                  </div>
               </div>
             )}
+
+            {activeTab === "privacy" && <PrivacyPanel />}
           </div>
         </div>
       </Container>

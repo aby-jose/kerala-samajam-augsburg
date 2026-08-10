@@ -15,6 +15,7 @@ import {
   getRejectionEmail 
 } from "./email-templates";
 import { getConfig } from "./config-utils";
+import { recordDocumentConsents } from "./legal-actions";
 
 export async function getMembershipPlans() {
   return await prisma.membershipPlan.findMany({
@@ -176,6 +177,19 @@ export async function createMembershipSubscription(data: {
   }
 
   const isStudentPlan = plan.name.toLowerCase().includes("student");
+
+  // Record what the member agreed to at the versions live right now. A paid
+  // membership is a distance contract, so the terms, the privacy policy and
+  // the withdrawal instruction all have to be evidenced at this moment.
+  try {
+    await recordDocumentConsents(
+      session.user.id as string,
+      isStudentPlan ? ["privacy", "terms"] : ["privacy", "terms", "withdrawal"],
+      "membership"
+    );
+  } catch (consentError) {
+    console.error("Failed to record membership consent:", consentError);
+  }
 
   if (isStudentPlan) {
     const subscription = await prisma.subscription.create({

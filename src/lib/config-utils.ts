@@ -1,7 +1,9 @@
+import { cache } from "react";
 import { SiteConfig, defaultConfig } from "./config-schema";
 import { prisma } from "./prisma";
 
-export async function getConfig(): Promise<SiteConfig> {
+// Deduped per request — the root layout and the section layouts both need it.
+export const getConfig = cache(async (): Promise<SiteConfig> => {
   try {
     const configRecord = await prisma.config.findUnique({
       where: { key: "current" }
@@ -20,9 +22,10 @@ export async function getConfig(): Promise<SiteConfig> {
       branding: { ...defaultConfig.branding, ...storedConfig.branding },
       email: { ...defaultConfig.email, ...storedConfig.email },
       features: { ...defaultConfig.features, ...storedConfig.features },
+      legal: { ...defaultConfig.legal, ...storedConfig.legal },
     };
   } catch (error) {
     console.error("Config fetch error:", error);
     return defaultConfig;
   }
-}
+});

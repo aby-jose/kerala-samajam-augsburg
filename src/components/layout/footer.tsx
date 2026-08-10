@@ -2,9 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { Facebook, Instagram, Mail, MapPin } from "lucide-react";
+import { Cookie, Facebook, Instagram, Mail, MapPin } from "lucide-react";
 import { useConfig } from "../providers/config-provider";
 import { Container } from "./container";
+import { LEGAL_DOCS_ORDERED } from "@/lib/legal-schema";
+import { OPEN_COOKIE_SETTINGS_EVENT } from "@/components/legal/cookie-consent";
 import { cn } from "@/lib/utils";
 
 export function Footer() {
@@ -47,7 +49,7 @@ export function Footer() {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-white hover:border-transparent transition-all duration-300 shadow-sm"
+                  className="w-10 h-10 rounded-full border border-transparent bg-primary flex items-center justify-center text-white shadow-sm hover:-translate-y-0.5 hover:bg-primary/90 hover:shadow-md transition-all duration-300"
                 >
                   <social.icon className="h-4 w-4" />
                 </a>
@@ -62,15 +64,39 @@ export function Footer() {
               <li><Link href="/events" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Events</Link></li>
               <li><Link href="/membership" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Membership</Link></li>
               <li><Link href="/gallery" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Gallery</Link></li>
+              <li><Link href="/contact" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Help Center</Link></li>
             </ul>
           </div>
 
+          {/*
+            German law expects the Impressum to be reachable in at most two
+            clicks and labelled as such, so the whole set lives here rather
+            than behind a single "Legal" page.
+          */}
           <div className="lg:col-span-2">
-            <h4 className="text-foreground font-semibold mb-6 font-serif tracking-tight transition-colors">Support</h4>
+            <h4 className="text-foreground font-semibold mb-6 font-serif tracking-tight transition-colors">Legal</h4>
             <ul className="space-y-3">
-              <li><Link href="/contact" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Help Center</Link></li>
-              <li><Link href="/privacy" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Privacy Policy</Link></li>
-              <li><Link href="/terms" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Terms of Use</Link></li>
+              {LEGAL_DOCS_ORDERED.map((doc) => (
+                <li key={doc.slug}>
+                  <Link
+                    href={`/legal/${doc.slug}`}
+                    className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground"
+                  >
+                    {doc.label.en}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                {/* Withdrawing consent has to be as easy as giving it. */}
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event(OPEN_COOKIE_SETTINGS_EVENT))}
+                  className="inline-flex items-center gap-1.5 hover:text-primary transition-colors text-sm font-medium text-muted-foreground"
+                >
+                  <Cookie className="h-3.5 w-3.5" />
+                  Cookie settings
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -89,8 +115,14 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-border/50 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center text-xs text-muted-foreground/60 font-medium tracking-wide transition-colors">
+        <div className="border-t border-border/50 mt-16 pt-8 flex flex-col md:flex-row justify-between items-center gap-3 text-xs text-muted-foreground/60 font-medium tracking-wide transition-colors">
           <p>© {currentYear} {config.siteName}. All rights reserved.</p>
+          <p className="text-center md:text-right">
+            {config.legal.entityName} ·{" "}
+            <Link href="/legal/imprint" className="hover:text-primary transition-colors">
+              Impressum
+            </Link>
+          </p>
         </div>
       </Container>
     </footer>

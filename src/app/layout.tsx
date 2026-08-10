@@ -5,6 +5,8 @@ import { Providers } from "@/components/providers";
 import { cn } from "@/lib/utils";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
+import { getConfig } from "@/lib/config-utils";
+import { hexToHsl } from "@/lib/color-utils";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -33,21 +35,29 @@ export const metadata: Metadata = {
   },
 };
 
+// Light-only site — one theme colour, regardless of the OS setting.
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
+  themeColor: "#ffffff",
+  colorScheme: "light",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // The admin-configured brand colour is written onto <html> during the server
+  // render so the very first paint already uses it. Applying it from a client
+  // effect instead would flash the globals.css default until hydration.
+  const config = await getConfig();
+  const primaryHsl = hexToHsl(config.branding.primaryColor);
+  const brandVars = primaryHsl
+    ? ({ "--primary": primaryHsl, "--ring": primaryHsl } as React.CSSProperties)
+    : undefined;
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body 
+    <html lang="en" style={brandVars} suppressHydrationWarning>
+      <body
         suppressHydrationWarning
         className={cn("min-h-screen bg-background font-sans antialiased scroll-smooth", manrope.variable, newsreader.variable)}
       >

@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { motion, Variants } from "framer-motion";
+import React from "react";
+import Link from "next/link";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { EventCard } from "@/components/events/event-card";
-import { Countdown } from "@/components/layout/countdown";
+import { EventsShowcase } from "@/components/layout/events-showcase";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, MapPin, Loader2, Calendar } from "lucide-react";
-import Link from "next/link";
-import { formatDate } from "@/lib/utils";
-import { getUpcomingEvents } from "@/lib/event-actions";
 import {
   Accent,
   Eyebrow,
@@ -17,16 +15,27 @@ import {
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { getUpcomingEvents } from "@/lib/event-actions";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+/**
+ * How many events the spotlight rotates through. Everything past this falls
+ * to the grid below, so no event is ever shown twice on the page.
+ */
+const SPOTLIGHT_COUNT = 4;
+
+type UpcomingEvent = Awaited<ReturnType<typeof getUpcomingEvents>>[number];
 
 export default function EventsPage() {
-  const [events, setEvents] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const reduced = useReducedMotion();
+  const [events, setEvents] = React.useState<UpcomingEvent[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  useEffect(() => {
+  React.useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const data = await getUpcomingEvents();
-        setEvents(data);
+        setEvents(await getUpcomingEvents());
       } catch (error) {
         console.error("Failed to load events:", error);
       } finally {
@@ -36,149 +45,169 @@ export default function EventsPage() {
     fetchEvents();
   }, []);
 
-  const featuredEvent = events.find(e => e.isFeatured) || events[0];
-  const gridEvents = featuredEvent ? events.filter(e => e.id !== featuredEvent.id) : events;
+  // Server order is date-ascending. The one flagged featured jumps the queue
+  // so it opens the spotlight; everything else keeps its date order.
+  const ordered = React.useMemo(() => {
+    const featured = events.find((e) => e.isFeatured);
+    return featured
+      ? [featured, ...events.filter((e) => e.id !== featured.id)]
+      : events;
+  }, [events]);
 
-  const revealVariants: Variants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] } 
-    },
+  const spotlight = ordered.slice(0, SPOTLIGHT_COUNT);
+  const rest = ordered.slice(SPOTLIGHT_COUNT);
+
+  const rise: Variants = {
+    hidden: { opacity: 0, y: reduced ? 0 : 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } },
   };
 
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    visible: { 
-      opacity: 1, 
-      transition: { staggerChildren: 0.1, delayChildren: 0.1 } 
-    },
+  const stagger: Variants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } },
   };
 
   return (
-    <main className="min-h-screen flex flex-col bg-background selection:bg-primary/5">
-      
-      {/* 1. Page header — surface 1 */}
-      <section className="pt-40 pb-20 bg-surface-1">
+    <main className="flex min-h-screen flex-col bg-background selection:bg-primary/5">
+      {/* ============ 1. Header + spotlight — surface 1 ============ */}
+      <section className="bg-surface-1 pb-20 pt-40">
         <Container className="max-w-7xl">
-           <motion.div
-             initial="hidden"
-             animate="visible"
-             variants={revealVariants}
-             className="space-y-12"
-           >
-              <PageHeader
-                eyebrow="Events"
-                title={<>Upcoming <Accent>Events</Accent></>}
-                lead="Festivals, workshops and gatherings that are still to come. Most are open to everyone — bring a friend, and bring an appetite."
-              />
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={rise}
+            className="space-y-14"
+          >
+            <PageHeader
+              eyebrow="Events"
+              title={
+                <>
+                  Upcoming <Accent>Events</Accent>
+                </>
+              }
+              lead="Festivals, workshops and gatherings still to come. Most are open to everyone — bring a friend, and bring an appetite."
+            />
 
-              {/* Master Showcase Card (Centered 7xl) */}
-              {isLoading && (
-                <div className="flex aspect-21/9 md:aspect-2.5/1 w-full items-center justify-center rounded-[2.5rem] border border-border bg-muted/30">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-                </div>
-              )}
-
-              {!isLoading && featuredEvent && (
-                <motion.div 
-                  className="relative rounded-[2.5rem] overflow-hidden bg-zinc-900 shadow-3xl border border-white/5 aspect-21/9 md:aspect-2.5/1 group"
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  {featuredEvent.imageUrl && (
-                    <img 
-                      src={featuredEvent.imageUrl} 
-                      alt={featuredEvent.title} 
-                      className="absolute inset-0 object-cover w-full h-full brightness-[0.6] group-hover:scale-105 transition-transform duration-2000 ease-out"
-                    />
-                  )}
-                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
-                  
-                  {/* Content Overlay */}
-                  <div className="absolute inset-0 p-8 md:p-14 flex flex-col justify-end gap-6 md:gap-8 text-left">
-                      <div className="max-w-3xl space-y-4 md:space-y-6">
-                        <div className="flex flex-wrap items-center gap-4">
-                            <span className="px-4 py-1.5 rounded-full bg-primary/20 text-primary-foreground text-[10px] font-bold tracking-[0.3em] uppercase backdrop-blur-md border border-white/10">
-                              {formatDate(featuredEvent.date)}
-                            </span>
-                            <span className="text-[10px] font-bold text-white uppercase tracking-widest flex items-center gap-2">
-                              <MapPin className="w-3.5 h-3.5 text-primary" />
-                              {featuredEvent.location}
-                            </span>
-                        </div>
-                        
-                        <h3 className="text-3xl md:text-5xl lg:text-6xl font-serif font-medium text-white leading-[1.05] tracking-tight">
-                            {featuredEvent.title}
-                        </h3>
-                        
-                        <p className="text-sm md:text-base text-white/50 leading-relaxed font-light line-clamp-1 max-w-xl">
-                            {featuredEvent.description}
-                        </p>
-
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-10 pt-8 border-t border-white/10">
-                            <Countdown targetDate={featuredEvent.date} />
-                            <Link href={`/events/${featuredEvent.slug}`}>
-                              <Button size="sm" className="h-12 px-10 text-[10px] font-bold rounded-full bg-primary hover:bg-primary/90 text-white uppercase tracking-[0.3em] shadow-xl hover:-translate-y-1 transition-all active:scale-[0.98]">
-                                  Register Now
-                                  <ArrowRight className="ml-2 w-4 h-4" />
-                              </Button>
-                            </Link>
-                        </div>
-                      </div>
-                  </div>
-                </motion.div>
-              )}
-           </motion.div>
+            {/* The same spotlight the home page uses: rotation, countdown and
+                the empty state all live inside the component. */}
+            <EventsShowcase
+              isLoading={isLoading}
+              events={spotlight.map((e) => ({
+                id: e.id,
+                slug: e.slug,
+                title: e.title,
+                date: e.date.toISOString(),
+                location: e.location,
+                description: e.description,
+                image: e.imageUrl || "/images/placeholder.jpg",
+              }))}
+            />
+          </motion.div>
         </Container>
       </section>
 
-      {/* 2. Events grid — surface 2 */}
-      <section className="py-24 md:py-32 bg-surface-2 border-y border-border">
-        <Container className="max-w-7xl">
-          <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
-            <div className="max-w-xl">
-               <Eyebrow>Calendar</Eyebrow>
-               <SectionTitle className="mt-6">
-                  What&apos;s <Accent>Coming Up</Accent>
-               </SectionTitle>
+      {/* ============ 2. The rest of the calendar — surface 2 ============ */}
+      {/* Hidden entirely when the spotlight already covers everything, rather
+          than printing a heading over an empty grid. */}
+      {rest.length > 0 && (
+        <section className="border-y border-border bg-surface-2 py-24 md:py-32">
+          <Container className="max-w-7xl">
+            <div className="mb-16 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+              <div className="max-w-xl">
+                <Eyebrow>Calendar</Eyebrow>
+                <SectionTitle className="mt-6">
+                  Also on the <Accent>Calendar</Accent>
+                </SectionTitle>
+              </div>
+              <SectionLead className="max-w-sm md:text-right">
+                Everything else already scheduled, in date order. Registration
+                opens on each event&apos;s own page.
+              </SectionLead>
             </div>
-            <SectionLead className="max-w-sm md:text-right">
-               Dates, places and what to expect. Registration opens on each
-               event&apos;s own page.
-            </SectionLead>
-          </div>
 
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12 lg:gap-14"
-            variants={containerVariants}
+            <motion.div
+              className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-3 lg:gap-14"
+              variants={stagger}
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: "-100px" }}
+            >
+              {rest.map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={{
+                    ...event,
+                    date: event.date.toISOString(),
+                    image: event.imageUrl || "/images/placeholder.jpg",
+                    category: event.category ?? undefined,
+                  }}
+                />
+              ))}
+            </motion.div>
+          </Container>
+        </section>
+      )}
+
+      {/* ============ 3. Closing band — deep ============ */}
+      {/* Same ambient treatment as the join band on the home page and the
+          events band on /about, so the three pages end on one note. */}
+      <section className="relative overflow-hidden bg-surface-deep py-24 md:py-32">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.3]"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.09) 1px, transparent 0)",
+            backgroundSize: "28px 28px",
+            maskImage:
+              "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+            WebkitMaskImage:
+              "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+          }}
+        />
+
+        <Container className="relative">
+          <motion.div
+            className="mx-auto max-w-3xl text-center"
+            variants={rise}
             initial="hidden"
             whileInView="visible"
             viewport={{ once: true, margin: "-100px" }}
           >
-            {gridEvents.map((event) => (
-              <EventCard key={event.id} event={{
-                ...event,
-                image: event.imageUrl // Map database field to component prop
-              }} />
-            ))}
+            <div className="flex justify-center">
+              <Eyebrow tone="dark">Members first</Eyebrow>
+            </div>
+
+            <SectionTitle tone="dark" className="mt-7">
+              Hear About Dates <Accent>Before</Accent> Anyone Else
+            </SectionTitle>
+
+            <SectionLead tone="dark" className="mx-auto mt-6 max-w-xl">
+              New dates usually go up a few weeks ahead, and members get the
+              invitation first. Join, or just ask us what is being planned.
+            </SectionLead>
+
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link href="/membership" className="group w-full sm:w-auto">
+                <Button className="h-12 w-full rounded-full px-9 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 sm:w-auto">
+                  Become a Member
+                  <ArrowRight className="ml-2 h-3.5 w-3.5 transition-transform duration-500 group-hover:translate-x-1" />
+                </Button>
+              </Link>
+              <Link href="/contact" className="w-full sm:w-auto">
+                <Button
+                  variant="ghost"
+                  className="h-12 w-full rounded-full border border-white/15 bg-white/[0.06] px-9 text-[10px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
+                >
+                  Ask About an Event
+                </Button>
+              </Link>
+            </div>
           </motion.div>
-          
-          {!isLoading && events.length === 0 && (
-            <motion.div 
-              className="text-center py-32 border border-dashed border-border/40 rounded-[3rem] bg-muted/20"
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-            >
-              <div className="h-24 w-24 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Calendar className="h-10 w-10 text-muted-foreground/30" />
-              </div>
-              <h3 className="mb-2 font-sans text-xl font-bold tracking-[-0.02em] text-foreground">No Events Scheduled</h3>
-              <p className="text-sm text-muted-foreground">Nothing is on the calendar just yet. New dates usually go up a few weeks ahead.</p>
-            </motion.div>
-          )}
         </Container>
       </section>
     </main>

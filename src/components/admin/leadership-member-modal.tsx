@@ -43,10 +43,11 @@ export default function LeadershipMemberModal({ isOpen, onClose, initialData }: 
   } = useForm<LeadershipMemberValues>({
     resolver: zodResolver(leadershipMemberSchema),
     defaultValues: {
-      name: "",
-      role: "",
-      image: "",
-      order: 0,
+      id: initialData?.id,
+      name: initialData?.name || "",
+      role: initialData?.role || "",
+      image: initialData?.image || "",
+      order: initialData?.order || 0,
     },
   });
 

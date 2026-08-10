@@ -6,6 +6,8 @@ import { getConfig } from "@/lib/config-utils";
 import { ConfigProvider } from "@/components/providers/config-provider";
 
 import { ToastProvider } from "@/components/ui/toast";
+import { CookieConsent } from "@/components/legal/cookie-consent";
+import { ConsentGate } from "@/components/legal/consent-gate";
 
 export default async function PublicLayout({
   children,
@@ -18,14 +20,17 @@ export default async function PublicLayout({
     <AuthProvider basePath="/api/auth">
       <ConfigProvider initialConfig={config}>
         <ToastProvider>
-          <div className="flex flex-col min-h-screen">
-            <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <ConsentGate>
+            <div className="flex flex-col min-h-screen">
+              <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
+              <Navbar />
+              <main className="flex-1">
+                {children}
+              </main>
+              <Footer />
+            </div>
+            <CookieConsent />
+          </ConsentGate>
         </ToastProvider>
       </ConfigProvider>
     </AuthProvider>

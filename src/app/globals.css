@@ -1,4 +1,12 @@
 @import "tailwindcss";
+
+/**
+ * The site is light-only — there is no theme switcher and no `.dark` class is
+ * ever applied. This override must stay: without it Tailwind's built-in `dark`
+ * variant falls back to `prefers-color-scheme`, and every leftover `dark:`
+ * utility in the codebase would fire for anyone whose OS is set to dark.
+ * Scoped to `.dark`, which nothing renders, they are inert.
+ */
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -83,35 +91,6 @@
     --surface-2: 32 30% 97.6%;   /* warm cream  */
     --surface-3: 347 44% 98%;    /* faint blush, echoes the primary */
     --surface-deep: 0 0% 6%;     /* dark contrast band (CTA/footer) */
-  }
-
-  .dark {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 2%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 2%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 346.8 77.2% 49.8%;
-    --primary-foreground: 355.7 100% 97.3%;
-    --secondary: 0 0% 6%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 6%;
-    --muted-foreground: 0 0% 65%;
-    --accent: 0 0% 6%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 12%;
-    --input: 0 0% 12%;
-    --ring: 346.8 77.2% 49.8%;
-
-    /* Dark mode inverts the idea: the base stays pure black and each
-       following band lifts slightly, so depth still reads top to bottom. */
-    --surface-1: 0 0% 0%;
-    --surface-2: 0 0% 4.3%;
-    --surface-3: 346 14% 5.5%;
-    --surface-deep: 0 0% 3%;
   }
 }
 
