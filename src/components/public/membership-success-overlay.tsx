@@ -25,6 +25,12 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
   const isStudent = subscription.plan.name.toLowerCase().includes("student");
   const isFamily = subscription.plan.name.toLowerCase().includes("family");
 
+  // An application is not a membership. The overlay used to announce
+  // "Transaction Verified / Membership Activated" for every row it was handed,
+  // which was only ever true because a Stripe payment had already cleared
+  // before the redirect landed here.
+  const isActive = subscription.paymentStatus === "PAID" && !!subscription.startDate;
+
   return (
     <AnimatePresence>
       {isVisible && (
@@ -68,11 +74,26 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
             <div className="flex-1 p-8 md:p-12 space-y-10">
                <div className="flex justify-between items-start">
                   <div className="space-y-2">
-                     <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20">
-                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500">Transaction Verified</span>
+                     <div className={cn(
+                       "inline-flex items-center gap-2 px-2 py-0.5 rounded-md border",
+                       isActive
+                         ? "bg-emerald-500/10 border-emerald-500/20"
+                         : "bg-amber-500/10 border-amber-500/20"
+                     )}>
+                        <div className={cn(
+                          "w-1 h-1 rounded-full animate-pulse",
+                          isActive ? "bg-emerald-500" : "bg-amber-500"
+                        )} />
+                        <span className={cn(
+                          "text-[9px] font-black uppercase tracking-widest",
+                          isActive ? "text-emerald-500" : "text-amber-500"
+                        )}>
+                          {isActive ? "Payment Recorded" : "Awaiting Payment"}
+                        </span>
                      </div>
-                     <h2 className="text-3xl font-serif tracking-tight">Membership Activated</h2>
+                     <h2 className="text-3xl font-serif tracking-tight">
+                       {isActive ? "Membership Activated" : "Application Received"}
+                     </h2>
                   </div>
                   <button onClick={handleClose} className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground">
                      <X className="w-5 h-5" />
@@ -87,8 +108,12 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
                         <p className="text-lg font-bold tracking-tight">{subscription.plan.name}</p>
                      </div>
                      <div className="space-y-1">
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Renewal Date</p>
-                        <p className="text-lg font-bold tracking-tight">{formatDate(subscription.endDate)}</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">
+                          {isActive ? "Renewal Date" : "Membership Starts"}
+                        </p>
+                        <p className="text-lg font-bold tracking-tight">
+                          {isActive ? formatDate(subscription.endDate) : "On payment"}
+                        </p>
                      </div>
                   </div>
 
@@ -104,7 +129,7 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
                            <p className="text-[9px] font-bold text-muted-foreground uppercase">Payment Method</p>
                            <div className="flex items-center gap-2 text-sm font-medium">
                               <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-                              {subscription.paymentMethod}
+                              {subscription.paymentMethod === "BANK_TRANSFER" ? "Bank transfer" : "Cash"}
                            </div>
                         </div>
                         
@@ -135,7 +160,9 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed italic">
-                     Welcome to Kerala Samajam Augsburg. Your membership privileges are now active. You can manage your digital ID and registration history directly from your profile dashboard.
+                     {isActive
+                       ? "Welcome to Kerala Samajam Augsburg. Your membership privileges are now active. You can manage your digital ID and registration history directly from your profile dashboard."
+                       : "Thank you for applying to Kerala Samajam Augsburg. We have emailed your payment details — your membership begins on the day we record the payment, and we will confirm the dates then."}
                   </p>
                </div>
 

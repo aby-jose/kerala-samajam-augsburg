@@ -32,7 +32,13 @@ import { StatusBadge, type StatusTone } from "@/components/admin/ui/status-badge
 import { heroSurface, toolbarChip } from "@/components/admin/ui/surface";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-table";
 
-import { getAllMembers, suspendUser, updateMemberDetails } from "@/lib/membership-actions";
+import {
+  cancelSubscriptionAsAdmin,
+  getAllMembers,
+  suspendUser,
+  updateMemberDetails,
+} from "@/lib/membership-actions";
+import { displayStatus, isTermRunning } from "@/lib/membership-term";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, cn, exportToCSV } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,7 +49,7 @@ const ITEMS_PER_PAGE = 10;
 const FILTER_LABELS: Record<string, string> = {
   ALL: "All",
   ACTIVE: "Active plan",
-  PENDING: "Pending",
+  PENDING: "Awaiting payment",
   NONE: "No plan",
 };
 
@@ -67,6 +73,7 @@ export default function AdminMembersPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "PENDING" | "NONE">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,7 +81,19 @@ export default function AdminMembersPage() {
   // Modal State
   const [selectedMember, setSelectedMember] = useState<any | null>(null);
   const [editingMember, setEditingMember] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    city: string;
+    zip: string;
+    dob: string;
+    occupation: string;
+    bio: string;
+    // Mirrors the roles the server will accept — anything else is rejected there.
+    role: "MEMBER" | "ADMIN";
+  }>({
     name: "",
     email: "",
     phone: "",
@@ -84,7 +103,7 @@ export default function AdminMembersPage() {
     dob: "",
     occupation: "",
     bio: "",
-    role: ""
+    role: "MEMBER"
   });
 
   const fetchMembers = async () => {
@@ -103,6 +122,38 @@ export default function AdminMembersPage() {
   useEffect(() => {
     fetchMembers();
   }, []);
+
+  /**
+   * End a running membership term early.
+   *
+   * Distinct from suspending the account: this closes the membership and
+   * leaves the person able to sign in, see their history and apply again.
+   */
+  const handleCancelMembership = async (subscription: any) => {
+    const confirmed = await confirm({
+      title: "End membership early",
+      message:
+        `End the ${subscription.plan?.name || "current"} membership now? ` +
+        "The term is closed today and the member keeps their account and history. " +
+        "This cannot be undone — they would need to apply again.",
+      confirmText: "End membership",
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
+
+    setCancellingId(subscription.id);
+    try {
+      await cancelSubscriptionAsAdmin(subscription.id);
+      success("Membership ended.");
+      await fetchMembers();
+      setSelectedMember(null);
+    } catch (err) {
+      error(err instanceof Error ? err.message : "Could not end the membership.");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const handleSuspend = async (member: any) => {
     const isSuspended = member.status === "SUSPENDED";
@@ -142,7 +193,7 @@ export default function AdminMembersPage() {
       dob: member.dob ? new Date(member.dob).toISOString().split('T')[0] : "",
       occupation: member.occupation || "",
       bio: member.bio || "",
-      role: member.role || "MEMBER"
+      role: member.role === "ADMIN" ? "ADMIN" : "MEMBER"
     });
   };
 
@@ -167,8 +218,8 @@ export default function AdminMembersPage() {
       member.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       member.email?.toLowerCase().includes(searchQuery.toLowerCase());
     if (filter === "ALL") return matchesSearch;
-    if (filter === "ACTIVE") return matchesSearch && member.subscription?.status === "ACTIVE";
-    if (filter === "PENDING") return matchesSearch && ["PENDING", "PENDING_VERIFICATION"].includes(member.subscription?.status || "");
+    if (filter === "ACTIVE") return matchesSearch && isTermRunning(member.subscription);
+    if (filter === "PENDING") return matchesSearch && ["AWAITING_PAYMENT", "PENDING_VERIFICATION"].includes(member.subscription?.status || "");
     if (filter === "NONE") return matchesSearch && !member.subscription;
     return matchesSearch;
   });
@@ -223,7 +274,16 @@ export default function AdminMembersPage() {
         member.subscription ? (
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{member.subscription.plan.name}</p>
-            <p className="truncate text-xs text-muted-foreground">Expires {formatDate(member.subscription.endDate)}</p>
+            {/*
+              An unpaid application has no term yet, so there is no date to
+              print — showing "Expires —" there implied a membership that had
+              simply lost its end date.
+            */}
+            <p className="truncate text-xs text-muted-foreground">
+              {member.subscription.endDate
+                ? `${formatDate(member.subscription.startDate)} – ${formatDate(member.subscription.endDate)}`
+                : formatStatus(member.subscription.status)}
+            </p>
           </div>
         ) : (
           <span className="text-sm text-muted-foreground">No active plan</span>
@@ -407,14 +467,42 @@ export default function AdminMembersPage() {
                 <div className="space-y-3">
                   <h4 className="font-sans text-sm font-semibold text-foreground">Subscription</h4>
                   {selectedMember.subscription ? (
-                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-4">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{selectedMember.subscription.plan.name}</p>
-                        <p className="text-xs text-muted-foreground">Expires {formatDate(selectedMember.subscription.endDate)}</p>
+                    <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{selectedMember.subscription.plan.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {selectedMember.subscription.endDate
+                              ? `${formatDate(selectedMember.subscription.startDate)} – ${formatDate(selectedMember.subscription.endDate)}`
+                              : "Term starts when the payment is recorded"}
+                          </p>
+                        </div>
+                        <StatusBadge tone={statusTone(displayStatus(selectedMember.subscription) || undefined)}>
+                          {formatStatus(displayStatus(selectedMember.subscription) || undefined)}
+                        </StatusBadge>
                       </div>
-                      <StatusBadge tone={statusTone(selectedMember.subscription.status)}>
-                        {formatStatus(selectedMember.subscription.status)}
-                      </StatusBadge>
+
+                      {/*
+                        Ending a term early — a member moving away, or one who
+                        asked to stop. Suspending the account was the only
+                        thing an admin could reach before, and that blocks
+                        sign-in entirely, which is a different thing.
+                      */}
+                      {isTermRunning(selectedMember.subscription) && (
+                        <div className="flex justify-end border-t border-border pt-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleCancelMembership(selectedMember.subscription)}
+                            disabled={cancellingId === selectedMember.subscription.id}
+                            className="h-8 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950/40"
+                          >
+                            {cancellingId === selectedMember.subscription.id
+                              ? "Cancelling…"
+                              : "End membership early"}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="rounded-lg border border-dashed border-border p-4 text-center">
@@ -454,11 +542,15 @@ export default function AdminMembersPage() {
                       <div key={sub.id} className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
                         <div>
                           <p className="text-sm font-medium text-foreground">{sub.plan.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatDate(sub.startDate)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {sub.startDate
+                              ? `Paid ${formatDate(sub.startDate)}`
+                              : `Applied ${formatDate(sub.createdAt)}`}
+                          </p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground tabular-nums">€{sub.plan.price}</p>
-                          <p className="text-xs text-muted-foreground">{formatStatus(sub.status)}</p>
+                          <p className="text-xs text-muted-foreground">{formatStatus(displayStatus(sub) || undefined)}</p>
                         </div>
                       </div>
                     ))}
@@ -578,7 +670,7 @@ export default function AdminMembersPage() {
                     <label className="text-sm font-medium text-foreground">Role</label>
                     <select
                       value={editForm.role}
-                      onChange={(e) => setEditForm({...editForm, role: e.target.value})}
+                      onChange={(e) => setEditForm({...editForm, role: e.target.value === "ADMIN" ? "ADMIN" : "MEMBER"})}
                       className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="MEMBER">Member</option>

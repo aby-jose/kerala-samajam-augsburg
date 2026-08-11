@@ -163,11 +163,14 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
               {/* ---- The pitch ---- */}
               <div className="lg:order-1">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                  {/* Same primary dot the section eyebrows carry, so the chip
+                      reads as part of the site's voice rather than plain glass. */}
+                  <span className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" />
                     {fullDate(selectedEvent.date)}
                   </span>
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
-                    <MapPin className="h-3 w-3" strokeWidth={2} />
+                    <MapPin className="h-3 w-3 text-primary" strokeWidth={2} />
                     {selectedEvent.location}
                   </span>
                 </div>
@@ -190,20 +193,18 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
                     href={`/events/${selectedEvent.slug ?? selectedEvent.id}`}
                     className="group/cta shrink-0 sm:ml-auto"
                   >
-                    <Button className="relative h-12 overflow-hidden rounded-full px-8 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/30 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/45">
-                      {/* The pill is the only solid colour on the card, so it
-                          gets the one flourish: a single light sweep on hover. */}
-                      <span
-                        aria-hidden
-                        className="absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/25 to-transparent transition-transform duration-[900ms] ease-out group-hover/cta:translate-x-full"
+                    {/* Outlined, not filled. A solid pill on this near-black
+                        card reads as a dark block; the primary lives in the
+                        hairline and the arrow, and only washes in on hover. */}
+                    <Button
+                      variant="ghost"
+                      className="h-12 rounded-full border border-primary/50 bg-transparent px-8 text-[10px] font-bold uppercase tracking-[0.2em] text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:border-primary hover:bg-primary/10 hover:text-white"
+                    >
+                      View Details
+                      <ArrowRight
+                        className="ml-2.5 h-3.5 w-3.5 text-primary transition-transform duration-500 group-hover/cta:translate-x-1"
+                        strokeWidth={2.4}
                       />
-                      <span className="relative flex items-center">
-                        View Details
-                        <ArrowRight
-                          className="ml-2.5 h-3.5 w-3.5 transition-transform duration-500 group-hover/cta:translate-x-1"
-                          strokeWidth={2.4}
-                        />
-                      </span>
                     </Button>
                   </Link>
                 </div>

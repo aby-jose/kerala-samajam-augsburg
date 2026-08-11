@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail, Lock, User, ArrowRight, Loader2, Sparkles } from "lucide-react";
-import { signIn } from "next-auth/react";
+import { getProviders, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { registerUser, requestPasswordReset, getNewCaptcha } from "@/lib/auth-actions";
@@ -140,6 +140,26 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       setLoading(false);
     }
   };
+
+  // Which OAuth providers next-auth actually registered, read from its own
+  // provider list rather than duplicated as a client-side env check.
+  const [enabledProviders, setEnabledProviders] = useState<{
+    google: boolean;
+    facebook: boolean;
+  }>({ google: false, facebook: false });
+
+  useEffect(() => {
+    getProviders()
+      .then((providers) => {
+        setEnabledProviders({
+          google: !!providers?.google,
+          facebook: !!providers?.facebook,
+        });
+      })
+      .catch(() => {
+        // Leave both hidden — a button that cannot work is worse than none.
+      });
+  }, []);
 
   const handleSocialLogin = (provider: string) => {
     signIn(provider, { 
@@ -466,8 +486,16 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                     </Button>
                   </form>
 
-                  {/* Social Section */}
-                  {view !== "forgot-password" && (
+                  {/*
+                    Social sign-in, shown only for providers that are actually
+                    configured. `publicAuthOptions` registers Google and
+                    Facebook only when their client ids are in the environment,
+                    and neither is set — so these buttons were always rendered
+                    and always failed on click. Reading the live provider list
+                    means they reappear on their own once the credentials are
+                    added, with no code change.
+                  */}
+                  {view !== "forgot-password" && (enabledProviders.google || enabledProviders.facebook) && (
                     <div className="mt-8">
                       <div className="relative mb-6 text-center">
                         <div className="absolute inset-0 flex items-center">
@@ -479,24 +507,30 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                       </div>
 
                       <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSocialLogin("google")}
-                          className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all group"
-                        >
-                          <div className="group-hover:scale-110 transition-transform scale-90">
-                            <GoogleIcon />
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleSocialLogin("facebook")}
-                          className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all group"
-                        >
-                          <div className="group-hover:scale-110 transition-transform scale-90">
-                            <FacebookIcon />
-                          </div>
-                        </button>
+                        {enabledProviders.google && (
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("google")}
+                            aria-label="Continue with Google"
+                            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all group"
+                          >
+                            <div className="group-hover:scale-110 transition-transform scale-90">
+                              <GoogleIcon />
+                            </div>
+                          </button>
+                        )}
+                        {enabledProviders.facebook && (
+                          <button
+                            type="button"
+                            onClick={() => handleSocialLogin("facebook")}
+                            aria-label="Continue with Facebook"
+                            className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl border border-border/60 hover:border-foreground/30 hover:bg-muted/30 transition-all group"
+                          >
+                            <div className="group-hover:scale-110 transition-transform scale-90">
+                              <FacebookIcon />
+                            </div>
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}

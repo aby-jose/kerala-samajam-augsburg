@@ -1,7 +1,6 @@
 "use server";
 
-import { createHash } from "crypto";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { nanoid } from "nanoid";
@@ -9,13 +8,14 @@ import { nanoid } from "nanoid";
 import { Prisma } from "@prisma/client";
 
 import { NOT_REVOKED, prisma } from "./prisma";
-import { adminAuthOptions, publicAuthOptions } from "./auth";
+import { publicAuthOptions } from "./auth";
+import { requireAdmin } from "./guards";
+import { requestFingerprint } from "./consent-recorder";
 import {
   COOKIE_CONSENT_MAX_AGE,
   COOKIE_CONSENT_NAME,
   COOKIE_POLICY_VERSION,
   ConsentSource,
-  ConsentType,
   CookieCategories,
   LEGAL_DOCS,
   LEGAL_SLUGS,
@@ -46,16 +46,6 @@ function sessionUser(session: { user?: unknown } | null): SessionUser | null {
   return (session?.user as SessionUser | undefined) ?? null;
 }
 
-async function requireAdmin() {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-
-  if (sessionUser(session)?.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
-  return session;
-}
-
 async function getCurrentUser() {
   const session = await getServerSession(publicAuthOptions);
   const user = sessionUser(session);
@@ -63,33 +53,14 @@ async function getCurrentUser() {
   return { id: user.id, email: user.email ?? null };
 }
 
-/**
- * IPs are evidence that a consent was really given, but keeping them in the
- * clear would be collecting more than needed. A salted hash still lets us
- * show two consents came from the same origin without storing the address.
+/*
+ * `hashEmail` was removed: nothing called it, and as an exported action it was
+ * a public oracle over `hashIdentifier`, which is keyed on NEXTAUTH_SECRET.
+ * Anyone could submit an address and get back the exact `subjectKey` used for
+ * anonymous consent records — enough to confirm whether a specific person had
+ * ever used the contact form, given a copy of the table. `hashIdentifier` is
+ * still used internally below.
  */
-function hashIdentifier(value: string): string {
-  const salt = process.env.NEXTAUTH_SECRET || "ksa-consent";
-  return createHash("sha256").update(`${salt}:${value}`).digest("hex");
-}
-
-export async function hashEmail(email: string): Promise<string> {
-  return hashIdentifier(email.trim().toLowerCase());
-}
-
-async function requestFingerprint() {
-  try {
-    const h = await headers();
-    const forwarded = h.get("x-forwarded-for");
-    const ip = forwarded ? forwarded.split(",")[0].trim() : h.get("x-real-ip");
-    return {
-      ipHash: ip ? hashIdentifier(ip) : null,
-      userAgent: h.get("user-agent")?.slice(0, 255) || null,
-    };
-  } catch {
-    return { ipHash: null, userAgent: null };
-  }
-}
 
 // --- Serialisation -------------------------------------------------------
 
@@ -118,15 +89,11 @@ function serializeDocument(doc: {
 }
 
 // --- Public reads --------------------------------------------------------
-
-export async function getLegalDocument(slug: string): Promise<LegalDocumentData | null> {
-  if (!isLegalSlug(slug)) return null;
-
-  const doc = await prisma.legalDocument.findUnique({ where: { slug } });
-  if (!doc || !doc.isPublished) return null;
-
-  return serializeDocument(doc);
-}
+//
+// `getLegalDocument` was removed. The public page at /legal/[slug] reads the
+// document itself — it needs the unpublished case, the seed fallback and the
+// metadata in one pass — so this was a second, unused way to load the same
+// row. Two sources of truth for "what does this page say" is one too many.
 
 /** Slugs that actually exist and are published — used to build the footer. */
 export async function getPublishedLegalSlugs(): Promise<LegalSlug[]> {
@@ -138,51 +105,10 @@ export async function getPublishedLegalSlugs(): Promise<LegalSlug[]> {
 }
 
 // --- Consent records -----------------------------------------------------
-
-interface RecordConsentInput {
-  type: ConsentType;
-  source: ConsentSource;
-  slug?: LegalSlug;
-  version?: number;
-  granted?: boolean;
-  /** For anonymous subjects (contact form) — hashed before storage. */
-  email?: string;
-  userId?: string;
-}
-
-/**
- * Write one accountability record. Called from every point where a person
- * agrees to something: signup, checkout, the contact form, the re-consent
- * modal, and the Art. 9 biometric opt-in.
- */
-export async function recordConsent(input: RecordConsentInput) {
-  const current = await getCurrentUser();
-  const userId = input.userId ?? current?.id ?? null;
-
-  const subjectKey = userId
-    ? userId
-    : input.email
-      ? hashIdentifier(input.email.trim().toLowerCase())
-      : `anon:${nanoid(12)}`;
-
-  const { ipHash, userAgent } = await requestFingerprint();
-
-  await prisma.userConsent.create({
-    data: {
-      userId,
-      subjectKey,
-      type: input.type,
-      slug: input.slug ?? null,
-      version: input.version ?? null,
-      granted: input.granted ?? true,
-      source: input.source,
-      ipHash,
-      userAgent,
-    },
-  });
-
-  return { success: true };
-}
+//
+// The writers (`recordConsent`, `recordDocumentConsents`,
+// `recordAnonymousConsent`) live in `consent-recorder.ts` — a plain module,
+// not an action surface. See the note there.
 
 /**
  * Documents the signed-in member has not accepted at their current version.
@@ -272,69 +198,6 @@ export async function acceptConsents(slugs: string[], source: ConsentSource = "r
 
   revalidatePath("/");
   return { success: true, accepted: docs.length };
-}
-
-/**
- * Record agreement to the current versions of the consent-bearing documents.
- * Used at signup and checkout, where the member ticks one box covering the
- * privacy policy and terms together.
- */
-export async function recordDocumentConsents(
-  userId: string,
-  slugs: LegalSlug[],
-  source: ConsentSource
-) {
-  const docs = await prisma.legalDocument.findMany({
-    where: { slug: { in: slugs }, isPublished: true },
-    select: { slug: true, version: true },
-  });
-
-  if (docs.length === 0) return { success: true, accepted: 0 };
-
-  const { ipHash, userAgent } = await requestFingerprint();
-
-  await prisma.userConsent.createMany({
-    data: docs.map((doc) => ({
-      userId,
-      subjectKey: userId,
-      type: "DOCUMENT",
-      slug: doc.slug,
-      version: doc.version,
-      granted: true,
-      source,
-      ipHash,
-      userAgent,
-    })),
-  });
-
-  return { success: true, accepted: docs.length };
-}
-
-/** Consent from someone without an account — the contact form. */
-export async function recordAnonymousConsent(email: string, source: ConsentSource) {
-  const docs = await prisma.legalDocument.findMany({
-    where: { slug: "privacy", isPublished: true },
-    select: { slug: true, version: true },
-  });
-
-  const { ipHash, userAgent } = await requestFingerprint();
-  const subjectKey = hashIdentifier(email.trim().toLowerCase());
-
-  await prisma.userConsent.create({
-    data: {
-      userId: null,
-      subjectKey,
-      type: "DOCUMENT",
-      slug: docs[0]?.slug ?? "privacy",
-      version: docs[0]?.version ?? null,
-      granted: true,
-      source,
-      ipHash,
-      userAgent,
-    },
-  });
-
-  return { success: true };
 }
 
 // --- Cookie banner -------------------------------------------------------
@@ -554,7 +417,7 @@ export async function adminPublishVersion(
     requireReconsent: boolean;
   }
 ) {
-  const session = await requireAdmin();
+  const admin = await requireAdmin();
   if (!isLegalSlug(slug)) throw new Error("Unknown document");
 
   assertContent(input.de, "German");
@@ -577,7 +440,7 @@ export async function adminPublishVersion(
       de: existing.de as Prisma.InputJsonValue,
       en: existing.en as Prisma.InputJsonValue,
       changeNote: existing.changeNote,
-      publishedBy: sessionUser(session)?.email ?? null,
+      publishedBy: admin.email ?? null,
     },
   });
 

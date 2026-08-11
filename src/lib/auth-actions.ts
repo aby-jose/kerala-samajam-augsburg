@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { verifyCaptcha, generateCaptcha } from "./captcha";
 import { getPasswordResetEmail, getVerificationEmail } from "@/lib/email-templates";
 import { prisma } from "@/lib/prisma";
@@ -7,10 +9,34 @@ import bcrypt from "bcrypt";
 import { nanoid } from "nanoid";
 import { sendEmail } from "@/lib/email";
 import { getConfig } from "@/lib/config-utils";
-import { recordDocumentConsents } from "@/lib/legal-actions";
+import { recordDocumentConsents } from "@/lib/consent-recorder";
+import { persistentRateLimit } from "@/lib/rate-limit";
+
+/**
+ * Minimum credible password.
+ *
+ * Neither signup nor reset checked anything at all before — `resetPassword`
+ * took `password: any` — so "a" was a valid account password. Length is the
+ * one rule that reliably helps; composition rules mostly push people towards
+ * `Password1!`, so they are not imposed here.
+ */
+const PASSWORD_MIN_LENGTH = 12;
+
+const passwordSchema = z
+  .string()
+  .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters.`)
+  .max(200, "Password is too long.");
+
+/**
+ * bcrypt work factor. 10 was the default when this was written; 12 is roughly
+ * four times the work and is the current sensible floor for a password hash.
+ * Existing hashes keep their original cost and are upgraded on next sign-in
+ * only if we ever add re-hashing — new and reset passwords get 12 today.
+ */
+const BCRYPT_ROUNDS = 12;
 
 export async function getNewCaptcha() {
-  return generateCaptcha();
+  return await generateCaptcha();
 }
 
 export async function registerUser(formData: any) {
@@ -27,8 +53,13 @@ export async function registerUser(formData: any) {
     return { error: "Please accept the Terms of Use and Privacy Policy to continue." };
   }
 
+  const passwordCheck = passwordSchema.safeParse(password);
+  if (!passwordCheck.success) {
+    return { error: passwordCheck.error.issues[0].message };
+  }
+
   // 1. Verify Captcha
-  const isValidCaptcha = verifyCaptcha(captchaId, captchaCode);
+  const isValidCaptcha = await verifyCaptcha(captchaId, captchaCode);
   if (!isValidCaptcha) {
     return { error: "Invalid captcha code" };
   }
@@ -42,7 +73,7 @@ export async function registerUser(formData: any) {
       return { error: "User already exists" };
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const user = await prisma.user.create({
       data: {
@@ -136,16 +167,15 @@ export async function requestPasswordReset(email: string) {
       return { success: true };
     }
 
-    // Rate Limiting: Check if more than 3 requests in the last hour
-    const oneHourAgo = new Date(Date.now() - 3600000);
-    const recentRequests = await prisma.passwordResetToken.count({
-      where: {
-        email,
-        expires: { gt: new Date() }, // Still valid tokens
-      },
-    });
-
-    if (recentRequests >= 3) {
+    // Counted properly rather than by "how many unexpired tokens exist" — that
+    // form also locked out the legitimate owner, because their own three
+    // requests left three live tokens and blocked the fourth for an hour.
+    const { ok } = await persistentRateLimit(
+      `pwreset:${email.trim().toLowerCase()}`,
+      3,
+      60 * 60 * 1000
+    );
+    if (!ok) {
       return { error: "Too many requests. Please try again later." };
     }
 
@@ -187,8 +217,13 @@ export async function requestPasswordReset(email: string) {
   }
 }
 
-export async function resetPassword(token: string, password: any) {
+export async function resetPassword(token: string, password: string) {
   if (!token || !password) return { error: "Missing required fields" };
+
+  const passwordCheck = passwordSchema.safeParse(password);
+  if (!passwordCheck.success) {
+    return { error: passwordCheck.error.issues[0].message };
+  }
 
   try {
     // 1. Verify token
@@ -201,17 +236,20 @@ export async function resetPassword(token: string, password: any) {
     }
 
     // 2. Hash new password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-    // 3. Update user
+    // 3. Update user. `passwordChangedAt` is what evicts sessions that were
+    // already signed in — a reset that leaves an attacker's session live is
+    // not a recovery.
     await prisma.user.update({
       where: { email: resetToken.email },
-      data: { password: hashedPassword },
+      data: { password: hashedPassword, passwordChangedAt: new Date() },
     });
 
-    // 4. Delete the token (one-time use)
-    await prisma.passwordResetToken.delete({
-      where: { token },
+    // 4. Burn every outstanding token for this address, not just the one used,
+    // so older reset emails cannot be replayed afterwards.
+    await prisma.passwordResetToken.deleteMany({
+      where: { email: resetToken.email },
     });
 
     return { success: true };

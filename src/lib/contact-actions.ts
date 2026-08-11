@@ -7,9 +7,10 @@ import { verifyCaptcha, generateCaptcha } from "./captcha";
 import { headers } from "next/headers";
 import { getContactAdminNotificationEmail, getContactUserConfirmationEmail } from "./email-templates";
 import { getServerSession } from "next-auth";
-import { adminAuthOptions } from "./auth";
+import { requireAdmin } from "./guards";
 import { getConfig } from "./config-utils";
-import { recordAnonymousConsent } from "./legal-actions";
+import { adminEmail } from "./admin-contact";
+import { recordAnonymousConsent } from "./consent-recorder";
 
 const contactSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -48,7 +49,7 @@ async function checkRateLimit(ip: string) {
 }
 
 export async function getContactCaptcha() {
-  return generateCaptcha();
+  return await generateCaptcha();
 }
 
 export async function submitContactForm(formData: z.infer<typeof contactSchema>) {
@@ -61,7 +62,7 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
   const { name, email, subject, message, captchaId, captchaCode } = validatedFields.data;
 
   // 1. Verify Captcha
-  const isValidCaptcha = verifyCaptcha(captchaId, captchaCode);
+  const isValidCaptcha = await verifyCaptcha(captchaId, captchaCode);
   if (!isValidCaptcha) {
     return { error: "Security verification failed. Please try again." };
   }
@@ -96,7 +97,7 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
     // 4. Send Notification Email to Admin
     const config = await getConfig();
     await sendEmail({
-      to: process.env.ADMIN_EMAIL || "abyjoseofficial@gmail.com",
+      to: adminEmail(),
       subject: `New Contact Message: ${subject} - ${config.siteName}`,
       html: getContactAdminNotificationEmail(name, email, subject, message, { 
         logoUrl: config.branding.logoUrl, 
@@ -124,8 +125,7 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
 }
 
 export async function getContactMessages() {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   return await prisma.contactMessage.findMany({
     orderBy: { createdAt: "desc" },
@@ -133,8 +133,7 @@ export async function getContactMessages() {
 }
 
 export async function updateMessageStatus(id: string, status: "READ" | "UNREAD" | "ARCHIVED") {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.contactMessage.update({
     where: { id },
@@ -145,8 +144,7 @@ export async function updateMessageStatus(id: string, status: "READ" | "UNREAD" 
 }
 
 export async function deleteMessage(id: string) {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.contactMessage.delete({
     where: { id },

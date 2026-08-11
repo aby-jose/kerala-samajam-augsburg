@@ -121,11 +121,22 @@ model Registration {
   isCheckedIn  Boolean  @default(false)
   checkInTime  DateTime?
   pricePaid     Float?
-  paymentStatus String   @default("PENDING") // PENDING, PAID, FAILED
-  paymentMethod String   @default("STRIPE")  // STRIPE, CASH
-  stripeId      String?
+  paymentStatus String   @default("PENDING") // PENDING, PAID
+  paymentMethod String   @default("CASH")    // CASH, BANK_TRANSFER
   currency      String   @default("EUR")
   details       Json?
+
+  // --- Offline payment record. There is no gateway: an administrator states
+  // that the money arrived, and these three fields are the whole audit trail.
+  /// When the money actually arrived. May be backdated by the administrator.
+  paidAt           DateTime?
+  /// Bank transfer reference or receipt number.
+  paymentReference String?
+  /// The administrator who recorded it, and when they pressed the button —
+  /// distinct from `paidAt`, which they may set to a past date.
+  recordedById     String?   @db.ObjectId
+  recordedAt       DateTime?
+
   createdAt     DateTime @default(now())
 
   @@unique([eventId, email])
@@ -207,6 +218,10 @@ model User {
   name          String?
   email         String?   @unique
   password      String?   // Hashed password
+  /// When the password was last changed. Sessions are stateless JWTs, so they
+  /// cannot be deleted on a reset; tokens issued before this instant are
+  /// rejected instead, which is what makes a reset actually evict an attacker.
+  passwordChangedAt DateTime?
   role          String    @default("MEMBER")
   emailVerified DateTime?
   image         String?
@@ -257,20 +272,47 @@ model MembershipPlan {
   subscriptions Subscription[]
 }
 
+/// A membership term.
+///
+/// There is no payment gateway. A member applies, and the term only begins
+/// when an administrator records that the money arrived — so `startDate` and
+/// `endDate` are null until then. They used to be filled in at application
+/// time, which made an unpaid application look like a running membership.
+///
+/// One row per term: a renewal is a new row, so each term keeps its own dates,
+/// price and invoice.
 model Subscription {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   userId           String   @db.ObjectId
   user             User     @relation(fields: [userId], references: [id])
   planId           String   @db.ObjectId
   plan             MembershipPlan @relation(fields: [planId], references: [id])
-  startDate        DateTime @default(now())
-  endDate          DateTime
-  status           String   @default("ACTIVE")
-  paymentStatus    String   @default("PAID")    // PENDING, PAID, FAILED
-  paymentMethod    String   @default("STRIPE")  // STRIPE, CASH
-  stripeId         String?                     // Checkout Session ID
-  stripeSubscriptionId String? @unique         // Stripe Subscription ID
-  isApproved       Boolean  @default(true)      // False for Cash until admin approves
+
+  /// PENDING_VERIFICATION | AWAITING_PAYMENT | ACTIVE | REJECTED | EXPIRED | CANCELLED
+  status           String   @default("AWAITING_PAYMENT")
+  /// PENDING | PAID
+  paymentStatus    String   @default("PENDING")
+  /// BANK_TRANSFER | CASH — how the member said they intend to pay.
+  paymentMethod    String   @default("BANK_TRANSFER")
+  /// Student applications start false and flip when the ID is verified. That
+  /// is *verification*, not payment: it never activates the membership.
+  isApproved       Boolean  @default(false)
+
+  /// Null until payment is recorded. `startDate` is the date the money
+  /// arrived; `endDate` is that date plus the plan's duration.
+  startDate        DateTime?
+  endDate          DateTime?
+
+  // --- Offline payment record (the audit trail the gateway used to provide) ---
+  /// Bank transfer reference or receipt number.
+  paymentReference String?
+  /// Free-text note from the administrator who recorded the payment.
+  paymentNote      String?
+  /// Who pressed the button, and when. Separate from `startDate`, which the
+  /// administrator may backdate to the day the cash was handed over.
+  recordedById     String?   @db.ObjectId
+  recordedAt       DateTime?
+
   details          Json?               // Store extra info like family members or student verification
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -338,4 +380,31 @@ model ContactMessage {
   status    String   @default("UNREAD") // UNREAD, READ, ARCHIVED
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// `WebhookEvent` lived here: a unique index on Stripe's evt_… id, so a
+// redelivered webhook could not create a second subscription. There is no
+// gateway and no webhook endpoint any more, so there is nothing to deduplicate.
+// The collection is dropped by scratch/migrate-offline-payments.ts.
+
+/// Captcha challenges, held in the database rather than process memory.
+///
+/// The in-memory Map only worked when the process that issued a challenge also
+/// verified it. Behind more than one instance — or on a serverless platform —
+/// verification usually landed somewhere else and failed for legitimate users.
+model Captcha {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  token   String   @unique
+  code    String
+  expires DateTime
+}
+
+/// Fixed-window counters for things where the limit is a security control
+/// rather than politeness — sign-in attempts, password reset requests.
+/// Shared across instances and survives a restart, unlike the in-memory one.
+model RateLimit {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  key     String   @unique
+  count   Int      @default(0)
+  resetAt DateTime
 }

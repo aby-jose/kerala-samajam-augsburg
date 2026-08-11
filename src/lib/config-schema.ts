@@ -37,7 +37,6 @@ export interface SiteConfig {
    * updating them never triggers a re-consent prompt.
    */
   legal: LegalEntityConfig;
-  footerText?: string;
 }
 
 export interface LegalEntityConfig {
@@ -66,9 +65,19 @@ export interface LegalEntityConfig {
   supervisoryAuthority: string;
   /** Hosting provider, named in the privacy policy. */
   hostingProvider: string;
-  /** Bank details used for SEPA / cash membership payments. */
+
+  // --- Bank details ------------------------------------------------------
+  // Since there is no payment gateway, these are the only instructions a
+  // member gets for how to pay. They are shown in the membership form, on the
+  // profile page, in the payment-request email and on the invoice PDF — so
+  // they are one source of truth rather than four hard-coded strings.
+  /** Account holder as it appears on the account — not always `entityName`. */
+  accountHolder: string;
   bankName: string;
   iban: string;
+  bic: string;
+  /** Days after which a membership payment is expected. Shown as a due date. */
+  paymentTermsDays: number;
 }
 
 export const defaultLegalEntity: LegalEntityConfig = {
@@ -89,8 +98,11 @@ export const defaultLegalEntity: LegalEntityConfig = {
   supervisoryAuthority:
     "Bayerisches Landesamt für Datenschutzaufsicht (BayLDA), Promenade 18, 91522 Ansbach",
   hostingProvider: "{{HOSTING-ANBIETER}}",
+  accountHolder: "Kerala Samajam Augsburg e.V.",
   bankName: "{{BANK}}",
   iban: "{{IBAN}}",
+  bic: "{{BIC}}",
+  paymentTermsDays: 14,
 };
 
 export const defaultConfig: SiteConfig = {
@@ -117,5 +129,4 @@ export const defaultConfig: SiteConfig = {
     maintenanceMode: false,
   },
   legal: defaultLegalEntity,
-  footerText: "© 2024 Kerala Samajam Augsburg. All rights reserved.",
 };

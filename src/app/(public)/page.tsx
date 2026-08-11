@@ -21,62 +21,21 @@ import Link from "next/link";
 import React, { useState, useEffect } from "react";
 import { getUpcomingEvents } from "@/lib/event-actions";
 
-// Placeholder events, shown until the real calendar loads. Past ones are
-// filtered out below, same as the live data.
-const mockEvents = [
-  {
-    id: "1",
-    title: "Grand Onam Celebration 2026",
-    date: "2026-08-30T10:00:00",
-    location: "Augsburg Community Hall",
-    description: "Experience the vibrant spirit of Kerala with traditional Pookalam, grand Onasadhya, and cultural performances that bring our heritage to life in the heart of Augsburg.",
-    image: "/images/events/onam-celebration.png",
-  },
-  {
-    id: "2",
-    title: "Kerala Traditional Music Night",
-    date: "2026-05-15T18:00:00",
-    location: "Kulturhaus Abraxas",
-    description: "An evening of soul-stirring rhythms featuring traditional instruments like Chenda and Mridangam, blending classical Kerala music with modern artistic expressions.",
-    image: "/images/events/music-night.png",
-  },
-  {
-    id: "3",
-    title: "Traditional Arts Workshop",
-    date: "2026-06-20T14:00:00",
-    location: "KSA Cultural Center",
-    description: "A hands-on workshop dedicated to preserving Kerala's unique arts. Learn the intricate techniques of Kathakali mask making and traditional mural painting from experts.",
-    image: "/images/events/traditional-workshop.png",
-  },
-  {
-    id: "4",
-    title: "Summer Community Gathering",
-    date: "2026-07-12T11:00:00",
-    location: "Augsburg City Park",
-    description: "Join your KSA family for a day of fun, food, and friendship. A perfect opportunity for the community to connect and celebrate together.",
-    image: "/images/events/Summer.jpg",
-  },
-];
-
-// Anything before today is done with — the showcase never displays it.
-const isUpcoming = (date: string) => {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-  return new Date(date) >= startOfToday;
-};
-
 export default function Home() {
-  const [upcomingEvents, setUpcomingEvents] = useState<any[]>(() =>
-    mockEvents.filter((e) => isUpcoming(e.date))
-  );
+  // Starts empty rather than seeded with invented events.
+  //
+  // This used to render four hardcoded events — with titles, dates and venues
+  // — until the real calendar arrived a moment later. To a visitor those were
+  // indistinguishable from the genuine programme, so the homepage briefly
+  // advertised gatherings that had never been scheduled. A skeleton says
+  // "loading"; a fake Onam celebration at a named hall says something untrue.
+  const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
 
   useEffect(() => {
     const fetchEvents = async () => {
       try {
         const realEvents = await getUpcomingEvents();
-        // Map the real events to the format expected by the showcase.
-        // An empty result is meaningful — it means nothing is scheduled —
-        // so the placeholders are dropped either way.
         setUpcomingEvents(
           realEvents.slice(0, 4).map((e) => ({
             id: e.id,
@@ -85,11 +44,13 @@ export default function Home() {
             date: e.date.toISOString(),
             location: e.location,
             description: e.description,
-            image: e.imageUrl || "/images/placeholder.jpg",
+            image: e.imageUrl || "/images/placeholder.svg",
           }))
         );
       } catch (error) {
         console.error("Failed to fetch real events:", error);
+      } finally {
+        setIsLoadingEvents(false);
       }
     };
     fetchEvents();
@@ -141,7 +102,35 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          <EventsShowcase events={upcomingEvents} />
+          {isLoadingEvents ? (
+            <div
+              className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
+              aria-busy="true"
+              aria-label="Loading upcoming events"
+            >
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="overflow-hidden rounded-2xl border border-border bg-surface-1">
+                  <div className="aspect-[4/3] animate-pulse bg-muted" />
+                  <div className="space-y-3 p-5">
+                    <div className="h-3 w-24 animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                    <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : upcomingEvents.length > 0 ? (
+            <EventsShowcase events={upcomingEvents} />
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-surface-1 px-6 py-16 text-center">
+              <p className="text-base font-semibold text-foreground">
+                Nothing on the calendar just yet
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                New dates are announced here first — members hear about them by email.
+              </p>
+            </div>
+          )}
         </Container>
       </section>
 

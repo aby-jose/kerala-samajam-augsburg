@@ -1,14 +1,12 @@
 "use server";
 
 import { uploadToCloudinary } from "./cloudinary";
-import { getServerSession } from "next-auth";
-import { publicAuthOptions } from "./auth";
-
-import { adminAuthOptions } from "./auth";
+import { getAdminUser, getCurrentUser } from "./guards";
+import { validateUpload } from "./upload-validation";
 
 export async function uploadProfileImage(formData: FormData) {
-  const session = await getServerSession(publicAuthOptions);
-  if (!session?.user) {
+  const user = await getCurrentUser();
+  if (!user) {
     return { error: "Unauthorized" };
   }
 
@@ -18,19 +16,17 @@ export async function uploadProfileImage(formData: FormData) {
   }
 
   try {
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const { buffer } = await validateUpload(file, "image");
     const imageUrl = await uploadToCloudinary(buffer, "profile_pics");
     return { url: imageUrl };
   } catch (error) {
     console.error("Upload error:", error);
-    return { error: "Failed to upload image" };
+    return { error: error instanceof Error ? error.message : "Failed to upload image" };
   }
 }
 
 export async function uploadLogo(formData: FormData) {
-  const session = await getServerSession(adminAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") {
+  if (!(await getAdminUser())) {
     return { error: "Unauthorized" };
   }
 
@@ -40,12 +36,11 @@ export async function uploadLogo(formData: FormData) {
   }
 
   try {
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const { buffer } = await validateUpload(file, "image");
     const imageUrl = await uploadToCloudinary(buffer, "branding");
     return { url: imageUrl };
   } catch (error) {
     console.error("Upload error:", error);
-    return { error: "Failed to upload logo" };
+    return { error: error instanceof Error ? error.message : "Failed to upload logo" };
   }
 }

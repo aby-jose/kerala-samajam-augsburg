@@ -46,6 +46,20 @@ const tooltipStyle = {
 
 const axisTick = { fontSize: 12, fill: "hsl(var(--muted-foreground))" };
 
+/**
+ * Render a month-on-month change, or nothing when there is no baseline.
+ *
+ * `null` means the metric was zero a month ago — a first month, or the first
+ * paid registration. Showing "+100%" or "+0.0%" there would present the
+ * absence of a comparison as a measurement.
+ */
+function formatDelta(change: number | null | undefined): string | undefined {
+  if (change == null || !Number.isFinite(change)) return undefined;
+  const rounded = Math.round(change * 10) / 10;
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
+  return `${sign}${Math.abs(rounded).toFixed(1)}%`;
+}
+
 export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,10 +88,10 @@ export default function AnalyticsPage() {
     // Export KPIs and Growth Trends
     const headers = ["Metric", "Value", "Trend"];
     const kpiData = [
-      ["Total Revenue", `€${data.kpis.totalRevenue}`, data.kpis.revenueChange],
-      ["Active Members", data.kpis.activeMembers, data.kpis.membersChange],
-      ["Total Registrations", data.kpis.totalRegistrations, "+8.4%"],
-      ["Total Users", data.kpis.totalUsers, "+2.1%"],
+      ["Total Revenue", `€${data.kpis.totalRevenue}`, formatDelta(data.kpis.revenueChange) ?? "n/a"],
+      ["Active Members", data.kpis.activeMembers, formatDelta(data.kpis.membersChange) ?? "n/a"],
+      ["Total Registrations", data.kpis.totalRegistrations, formatDelta(data.kpis.registrationsChange) ?? "n/a"],
+      ["Total Users", data.kpis.totalUsers, formatDelta(data.kpis.usersChange) ?? "n/a"],
     ];
 
     const growthHeaders = ["Month", "Registrations", "Revenue (€)"];
@@ -109,14 +123,14 @@ export default function AnalyticsPage() {
     {
       title: "Event registrations",
       value: data.kpis.totalRegistrations.toLocaleString(),
-      change: "+8.4%",
+      change: data.kpis.registrationsChange,
       icon: Calendar,
       tone: "primary" as const,
     },
     {
       title: "Community reach",
       value: data.kpis.totalUsers.toLocaleString(),
-      change: "+2.1%",
+      change: data.kpis.usersChange,
       icon: Activity,
       tone: "violet" as const,
     }
@@ -158,9 +172,10 @@ export default function AnalyticsPage() {
             value={kpi.value}
             icon={kpi.icon}
             tone={kpi.tone}
-            delta={kpi.change}
-            deltaDirection="up"
-            hint="vs. last month"
+            delta={formatDelta(kpi.change)}
+            // Was hardcoded "up", so a decline still showed a rising arrow.
+            deltaDirection={kpi.change != null && kpi.change < 0 ? "down" : "up"}
+            hint={kpi.change == null ? "no prior month to compare" : "vs. last month"}
           />
         ))}
       </div>

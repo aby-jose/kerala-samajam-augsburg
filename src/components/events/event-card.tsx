@@ -93,13 +93,18 @@ export function EventCard({ event }: EventCardProps) {
             </p>
           </div>
 
-          <span className="inline-flex items-center gap-2 pt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground transition-colors duration-300 group-hover:text-primary">
-            View Details
-            <ArrowRight
-              className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
-              strokeWidth={2.4}
-            />
-          </span>
+          {/* Outlined, matching the spotlight CTA above — a hairline and the
+              type, never a filled block. Its own footer row rather than one
+              more grey line trailing the copy. */}
+          <div className="border-t border-border pt-5">
+            <span className="inline-flex items-center gap-2.5 rounded-full border border-border bg-transparent px-5 py-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground transition-all duration-300 group-hover:border-primary group-hover:text-primary">
+              View Details
+              <ArrowRight
+                className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+                strokeWidth={2.4}
+              />
+            </span>
+          </div>
         </div>
       </Link>
     </motion.div>

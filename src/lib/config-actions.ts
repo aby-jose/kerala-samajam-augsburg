@@ -2,9 +2,8 @@
 
 import { prisma } from "./prisma";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { adminAuthOptions, publicAuthOptions } from "./auth";
 import { SiteConfig } from "./config-schema";
+import { requireAdmin } from "./guards";
 
 import { getConfig } from "./config-utils";
 
@@ -13,12 +12,7 @@ export async function fetchConfigAction() {
 }
 
 export async function saveConfig(config: SiteConfig) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  
-  if ((session?.user as any)?.role !== "ADMIN") {
-    throw new Error("Unauthorized");
-  }
+  await requireAdmin();
 
   try {
     await prisma.config.upsert({

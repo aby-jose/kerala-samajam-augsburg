@@ -1,10 +1,13 @@
 "use server";
 
-import { prisma } from "./prisma";
+import { NOT_REVOKED, prisma } from "./prisma";
 import cloudinary from "./cloudinary";
+import { enforceRateLimit } from "./rate-limit";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
-import { publicAuthOptions, adminAuthOptions } from "./auth";
+import { publicAuthOptions } from "./auth";
+import { requireAdmin, requireAnyUser, requireUser } from "./guards";
+import { validateUpload } from "./upload-validation";
 import { sendEmail } from "./email";
 import { 
   getContributionNotificationEmail, 
@@ -12,19 +15,37 @@ import {
   getContributionRejectionEmail 
 } from "./email-templates";
 import { getConfig } from "./config-utils";
+import { adminEmail } from "./admin-contact";
+
+/**
+ * Where a non-admin is allowed to put files.
+ *
+ * The folder arrives from the client, so without this a member could upload
+ * into `branding/` and replace the site logo, or into `student-ids/` and
+ * pollute the verification queue.
+ */
+const CONTRIBUTION_FOLDER_PREFIX = "kerala-samajam/contributions/";
 
 export async function uploadImageAction(formData: FormData, folder?: string) {
+  const user = await requireAnyUser();
+
+  const requested = folder || "kerala-samajam/gallery";
+  const target = user.isAdmin
+    ? requested
+    : requested.startsWith(CONTRIBUTION_FOLDER_PREFIX)
+      ? requested
+      : `${CONTRIBUTION_FOLDER_PREFIX}misc`;
+
   try {
     const file = formData.get("file") as File;
     if (!file) throw new Error("No file provided");
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const { buffer } = await validateUpload(file, "media");
 
     return new Promise((resolve) => {
       cloudinary.uploader.upload_stream(
         {
-          folder: folder || "kerala-samajam/gallery",
+          folder: target,
           resource_type: "auto",
         },
         (error, result) => {
@@ -48,7 +69,15 @@ export async function uploadImageAction(formData: FormData, folder?: string) {
   }
 }
 
-export async function deleteImageAction(publicId: string) {
+/**
+ * Remove an asset from Cloudinary.
+ *
+ * Not exported: every export of a `"use server"` file is a POST endpoint, and
+ * the admin-guarded `deleteImageAction` wrapper that used to sit here had no
+ * callers at all — the delete paths below use this directly. An endpoint
+ * nobody calls is surface without purpose.
+ */
+async function deleteImage(publicId: string) {
   try {
     await cloudinary.uploader.destroy(publicId);
     return { success: true };
@@ -107,6 +136,8 @@ export async function createAlbum(data: {
   coverImage?: string;
   isPublished?: boolean;
 }) {
+  await requireAdmin();
+
   const album = await prisma.galleryAlbum.create({
     data: {
       ...data,
@@ -125,6 +156,8 @@ export async function updateAlbum(id: string, data: {
   coverImage?: string;
   isPublished?: boolean;
 }) {
+  await requireAdmin();
+
   const album = await prisma.galleryAlbum.update({
     where: { id },
     data,
@@ -134,13 +167,64 @@ export async function updateAlbum(id: string, data: {
   return { success: true, album };
 }
 
+/**
+ * Delete an album, its media rows, and the underlying Cloudinary assets.
+ *
+ * The Cloudinary half used to be a TODO ("for now, focus on DB"), which left
+ * every photo live on the CDN at a guessable URL after the album was gone.
+ * That is a running cost, but more importantly it means an erasure request
+ * satisfied in the admin panel did not actually erase anything — the images
+ * stayed retrievable by anyone holding the old link.
+ *
+ * Storage is deleted first: a failure there aborts before the database rows
+ * are gone, so the assets are still discoverable and the delete can be
+ * retried. The other order would strand them permanently.
+ */
 export async function deleteAlbum(id: string) {
-  // Cloudinary cleanup should ideally happen here too for all media in the album
-  // For now, focus on DB
+  await requireAdmin();
+
+  const media = await prisma.galleryMedia.findMany({
+    where: { albumId: id },
+    select: { publicId: true },
+  });
+
+  const contributions = await prisma.mediaContribution.findMany({
+    where: { albumId: id },
+    select: { publicId: true },
+  });
+
+  const publicIds = [...media, ...contributions]
+    .map((m) => m.publicId)
+    .filter((publicId): publicId is string => !!publicId);
+
+  const failures: string[] = [];
+  for (const publicId of publicIds) {
+    const result = await deleteImage(publicId);
+    if ("error" in result) failures.push(publicId);
+  }
+
+  if (failures.length > 0) {
+    console.error(
+      `Album ${id}: ${failures.length}/${publicIds.length} assets could not be removed from Cloudinary.`,
+      failures
+    );
+    return {
+      error:
+        `Could not delete ${failures.length} of ${publicIds.length} files from storage. ` +
+        "The album was left intact — try again, or remove those files in Cloudinary first.",
+    };
+  }
+
+  // Contributions have no cascade on the album relation, so they would
+  // otherwise survive as rows pointing at an album that no longer exists.
+  await prisma.mediaContribution.deleteMany({ where: { albumId: id } });
+
   await prisma.galleryAlbum.delete({
     where: { id },
   });
+
   revalidatePath("/admin/gallery");
+  revalidatePath("/gallery");
   return { success: true };
 }
 
@@ -156,6 +240,8 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
     boundingBox: any;
   }[];
 }[]) {
+  await requireAdmin();
+
   try {
     for (const item of mediaItems) {
       const { faces, ...mediaData } = item;
@@ -182,7 +268,9 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
 }
 
 export async function deleteMedia(id: string, publicId: string) {
-  await deleteImageAction(publicId);
+  await requireAdmin();
+
+  await deleteImage(publicId);
   await prisma.galleryMedia.delete({
     where: { id },
   });
@@ -192,9 +280,11 @@ export async function deleteMedia(id: string, publicId: string) {
 }
 
 export async function bulkDeleteMedia(mediaItems: { id: string; publicId: string }[], albumId: string) {
+  await requireAdmin();
+
   try {
     // 1. Delete from Cloudinary in parallel
-    await Promise.all(mediaItems.map(item => deleteImageAction(item.publicId)));
+    await Promise.all(mediaItems.map(item => deleteImage(item.publicId)));
     
     // 2. Delete from Database
     await prisma.galleryMedia.deleteMany({
@@ -210,22 +300,66 @@ export async function bulkDeleteMedia(mediaItems: { id: string; publicId: string
   }
 }
 
+/** face-api.js descriptors are 128 floats; anything else is not one. */
+const FACE_DESCRIPTOR_LENGTH = 128;
+
+/**
+ * Find gallery photos containing a given face.
+ *
+ * Special-category processing under Art. 9 GDPR, so both checks that the UI
+ * already performs are repeated here. The client gated this behind a login and
+ * `BiometricConsentGate`, but the action itself was reachable by anyone: submit
+ * any descriptor and get back every photo that person appears in. A client-side
+ * consent gate is a courtesy to the user, not a control.
+ */
 export async function searchMediaByFace(descriptor: number[], albumId?: string) {
-  // 1. Fetch all face detections
+  const user = await requireUser();
+
+  if (!Array.isArray(descriptor) || descriptor.length !== FACE_DESCRIPTOR_LENGTH) {
+    throw new Error("Invalid face descriptor");
+  }
+  if (descriptor.some((n) => typeof n !== "number" || !Number.isFinite(n))) {
+    throw new Error("Invalid face descriptor");
+  }
+
+  // Art. 9(2)(a): explicit consent, checked server-side, and honouring a
+  // withdrawal the moment it is made.
+  const consent = await prisma.userConsent.findFirst({
+    where: { userId: user.id, type: "BIOMETRIC", ...NOT_REVOKED },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!consent?.granted) {
+    throw new Error("BIOMETRIC_CONSENT_REQUIRED");
+  }
+
+  enforceRateLimit(
+    `face-search:${user.id}`,
+    20,
+    60_000,
+    "Too many searches. Please wait a moment and try again."
+  );
+
+  // Scoped to published albums, and bounded: this used to load every
+  // FaceDetection row in the database on each call.
   const detections = await prisma.faceDetection.findMany({
-    where: albumId ? { media: { albumId } } : undefined,
-    include: { media: true },
+    where: albumId
+      ? { media: { albumId, album: { isPublished: true } } }
+      : { media: { album: { isPublished: true } } },
+    select: { mediaId: true, descriptor: true },
+    take: 20_000,
   });
 
-  // 2. Filter by Euclidean distance
   const threshold = 0.55;
-  const matches = detections.filter(d => {
-    const dist = euclideanDistance(descriptor, d.descriptor);
-    return dist < threshold;
-  });
+  const mediaIds = Array.from(
+    new Set(
+      detections
+        .filter((d) => euclideanDistance(descriptor, d.descriptor) < threshold)
+        .map((d) => d.mediaId)
+    )
+  );
 
-  // 3. Return unique media items
-  const mediaIds = Array.from(new Set(matches.map(m => m.mediaId)));
+  if (mediaIds.length === 0) return [];
+
   return prisma.galleryMedia.findMany({
     where: { id: { in: mediaIds } },
   });
@@ -264,9 +398,9 @@ export async function submitMediaContribution(data: {
   // Notify Admin
   if (!skipEmail) {
     const config = await getConfig();
-    const adminEmail = process.env.ADMIN_EMAIL || "ajmoviezone1@gmail.com";
+    const notifyAddress = adminEmail();
     await sendEmail({
-      to: adminEmail,
+      to: notifyAddress,
       subject: `New Media Contribution Request - ${config.siteName}`,
       html: getContributionNotificationEmail(session.user.name || "A member", album.title, { 
         logoUrl: config.branding.logoUrl, 
@@ -305,9 +439,9 @@ export async function submitBulkMediaContributions(albumId: string, items: {
 
   // Notify Admin ONCE
   const config = await getConfig();
-  const adminEmail = process.env.ADMIN_EMAIL || "ajmoviezone1@gmail.com";
+  const notifyAddress = adminEmail();
   await sendEmail({
-    to: adminEmail,
+    to: notifyAddress,
     subject: `New Media Contributions (${items.length} items) - ${config.siteName}`,
     html: getContributionNotificationEmail(session.user.name || "A member", album.title, { 
       logoUrl: config.branding.logoUrl, 
@@ -320,8 +454,7 @@ export async function submitBulkMediaContributions(albumId: string, items: {
 }
 
 export async function getPendingContributions() {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   return await prisma.mediaContribution.findMany({
     where: { status: "PENDING" },
@@ -334,8 +467,7 @@ export async function getPendingContributions() {
 }
 
 export async function moderateContribution(id: string, status: "APPROVED" | "REJECTED", reason?: string) {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   const contribution = await prisma.mediaContribution.findUnique({
     where: { id },
@@ -379,7 +511,7 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
     }
   } else {
     // 1. Delete from Cloudinary
-    await deleteImageAction(contribution.publicId);
+    await deleteImage(contribution.publicId);
 
     // 2. Update Contribution Status
     await prisma.mediaContribution.update({
@@ -412,8 +544,7 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
 }
 
 export async function bulkModerateContributions(ids: string[], status: "APPROVED" | "REJECTED", reason?: string) {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  await requireAdmin();
 
   // Process sequentially to handle side effects (Cloudinary/Email) properly for each
   const results = [];
@@ -432,6 +563,17 @@ export async function bulkModerateContributions(ids: string[], status: "APPROVED
 export async function checkContributionEligibility(albumId: string) {
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) return { eligible: false, reason: "AUTH_REQUIRED" };
+
+  // Eligibility is matched on the email string, so an unverified address must
+  // not count — otherwise changing the profile email to a checked-in
+  // attendee's would grant their contribution rights.
+  if (!(session.user as { emailVerified?: Date | null }).emailVerified) {
+    return {
+      eligible: false,
+      reason: "EMAIL_UNVERIFIED",
+      message: "Please verify your email address to contribute.",
+    };
+  }
 
   const album = await prisma.galleryAlbum.findUnique({
     where: { id: albumId },
@@ -462,6 +604,8 @@ export async function checkContributionEligibility(albumId: string) {
 export async function getEligibleAlbumsForContribution() {
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) return [];
+  // Matched by email below — see the note in checkContributionEligibility.
+  if (!(session.user as { emailVerified?: Date | null }).emailVerified) return [];
 
   // 1. Get all PAID and checked-in registrations for this user
   const registrations = await prisma.registration.findMany({

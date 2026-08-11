@@ -197,10 +197,17 @@ export default function AlbumFormModal({
               <Label htmlFor="eventId" className="text-sm font-medium">
                 Linked event (optional)
               </Label>
+              {/*
+                Editable after creation. It was locked ("can't change event
+                after creation for now"), which meant an album linked to the
+                wrong event could only be fixed by deleting it — and deleting
+                an album now removes its photos from Cloudinary too. The link
+                decides who may contribute, so it is worth being able to
+                correct.
+              */}
               <Select
                 value={selectedEventId}
                 onValueChange={(val) => setValue("eventId", val)}
-                disabled={!!initialData?.eventId} // Can't change event after creation for now
               >
                 <SelectTrigger className="h-9 rounded-lg">
                   <SelectValue placeholder="Select an event" />
@@ -220,7 +227,9 @@ export default function AlbumFormModal({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Linked albums are shown on that event's page automatically.
+                Linked albums are shown on that event&apos;s page automatically.
+                {initialData?.eventId &&
+                  " Changing the link also changes who may contribute photos — only attendees checked in at the linked event can."}
               </p>
             </div>
 

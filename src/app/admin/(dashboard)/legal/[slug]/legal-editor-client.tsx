@@ -8,6 +8,8 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
+  EyeOff,
+  Globe,
   History,
   Loader2,
   Plus,
@@ -31,8 +33,10 @@ import {
   RevisionSummary,
   adminGetLegalDocument,
   adminListRevisions,
+  adminGetRevision,
   adminPublishVersion,
   adminSaveDraft,
+  adminSetPublished,
 } from "@/lib/legal-actions";
 import {
   LEGAL_DOCS,
@@ -75,6 +79,14 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
   const [isDirty, setIsDirty] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
   const [publishOpen, setPublishOpen] = React.useState(false);
+  // Seeded from the loaded document below — `meta` is the static schema
+  // definition and carries no live state.
+  const [isPublished, setIsPublished] = React.useState(true);
+  const [isTogglingPublish, setIsTogglingPublish] = React.useState(false);
+  const [loadingRevisionId, setLoadingRevisionId] = React.useState<string | null>(null);
+  const [viewingRevision, setViewingRevision] = React.useState<
+    Awaited<ReturnType<typeof adminGetRevision>>
+  >(null);
   const [changeNote, setChangeNote] = React.useState("");
   const [requireReconsent, setRequireReconsent] = React.useState(meta.requiresConsent);
 
@@ -89,6 +101,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
         setVersion(doc.version);
         setRequiresConsent(doc.requiresConsent);
         setRequireReconsent(doc.requiresConsent);
+        setIsPublished(doc.isPublished);
         setConfig(siteConfig);
         setRevisions(history);
       })
@@ -214,6 +227,59 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
     }
   };
 
+  const handleOpenRevision = async (revisionId: string) => {
+    setLoadingRevisionId(revisionId);
+    try {
+      const revision = await adminGetRevision(revisionId);
+      if (!revision) {
+        toastError("That version could not be found.");
+        return;
+      }
+      setViewingRevision(revision);
+    } catch (err) {
+      toastError(getErrorMessage(err, "Failed to open that version"));
+    } finally {
+      setLoadingRevisionId(null);
+    }
+  };
+
+  /**
+   * Take the document off the public site without deleting it.
+   *
+   * Impressum and Datenschutz are legally required to be reachable in Germany,
+   * so unpublishing either is confirmed with that stated plainly rather than a
+   * generic "are you sure".
+   */
+  const handleTogglePublished = async () => {
+    const nextPublished = !isPublished;
+    const isMandatory = slug === "imprint" || slug === "privacy";
+
+    if (!nextPublished) {
+      const ok = await confirm({
+        title: "Take this page offline",
+        message: isMandatory
+          ? `The ${meta.label.en} is legally required to be reachable in Germany. ` +
+            "Taking it offline means visitors get a 404 and the footer link breaks. " +
+            "Only do this if you are putting it back within minutes."
+          : "Visitors will get a 404 for this page until you publish it again. The text is kept.",
+        confirmText: "Take offline",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+
+    setIsTogglingPublish(true);
+    try {
+      await adminSetPublished(slug, nextPublished);
+      setIsPublished(nextPublished);
+      success(nextPublished ? "Page is live again." : "Page taken offline.");
+    } catch (err) {
+      toastError(getErrorMessage(err, "Failed to change visibility"));
+    } finally {
+      setIsTogglingPublish(false);
+    }
+  };
+
   if (isLoading) return <EditorSkeleton />;
 
   if (!content || !current) {
@@ -265,6 +331,21 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
           Save draft
         </Button>
         <Button
+          variant="outline"
+          onClick={handleTogglePublished}
+          disabled={isTogglingPublish}
+          className="h-9 rounded-lg"
+        >
+          {isTogglingPublish ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : isPublished ? (
+            <EyeOff className="mr-2 h-4 w-4" />
+          ) : (
+            <Globe className="mr-2 h-4 w-4" />
+          )}
+          {isPublished ? "Take offline" : "Put online"}
+        </Button>
+        <Button
           onClick={() => setPublishOpen(true)}
           disabled={isSaving || unresolved.length > 0}
           className="h-9 rounded-lg"
@@ -277,6 +358,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
       {/* Status strip */}
       <div className="flex flex-wrap items-center gap-2">
         <Chip tone="neutral">Live version v{version}</Chip>
+        {!isPublished && <Chip tone="amber">Offline — visitors get a 404</Chip>}
         {requiresConsent ? (
           <Chip tone="primary">New versions require re-consent</Chip>
         ) : (
@@ -530,30 +612,53 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
         ) : (
           <ul className="divide-y divide-border">
             {revisions.map((revision) => (
-              <li key={revision.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                <div className="min-w-0">
-                  <span className="font-mono text-xs font-semibold text-foreground">
-                    v{revision.version}
+              <li key={revision.id}>
+                {/*
+                  Clickable so the archive can actually be read. Storing every
+                  version proves nothing if the only way to see v2 is a
+                  database client — and answering "what exactly did I agree
+                  to?" is the reason these rows exist.
+                */}
+                <button
+                  type="button"
+                  onClick={() => handleOpenRevision(revision.id)}
+                  disabled={loadingRevisionId === revision.id}
+                  className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
+                >
+                  <div className="min-w-0">
+                    <span className="font-mono text-xs font-semibold text-foreground">
+                      v{revision.version}
+                    </span>
+                    {revision.changeNote && (
+                      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
+                        {revision.changeNote}
+                      </p>
+                    )}
+                  </div>
+                  <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                    {new Date(revision.publishedAt).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                    {revision.publishedBy && ` · ${revision.publishedBy}`}
+                    <span className="font-medium text-foreground">
+                      {loadingRevisionId === revision.id ? "Opening…" : "View"}
+                    </span>
                   </span>
-                  {revision.changeNote && (
-                    <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                      {revision.changeNote}
-                    </p>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {new Date(revision.publishedAt).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
-                  {revision.publishedBy && ` · ${revision.publishedBy}`}
-                </span>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {viewingRevision && (
+        <RevisionViewer
+          revision={viewingRevision}
+          onClose={() => setViewingRevision(null)}
+        />
+      )}
 
       {publishOpen && (
         <PublishDialog
@@ -697,6 +802,102 @@ function IconButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Read-only view of a previously published version.
+ *
+ * Shows the wording exactly as it was stored, without placeholder resolution:
+ * a revision is evidence of what was published, so it is displayed verbatim
+ * rather than re-rendered against today's site configuration. Both languages
+ * are available because the German text is the binding one.
+ */
+function RevisionViewer({
+  revision,
+  onClose,
+}: {
+  revision: NonNullable<Awaited<ReturnType<typeof adminGetRevision>>>;
+  onClose: () => void;
+}) {
+  const [locale, setLocale] = React.useState<LegalLocale>("de");
+  const content = revision[locale];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-6 py-4">
+          <div className="min-w-0">
+            <h2 className="font-sans text-base font-bold tracking-tight text-foreground">
+              Version {revision.version}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                published{" "}
+                {new Date(revision.publishedAt).toLocaleDateString("en-GB", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </span>
+            </h2>
+            {revision.changeNote && (
+              <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                {revision.changeNote}
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex rounded-lg border border-border p-0.5">
+              {(["de", "en"] as LegalLocale[]).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLocale(l)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                    locale === l
+                      ? "bg-foreground text-background"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {l.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <Button variant="outline" onClick={onClose} className="h-8 rounded-lg">
+              Close
+            </Button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
+          <p className="mb-6 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            Archived wording, shown exactly as published. Placeholders such as{" "}
+            <code className="font-mono">{"{{legal.entityName}}"}</code> are left
+            unresolved so this reflects the stored record rather than today&apos;s settings.
+          </p>
+
+          <h1 className="font-sans text-2xl font-extrabold tracking-[-0.035em] text-foreground">
+            {content.title}
+          </h1>
+          {content.lead && (
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{content.lead}</p>
+          )}
+
+          <div className="mt-8 space-y-9">
+            {content.sections.map((section, i) => (
+              <div key={i}>
+                <h2 className="font-sans text-base font-extrabold tracking-[-0.02em] text-foreground">
+                  {section.heading}
+                </h2>
+                <div className="mt-2 h-px w-8 bg-primary/30" />
+                <LegalBody body={section.body} className="mt-3" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

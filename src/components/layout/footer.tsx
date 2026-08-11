@@ -5,13 +5,25 @@ import Link from "next/link";
 import { Cookie, Facebook, Instagram, Mail, MapPin } from "lucide-react";
 import { useConfig } from "../providers/config-provider";
 import { Container } from "./container";
-import { LEGAL_DOCS_ORDERED } from "@/lib/legal-schema";
+import { LEGAL_DOCS_ORDERED, type LegalSlug } from "@/lib/legal-schema";
+import { getPublishedLegalSlugs } from "@/lib/legal-actions";
 import { OPEN_COOKIE_SETTINGS_EVENT } from "@/components/legal/cookie-consent";
 import { cn } from "@/lib/utils";
 
 export function Footer() {
   const config = useConfig();
   const currentYear = new Date().getFullYear();
+
+  // null = not loaded yet; see the note on the list below.
+  const [publishedSlugs, setPublishedSlugs] = React.useState<LegalSlug[] | null>(null);
+
+  React.useEffect(() => {
+    getPublishedLegalSlugs()
+      .then(setPublishedSlugs)
+      .catch(() => {
+        // Keep showing everything rather than emptying the footer on a blip.
+      });
+  }, []);
 
   return (
     <footer className="bg-muted text-muted-foreground py-20 border-t border-border/50 transition-colors duration-500">
@@ -76,7 +88,17 @@ export function Footer() {
           <div className="lg:col-span-2">
             <h4 className="text-foreground font-semibold mb-6 font-serif tracking-tight transition-colors">Legal</h4>
             <ul className="space-y-3">
-              {LEGAL_DOCS_ORDERED.map((doc) => (
+              {/*
+                Filtered by what is actually published, not by the static
+                document list. An administrator can take a legal page offline
+                from the editor; linking to it anyway would leave a 404 in the
+                footer of every page. Until the list loads we show the full set
+                — the published case is overwhelmingly the normal one, and a
+                link that briefly appears is better than a footer that jumps.
+              */}
+              {LEGAL_DOCS_ORDERED.filter(
+                (doc) => publishedSlugs === null || publishedSlugs.includes(doc.slug)
+              ).map((doc) => (
                 <li key={doc.slug}>
                   <Link
                     href={`/legal/${doc.slug}`}

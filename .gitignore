@@ -41,5 +41,15 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
-scratch/videoplayback-original.mp4
 public/hero.mp4
+
+# Local scratch space — throwaway scripts, notes and media. Some of these talk
+# to the live database (clear-db.ts wipes collections), so they have no place
+# in the repository. Already-tracked ones need untracking once:
+#   git rm -r --cached scratch
+scratch/
+
+# Ad-hoc debug output. Redirected build logs kept landing here and being
+# committed; they are stale within a day and can quote connection strings.
+errors*.txt
+*.log

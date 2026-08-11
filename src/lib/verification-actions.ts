@@ -1,10 +1,14 @@
 "use server";
 
+import { randomInt } from "crypto";
+
 import { prisma } from "./prisma";
 import { getOTPEmail } from "./email-templates";
 import { v2 as cloudinary } from "cloudinary";
 import { sendEmail } from "./email";
 import { getConfig } from "./config-utils";
+import { requireUser } from "./guards";
+import { validateUpload } from "./upload-validation";
 
 
 // Configure Cloudinary
@@ -15,20 +19,31 @@ cloudinary.config({
 });
 
 /**
- * Sends a 6-digit verification code to the member's email.
+ * Sends a 6-digit verification code to the signed-in member's own address.
+ *
+ * The address is taken from the session rather than an argument. As a
+ * parameter it let anyone mail a code to any address on the internet, and —
+ * paired with `verifyOTP` — mark any account as verified.
  */
-export async function sendVerificationOTP(email: string) {
-  if (!email) throw new Error("Email is required");
+export async function sendVerificationOTP() {
+  const user = await requireUser();
+  const email = user.email;
+  if (!email) throw new Error("Your account has no email address");
+
   const config = await getConfig();
 
-  const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expires = new Date(Date.now() + 10 * 60 * 1000); 
+  const code = randomInt(100000, 1000000).toString();
+  const expires = new Date(Date.now() + 10 * 60 * 1000);
 
   try {
-    await (prisma as any).verificationToken.upsert({
-      where: { identifier_token: { identifier: email, token: code } },
-      update: { token: code, expires },
-      create: { identifier: email, token: code, expires }
+    // Every previous code for this address stops working now. The old `upsert`
+    // was keyed on `[identifier, token]`, and the token *is* the fresh random
+    // code — so it never matched an existing row and every call left another
+    // live code behind. Enough calls and guessing six digits stops being hard.
+    await prisma.verificationToken.deleteMany({ where: { identifier: email } });
+
+    await prisma.verificationToken.create({
+      data: { identifier: email, token: code, expires }
     });
 
     await sendEmail({
@@ -51,11 +66,14 @@ export async function sendVerificationOTP(email: string) {
 /**
  * Verifies the 6-digit OTP code.
  */
-export async function verifyOTP(email: string, code: string) {
-  if (!email || !code) throw new Error("Email and code are required");
+export async function verifyOTP(code: string) {
+  const user = await requireUser();
+  const email = user.email;
+  if (!email) throw new Error("Your account has no email address");
+  if (!code) throw new Error("A verification code is required");
 
   try {
-    const record = await (prisma as any).verificationToken.findFirst({
+    const record = await prisma.verificationToken.findFirst({
       where: {
         identifier: email,
         token: code,
@@ -67,7 +85,7 @@ export async function verifyOTP(email: string, code: string) {
       return { success: false, message: "Invalid or expired verification code" };
     }
 
-    await (prisma as any).verificationToken.delete({
+    await prisma.verificationToken.delete({
       where: { id: record.id }
     });
 
@@ -89,18 +107,15 @@ export async function verifyOTP(email: string, code: string) {
  * Enforces < 1MB limit.
  */
 export async function uploadStudentId(formData: FormData) {
+  await requireUser();
+
   const file = formData.get("file") as File;
   if (!file) throw new Error("No file provided");
 
-  // Enforce 1MB limit
-  if (file.size > 1024 * 1024) {
-    throw new Error("File size exceeds 1MB limit. Please compress your image.");
-  }
+  // 1 MB cap and an image-only check, both enforced against the actual bytes.
+  const { buffer } = await validateUpload(file, "document");
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     return new Promise((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         {
@@ -120,36 +135,24 @@ export async function uploadStudentId(formData: FormData) {
   }
 }
 
-/**
- * Check if domain is academic (Legacy indicator)
+/*
+ * Removed: `verifyStudentStatus`, `initiateSheerIDVerification` and
+ * `checkSheerIDStatus`.
+ *
+ * The two SheerID functions were stubs returning canned values — one logged
+ * and claimed success, the other always answered NOT_FOUND — and their comment
+ * said they were "required by some residual components". Nothing imported any
+ * of the three. As exported actions they were public endpoints that did
+ * nothing, and a stub that reports success is worse than an absent feature,
+ * because a caller cannot tell the difference.
+ *
+ * `verifyStudentStatus` also fetched a third-party JSON list from GitHub on
+ * every call, uncached, so an unauthenticated action could make us hammer
+ * someone else's raw.githubusercontent.com.
+ *
+ * Student status is verified today by an administrator reviewing the uploaded
+ * ID in /admin/membership/applications — `uploadStudentId` above feeds that
+ * queue. If SheerID is ever wired up for real, it belongs behind that same
+ * review flow. `SHEERID_API_KEY` and `SHEERID_PROGRAM_ID` in .env are unused
+ * and can go.
  */
-export async function verifyStudentStatus(email: string) {
-  if (!email) return false;
-  const domain = email.split('@')[1];
-  if (!domain) return false;
-
-  try {
-    if (domain.endsWith('.edu') || domain.endsWith('.ac.uk') || domain.endsWith('.edu.in')) return true;
-    const response = await fetch(`https://raw.githubusercontent.com/Hipotest/university-domains-list/master/world_universities_and_domains.json`);
-    if (response.ok) {
-      const data = await response.json();
-      const isAcademic = data.some((uni: any) => uni.domains.includes(domain));
-      if (isAcademic) return true;
-    }
-    return false;
-  } catch (error) {
-    return false;
-  }
-}
-
-/**
- * LEGACY / STUB: Required by some residual components.
- */
-export async function initiateSheerIDVerification(email: string) {
-  console.log("Legacy SheerID initiation for:", email);
-  return { success: true };
-}
-
-export async function checkSheerIDStatus(email: string) {
-  return { success: false, status: "NOT_FOUND" };
-}

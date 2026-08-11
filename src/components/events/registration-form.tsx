@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { registerForEvent, getCaptcha, getUserRegistrationStatus, cancelRegistration } from "@/lib/event-actions";
+import { PAYMENT_METHODS } from "@/lib/membership-term";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { LoginModal } from "@/components/auth/login-modal";
@@ -68,7 +69,9 @@ export function RegistrationForm({
   const [ticketId, setTicketId] = useState("");
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<"STRIPE" | "CASH">("STRIPE");
+  // Event fees are settled in person; there is no method for the attendee to
+  // choose between, so this is fixed rather than a form field.
+  const paymentMethod = PAYMENT_METHODS.CASH;
   
   const [captcha, setCaptcha] = useState<{ id: string; code: string } | null>(null);
   const [isLoadingCaptcha, setIsLoadingCaptcha] = useState(false);
@@ -163,10 +166,6 @@ export function RegistrationForm({
       });
       
       if (result.success) {
-        if (result.method === "STRIPE" && result.url) {
-          window.location.href = result.url;
-          return;
-        }
         setTicketId(result.ticketId ?? "");
         setIsSuccess(true);
         checkStatus(); // Refresh status after success
@@ -445,39 +444,23 @@ export function RegistrationForm({
 
         {totalPrice > 0 && (
           <div className="space-y-4">
-             <div className="space-y-1.5 pt-1">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 pl-1">Payment Method</Label>
-                <div className="grid grid-cols-2 gap-2">
-                   <Button 
-                     type="button" 
-                     variant="outline" 
-                     onClick={() => setPaymentMethod("STRIPE")}
-                     className={cn("h-10 text-[10px] font-bold uppercase tracking-widest rounded-lg", paymentMethod === "STRIPE" ? "border-primary bg-primary/5 text-primary" : "border-border/60")}
-                   >
-                      Online
-                   </Button>
-                   <Button 
-                     type="button" 
-                     variant="outline" 
-                     onClick={() => setPaymentMethod("CASH")}
-                     className={cn("h-10 text-[10px] font-bold uppercase tracking-widest rounded-lg", paymentMethod === "CASH" ? "border-primary bg-primary/5 text-primary" : "border-border/60")}
-                   >
-                      Cash
-                   </Button>
-                </div>
-             </div>
-
              <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">Fee per Person</span>
                   <span className="text-sm font-bold text-foreground">€{currentPricePerPerson.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-primary/10">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">Total to Pay</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">Payable at the door</span>
                   <span className="text-lg font-black text-primary">€{totalPrice.toFixed(2)}</span>
                 </div>
+                {/*
+                  Nothing is charged here — there is no gateway. The ticket is
+                  issued straight away and states the amount outstanding, so
+                  the copy has to set that expectation rather than promising
+                  "instant activation".
+                */}
                 <p className="text-[9px] text-muted-foreground font-medium italic pt-1 text-center">
-                  {paymentMethod === "STRIPE" ? "* Instant activation via secure Stripe gateway." : "* Please bring exact change to the event."}
+                  * Your ticket is emailed immediately. Please bring the exact amount to the event.
                 </p>
              </div>
           </div>

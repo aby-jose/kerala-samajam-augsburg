@@ -6,10 +6,12 @@ import { uploadToCloudinary } from "./cloudinary";
 import { eventSchema, type EventFormValues } from "./schemas";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
-import { publicAuthOptions, adminAuthOptions } from "./auth";
+import { publicAuthOptions } from "./auth";
+import { requireAdmin } from "./guards";
 import { generateCaptcha, verifyCaptcha } from "./captcha";
-import { nanoid } from "nanoid";
-import { stripe } from "./stripe";
+import { enforceRateLimit } from "./rate-limit";
+import { generateTicketId } from "./ticket";
+import { PAYMENT_METHODS, SUBSCRIPTION_STATUS, isPaymentMethod, type PaymentMethod } from "./membership-term";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -41,9 +43,7 @@ async function generateContentWithFallback(prompt: string) {
 // Schema moved to schemas.ts
 
 export async function getAdminEvents() {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   return await prisma.event.findMany({
     include: {
@@ -52,13 +52,6 @@ export async function getAdminEvents() {
       }
     },
     orderBy: { date: 'desc' }
-  });
-}
-
-export async function getPublicEvents() {
-  return await prisma.event.findMany({
-    where: { isPublished: true },
-    orderBy: { date: 'asc' }
   });
 }
 
@@ -89,16 +82,18 @@ export async function getEventBySlug(slug: string) {
 }
 
 export async function upsertEvent(data: EventFormValues) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const validated = eventSchema.parse(data);
   const { id, ...eventData } = validated;
 
   let finalImageUrl = eventData.imageUrl;
 
-  // Handle base64 image upload to Cloudinary
+  // AI-generated covers arrive as a data URL — `generateEventImage` fetches the
+  // image and returns it inline — so they still need uploading here. Files
+  // chosen in the form no longer take this path: the modal uploads them via
+  // `uploadImageAction` and submits a URL, which also gets them size and
+  // type validation this branch has never had.
   if (eventData.imageUrl && eventData.imageUrl.startsWith("data:image")) {
     try {
       finalImageUrl = await uploadToCloudinary(eventData.imageUrl);
@@ -136,9 +131,7 @@ export async function upsertEvent(data: EventFormValues) {
 }
 
 export async function deleteEvent(id: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.event.delete({
     where: { id },
@@ -149,9 +142,7 @@ export async function deleteEvent(id: string) {
 }
 
 export async function toggleEventPublish(id: string, isPublished: boolean) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.event.update({
     where: { id },
@@ -162,25 +153,25 @@ export async function toggleEventPublish(id: string, isPublished: boolean) {
   return { success: true };
 }
 
-// Simple in-memory rate limiting (per process)
-const generationLimits = new Map<string, { count: number, lastReset: number }>();
-
-function checkRateLimit(key: string, limit: number = 10, windowMs: number = 60000) {
-  const now = Date.now();
-  const userLimit = generationLimits.get(key) || { count: 0, lastReset: now };
-  
-  if (now - userLimit.lastReset > windowMs) {
-    userLimit.count = 0;
-    userLimit.lastReset = now;
-  }
-  
-  if (userLimit.count >= limit) {
-    return false;
-  }
-  
-  userLimit.count++;
-  generationLimits.set(key, userLimit);
-  return true;
+/**
+ * Admin-only entry point for the AI helpers, with a per-administrator budget.
+ *
+ * These call Gemini and an external image generator on our API keys, so they
+ * spend real money. They were reachable without a session, and the limiter was
+ * keyed on the literal string `'ai-img'` — one global bucket for the whole
+ * site, reset by every cold start. Keying on the caller makes the limit mean
+ * something, and requiring an administrator means only a handful of people can
+ * reach it at all.
+ */
+async function requireAiCaller(bucket: string, limit = 10, windowMs = 60_000) {
+  const admin = await requireAdmin();
+  enforceRateLimit(
+    `ai:${bucket}:${admin.id ?? admin.email ?? "unknown"}`,
+    limit,
+    windowMs,
+    "Rate limit exceeded for AI generation. Please wait a minute."
+  );
+  return admin;
 }
 
 /**
@@ -190,9 +181,7 @@ function checkRateLimit(key: string, limit: number = 10, windowMs: number = 6000
 export async function generateEventImage(prompt: string) {
   console.log("AI Image Generation Request:", prompt);
   
-  if (!checkRateLimit('ai-img', 10, 60000)) {
-    throw new Error("Rate limit exceeded for image generation. Please wait a minute.");
-  }
+  await requireAiCaller("image", 10, 60_000);
   
   try {
     // 1. Use Gemini to condense the prompt into a high-impact image generation prompt
@@ -259,9 +248,7 @@ export async function generateEventImage(prompt: string) {
  */
 export async function generateEventDetails(title: string) {
   if (!title) return null;
-  if (!checkRateLimit('ai-gen')) {
-    throw new Error("Rate limit exceeded. Please wait a moment.");
-  }
+  await requireAiCaller("text");
   
   const prompt = `Generate event details specifically for an event titled "${title}" for "Kerala Samajam Augsburg", a community organization for Keralites in Augsburg, Germany.
   The description MUST be directly related to the title "${title}".
@@ -289,7 +276,7 @@ export async function generateEventDetails(title: string) {
  */
 export async function improveEventTitle(title: string) {
   if (!title) return title;
-  if (!checkRateLimit('ai-gen')) throw new Error("Rate limit exceeded.");
+  await requireAiCaller("text");
 
   const prompt = `Rewrite this event title to be more professional, catchy, and suitable for a community portal: "${title}". 
   Write ONLY in English. Do NOT use Malayalam or any other language.
@@ -309,7 +296,7 @@ export async function improveEventTitle(title: string) {
  */
 export async function improveEventDescription(description: string, title?: string) {
   if (!description && !title) return description;
-  if (!checkRateLimit('ai-gen')) throw new Error("Rate limit exceeded.");
+  await requireAiCaller("text");
 
   const context = title ? `for an event titled "${title}"` : "";
   const prompt = `Enhance and professionalize this event description ${context}: "${description || "Come and join us for this special event!"}". 
@@ -330,7 +317,7 @@ export async function improveEventDescription(description: string, title?: strin
  */
 export async function generateCategory(title: string, description: string) {
   if (!title) return "Other";
-  if (!checkRateLimit('ai-gen')) throw new Error("Rate limit exceeded.");
+  await requireAiCaller("text");
 
   const prompt = `Based on the title "${title}" and description "${description}", choose the best category from: [Cultural, Sports, Religious, Social, Meeting, Other]. 
   Write ONLY in English. Return ONLY the category name.`;
@@ -349,7 +336,7 @@ export async function generateCategory(title: string, description: string) {
  */
 
 export async function getCaptcha() {
-  const { id, code } = generateCaptcha();
+  const { id, code } = await generateCaptcha();
   // In a real app, we might generate an image. 
   // For simplicity and accessibility here, we return the text code.
   // The client will display it and user will type it back.
@@ -364,9 +351,13 @@ export async function registerForEvent(data: {
   attendees: number;
   captchaId: string;
   captchaCode: string;
-  paymentMethod: "STRIPE" | "CASH";
+  /** How the attendee intends to settle up. Nothing is charged here. */
+  paymentMethod?: PaymentMethod;
 }) {
-  const { eventId, name, email, phone, attendees, captchaId, captchaCode, paymentMethod } = data;
+  const { eventId, name, email, phone, attendees, captchaId, captchaCode } = data;
+  const paymentMethod = isPaymentMethod(data.paymentMethod)
+    ? data.paymentMethod
+    : PAYMENT_METHODS.CASH;
 
   // 1. Basic Validation
   if (!name || !email || !eventId || !captchaId || !captchaCode) {
@@ -378,7 +369,7 @@ export async function registerForEvent(data: {
   }
 
   // 2. Verify Captcha
-  const isCaptchaValid = verifyCaptcha(captchaId, captchaCode);
+  const isCaptchaValid = await verifyCaptcha(captchaId, captchaCode);
   if (!isCaptchaValid) {
     throw new Error("Invalid or expired captcha code. Please try again.");
   }
@@ -414,7 +405,7 @@ export async function registerForEvent(data: {
     const sub = await prisma.subscription.findFirst({
       where: {
         userId: session.user.id as string,
-        status: "ACTIVE",
+        status: SUBSCRIPTION_STATUS.ACTIVE,
         endDate: { gte: new Date() }
       }
     });
@@ -442,71 +433,47 @@ export async function registerForEvent(data: {
       finalPricePerPerson = parseFloat(event.price);
     }
   }
-  // 6. Stripe Flow if applicable
   const totalAmount = finalPricePerPerson * attendees;
 
-  if (totalAmount > 0 && paymentMethod === "STRIPE") {
-    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-    const checkoutSession = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "sepa_debit", "sofort"],
-      line_items: [
-        {
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: `Registration: ${event.title}`,
-              description: `${attendees} Attendee(s)`,
-            },
-            unit_amount: Math.round(totalAmount * 100),
-          },
-          quantity: 1,
-        },
-      ],
-      mode: "payment",
-      success_url: `${baseUrl}/events/${event.id}?success=true&ticket=PENDING`,
-      cancel_url: `${baseUrl}/events/${event.id}?canceled=true`,
-      metadata: {
-        eventId,
-        email: finalEmail,
-        name: finalName,
-        phone,
-        attendees: attendees.toString(),
-        type: "event_registration"
-      }
-    });
-
-    return { success: true, method: "STRIPE", url: checkoutSession.url };
-  }
-
-  // 7. Create Registration (Cash or Free)
+  // 6. Create the registration.
+  //
+  // There is no online payment: a paid registration is booked as PENDING and
+  // settled in person or by transfer, and an administrator records it. The
+  // ticket is still issued straight away — withholding it would mean nobody
+  // could be let in until every payment had been keyed in beforehand — so it
+  // carries the amount still owed instead.
   try {
     const registration = await prisma.registration.create({
       data: {
-        ticketId: `KSA-${nanoid(8).toUpperCase()}`,
+        ticketId: generateTicketId(),
         eventId,
         name: finalName,
         email: finalEmail,
         phone,
         attendees,
         pricePaid: totalAmount,
-        paymentMethod: paymentMethod,
+        paymentMethod,
         paymentStatus: totalAmount > 0 ? "PENDING" : "PAID",
       }
     });
 
-    if (registration.paymentStatus === "PAID") {
-      try {
-        const { sendEventTicket } = await import("./ticket-actions");
-        await sendEventTicket(registration.id);
-      } catch (ticketError) {
-        console.error("Failed to auto-send free ticket:", ticketError);
-      }
+    try {
+      const { sendEventTicket } = await import("./ticket-actions");
+      await sendEventTicket(registration.id);
+    } catch (ticketError) {
+      console.error("Failed to auto-send ticket:", ticketError);
     }
 
     revalidatePath(`/events/${event.id}`);
     revalidatePath("/admin/events");
-    
-    return { success: true, method: "CASH", ticketId: registration.ticketId };
+    revalidatePath("/admin/payments");
+
+    return {
+      success: true,
+      ticketId: registration.ticketId,
+      amountDue: totalAmount,
+      paymentMethod,
+    };
   } catch (err: any) {
     if (err.code === 'P2002') {
       throw new Error("You are already registered for this event.");
@@ -555,9 +522,7 @@ export async function cancelRegistration(registrationId: string) {
 }
 
 export async function getRegistrationsByEvent(eventId?: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   return await prisma.registration.findMany({
     where: eventId ? { eventId } : {},
@@ -575,9 +540,7 @@ export async function getRegistrationsByEvent(eventId?: string) {
 }
 
 export async function updateRegistrationAmount(id: string, amount: number) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.registration.update({
     where: { id },
@@ -588,9 +551,7 @@ export async function updateRegistrationAmount(id: string, amount: number) {
 }
 
 export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.registration.update({
     where: { id: registrationId },
@@ -605,9 +566,7 @@ export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean
 }
 
 export async function deleteRegistration(id: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.registration.delete({
     where: { id },
@@ -618,9 +577,7 @@ export async function deleteRegistration(id: string) {
 }
 
 export async function getAdminDashboardStats() {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const now = new Date();
   const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
@@ -686,7 +643,14 @@ export async function getAdminDashboardStats() {
   };
 }
 
+/**
+ * Look up a registration from a scanned ticket. Admin-only: it returns the
+ * holder's name, email and phone, and it was reachable by anyone with a ticket
+ * id — which the QR code on every printed ticket carries in plain text.
+ */
 export async function getRegistrationByTicketId(ticketId: string) {
+  await requireAdmin();
+
   return await prisma.registration.findUnique({
     where: { ticketId },
     include: { event: { select: { title: true } } }

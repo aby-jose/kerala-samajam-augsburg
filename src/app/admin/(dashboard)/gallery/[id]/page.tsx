@@ -1,11 +1,14 @@
 import React from "react";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import { requireAdminPage } from "@/lib/guards";
 import AlbumMediaClient from "./album-media-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function AlbumMediaPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireAdminPage();
+
   const { id } = await params;
 
   const album = await prisma.galleryAlbum.findUnique({

@@ -284,13 +284,13 @@ Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Durchführung des Teilnahmevertr
     {
       id: "zahlungen",
       heading: "8. Zahlungsabwicklung",
-      body: `Online-Zahlungen wickeln wir über **Stripe Payments Europe, Ltd.**, Dublin, Irland ab.
+      body: `Über diese Website findet **keine** Online-Zahlung statt. Es ist kein Zahlungsdienstleister eingebunden, und wir erheben hier **zu keinem Zeitpunkt** Karten- oder Kontodaten.
 
-Sie werden dazu auf eine von Stripe betriebene Bezahlseite weitergeleitet. Ihre Zahlungsdaten — insbesondere vollständige Kartennummern — werden ausschließlich von Stripe verarbeitet und gelangen **zu keinem Zeitpunkt in unsere Systeme**. Auf dieser Website ist kein Zahlungs-Skript von Stripe eingebunden; es werden hier folglich auch keine Stripe-Cookies gesetzt.
+Mitgliedsbeiträge und Teilnahmegebühren werden per **Überweisung** auf das Vereinskonto oder **in bar** entrichtet. Bei einer Überweisung erfahren wir aus dem Kontoauszug Ihren Namen, Ihre IBAN, den Betrag, das Datum und den Verwendungszweck; diese Angaben verarbeitet unsere Bank als eigenständig Verantwortliche im Rahmen des Zahlungsverkehrs.
 
-Wir erhalten von Stripe lediglich die Vorgangsnummer, den Betrag, die Währung und den Zahlungsstatus.
+In unserem System speichern wir zu einer Zahlung lediglich den Betrag, das Eingangsdatum, die Zahlungsart sowie eine Referenz- oder Belegnummer. Die Mitgliedschaft beginnt an dem Tag, an dem wir den Zahlungseingang erfassen.
 
-Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. c DSGVO (gesetzliche Aufbewahrungspflichten). Es gilt zusätzlich die Datenschutzerklärung von Stripe.`,
+Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung) sowie Art. 6 Abs. 1 lit. c DSGVO (gesetzliche Aufbewahrungspflichten, insbesondere §§ 147 AO, 257 HGB).`,
     },
     {
       id: "email",
@@ -352,7 +352,6 @@ Eine vollständige Aufstellung finden Sie in unserer [Cookie-Richtlinie]({{site.
       body: `Wir geben Daten nur weiter, soweit dies zur Erbringung unserer Leistungen erforderlich ist. Mit allen Dienstleistern bestehen Verträge zur Auftragsverarbeitung nach Art. 28 DSGVO.
 
 - **Cloudinary** — Speicherung und Auslieferung von Bildern und Videos
-- **Stripe Payments Europe, Ltd.** — Zahlungsabwicklung
 - **MongoDB Atlas** — Datenbankbetrieb
 - **{{legal.hostingProvider}}** — Hosting der Anwendung
 - E-Mail-Dienstleister — Versand von Systemnachrichten
@@ -515,13 +514,13 @@ The legal basis is Art. 6 (1) (b) GDPR (performance of the attendance contract).
     {
       id: "zahlungen",
       heading: "8. Payment processing",
-      body: `Online payments are handled by **Stripe Payments Europe, Ltd.**, Dublin, Ireland.
+      body: `**No** online payment takes place on this website. No payment service provider is integrated, and we **never** collect card or account details here.
 
-You are redirected to a payment page operated by Stripe. Your payment details — in particular full card numbers — are processed exclusively by Stripe and **never reach our systems**. No Stripe payment script is embedded on this website, so no Stripe cookies are set here either.
+Membership fees and attendance fees are paid by **bank transfer** to the association's account or **in cash**. For a transfer, our bank statement shows us your name, your IBAN, the amount, the date and the reference; our bank processes those details as an independent controller in the course of operating the payment system.
 
-From Stripe we receive only the transaction reference, amount, currency and payment status.
+In our own system we store only the amount, the date it was received, the payment method and a reference or receipt number. Your membership begins on the day we record the payment as received.
 
-The legal basis is Art. 6 (1) (b) GDPR (performance of a contract) and Art. 6 (1) (c) GDPR (statutory retention). Stripe's own privacy policy applies in addition.`,
+The legal basis is Art. 6 (1) (b) GDPR (performance of a contract) and Art. 6 (1) (c) GDPR (statutory retention, in particular §§ 147 AO, 257 HGB).`,
     },
     {
       id: "email",
@@ -583,7 +582,6 @@ A full list is available in our [Cookie Policy]({{site.url}}/legal/cookies). You
       body: `We share data only where necessary to provide our services. Data processing agreements under Art. 28 GDPR are in place with all providers.
 
 - **Cloudinary** — storage and delivery of images and video
-- **Stripe Payments Europe, Ltd.** — payment processing
 - **MongoDB Atlas** — database operation
 - **{{legal.hostingProvider}}** — application hosting
 - Email service provider — delivery of system messages
@@ -726,7 +724,9 @@ Für Veranstaltungen, die für einen bestimmten Termin vorgesehen sind, besteht 
       heading: "6. Preise und Zahlung",
       body: `Alle Preise verstehen sich in Euro und als Endpreise. Als gemeinnütziger Verein weisen wir keine Umsatzsteuer gesondert aus, soweit keine Umsatzsteuerpflicht besteht.
 
-Zahlungen sind per Karte über unseren Zahlungsdienstleister Stripe, per Überweisung oder — wo angeboten — in bar möglich. Vor Abschluss eines zahlungspflichtigen Vorgangs zeigen wir Ihnen den Gesamtbetrag deutlich an; die Bestellung wird ausdrücklich über eine als zahlungspflichtig gekennzeichnete Schaltfläche ausgelöst.`,
+Zahlungen sind per Überweisung auf das Vereinskonto oder in bar möglich; eine Online-Zahlung wird nicht angeboten. Vor Abschluss eines zahlungspflichtigen Vorgangs zeigen wir Ihnen den Gesamtbetrag deutlich an; die Bestellung wird ausdrücklich über eine als zahlungspflichtig gekennzeichnete Schaltfläche ausgelöst. Die Bankverbindung und den Verwendungszweck teilen wir Ihnen unmittelbar nach dem Antrag per E-Mail mit.
+
+Die **Mitgliedschaft beginnt an dem Tag, an dem wir den Zahlungseingang erfassen**, und läuft von diesem Tag an für die jeweilige Laufzeit des gewählten Tarifs. Bis dahin besteht ein Beitrittsantrag, aber noch keine Mitgliedschaft.`,
     },
     {
       id: "inhalte",
@@ -843,7 +843,9 @@ For events scheduled for a specific date there is **no** right of withdrawal, pu
       heading: "6. Prices and payment",
       body: `All prices are in euros and are final prices. As a non-profit association we do not show VAT separately where no VAT liability arises.
 
-Payment is possible by card via our payment provider Stripe, by bank transfer, or — where offered — in cash. Before any payable step we show the total amount clearly, and the order is placed via a button expressly marked as carrying an obligation to pay.`,
+Payment is possible by bank transfer to the association's account or in cash; no online payment is offered. Before any payable step we show the total amount clearly, and the order is placed via a button expressly marked as carrying an obligation to pay. We email you the bank details and the payment reference immediately after your application.
+
+Your **membership begins on the day we record your payment as received**, and runs from that day for the term of the plan you chose. Until then you have an application, not a membership.`,
     },
     {
       id: "inhalte",
@@ -1079,7 +1081,7 @@ Für unbedingt erforderliche Cookies gilt die Ausnahme des § 25 Abs. 2 Nr. 2 TD
 - Wir setzen **keine** Analyse- oder Statistikdienste ein (kein Google Analytics, kein Matomo, keine Pixel).
 - Wir setzen **keine** Werbe- oder Retargeting-Netzwerke ein.
 - Es findet **keine** geräteübergreifende Verfolgung und keine Profilbildung statt.
-- Auf dieser Website ist **kein** Zahlungs-Skript eingebunden; bei einer Zahlung werden Sie auf die Seiten von Stripe weitergeleitet, wo deren eigene Bestimmungen gelten.
+- Auf dieser Website ist **kein** Zahlungs-Skript und **kein** Zahlungsdienstleister eingebunden; Zahlungen erfolgen per Überweisung oder in bar.
 - Schriftarten werden lokal ausgeliefert, es besteht keine Verbindung zu Google Fonts.
 
 Die Auswahl „Nur notwendige" ist daher eine vollwertige Option: Die Website funktioniert damit uneingeschränkt.`,
@@ -1150,7 +1152,7 @@ Strictly necessary cookies fall under the exemption in § 25 (2) no. 2 TDDDG —
 - We use **no** analytics or statistics services (no Google Analytics, no Matomo, no pixels).
 - We use **no** advertising or retargeting networks.
 - There is **no** cross-device tracking and no profiling.
-- **No** payment script is embedded on this site; when you pay you are redirected to Stripe's own pages, where their terms apply.
+- **No** payment script and no payment service provider is embedded on this site; payment is by bank transfer or in cash.
 - Fonts are served locally; no connection is made to Google Fonts.
 
 "Essential only" is therefore a fully functional choice: the website works without restriction.`,

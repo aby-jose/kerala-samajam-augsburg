@@ -1,5 +1,32 @@
 import { z } from "zod";
 
+/**
+ * Soften a shouted venue name to normal case.
+ *
+ * Only all-caps values are touched. Somebody who typed "Pfarrsaal St. Anton"
+ * chose that casing and it is left alone; "AT RONCALLIHAUS" is a caps-lock
+ * slip, and the venue gets printed verbatim on the event page, in the
+ * confirmation email and on the ticket PDF, where it reads as shouting.
+ *
+ * The trade-off is that an all-caps acronym typed on its own ("KSA HALL")
+ * comes back as "Ksa Hall". That is recoverable — the admin can retype it with
+ * one lowercase letter anywhere and this leaves the whole value alone — and it
+ * is rarer than the caps-lock case it fixes.
+ */
+export function normalizeVenueCase(value: string): string {
+  const trimmed = value.trim();
+
+  // Any lowercase letter at all means the casing was deliberate.
+  if (trimmed !== trimmed.toUpperCase()) return trimmed;
+
+  // Latin-1 ranges rather than \p{L}: German venue names carry umlauts and ß.
+  // Apostrophes sit inside the match so "JOHN'S" becomes "John's", not "John'S".
+  return trimmed.replace(
+    /[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’]*/g,
+    (word) => word[0] + word.slice(1).toLowerCase()
+  );
+}
+
 export const eventSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -8,7 +35,9 @@ export const eventSchema = z.object({
   date: z.string().min(1, "Date is required"),
   startTime: z.string().optional(),
   endTime: z.string().optional(),
-  location: z.string().min(3, "Location is required"),
+  // Normalised on the schema rather than in `upsertEvent`, so the form and the
+  // server action both get it from one place.
+  location: z.string().min(3, "Location is required").transform(normalizeVenueCase),
   address: z.string().optional(),
   imageUrl: z.string().optional().nullable(),
   category: z.string().optional(),

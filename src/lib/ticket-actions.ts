@@ -1,10 +1,22 @@
-"use server";
-
 import { prisma } from "./prisma";
 import { generateTicketPDF } from "./ticket-generator";
 import { sendEmail } from "./email";
-import { revalidatePath } from "next/cache";
 
+/**
+ * Deliberately *not* a `"use server"` module.
+ *
+ * Every export of a `"use server"` file is a POST endpoint the browser can
+ * reach, and this one takes a registration id and mails a PDF. As an action it
+ * let anyone walk ids and spam members with their own tickets on our Resend
+ * quota. It is only ever called from `registerForEvent` and from the admin
+ * action that records a payment, both already on the server, so it does not
+ * need to be an action at all.
+ *
+ * The "payment confirmed" guard is gone. Every registration is settled in
+ * person or by transfer now, so holding the ticket back until an administrator
+ * had keyed the payment in would mean nobody could be admitted to an event
+ * they had not pre-paid for. The ticket states what is still owed instead.
+ */
 export async function sendEventTicket(registrationId: string) {
   try {
     const registration = await prisma.registration.findUnique({
@@ -13,7 +25,9 @@ export async function sendEventTicket(registrationId: string) {
     });
 
     if (!registration) throw new Error("Registration not found");
-    if (registration.paymentStatus !== "PAID") throw new Error("Payment not confirmed");
+
+    const amountDue =
+      registration.paymentStatus === "PAID" ? 0 : registration.pricePaid || 0;
 
     const pdfBuffer = await generateTicketPDF({
       ticketId: registration.ticketId,
@@ -24,6 +38,7 @@ export async function sendEventTicket(registrationId: string) {
       userEmail: registration.email,
       attendees: registration.attendees,
       pricePaid: registration.pricePaid || 0,
+      amountDue,
     });
 
     await sendEmail({
@@ -37,7 +52,7 @@ export async function sendEventTicket(registrationId: string) {
           <div style="padding: 30px; line-height: 1.6; color: #333;">
             <p>Dear <strong>${registration.name}</strong>,</p>
             <p>Your registration for <strong>${registration.event.title}</strong> has been successfully confirmed.</p>
-            
+
             <div style="background-color: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #e11d48;">
               <p style="margin: 0;"><strong>Event:</strong> ${registration.event.title}</p>
               <p style="margin: 5px 0;"><strong>Date:</strong> ${registration.event.date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
@@ -45,10 +60,17 @@ export async function sendEventTicket(registrationId: string) {
               <p style="margin: 5px 0;"><strong>Attendees:</strong> ${registration.attendees}</p>
             </div>
 
+            ${amountDue > 0 ? `
+            <div style="background-color: #fffbeb; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+              <p style="margin: 0; font-weight: 600;">Amount due: €${amountDue.toFixed(2)}</p>
+              <p style="margin: 5px 0 0; font-size: 14px;">Please settle this at the door when you arrive. Your ticket is valid either way.</p>
+            </div>
+            ` : ""}
+
             <p>We have attached your official entry ticket as a PDF to this email. Please keep it handy (digital or printed) for check-in at the venue.</p>
-            
+
             <p>See you there!</p>
-            
+
             <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;" />
             
             <p style="font-size: 12px; color: #666; text-align: center;">

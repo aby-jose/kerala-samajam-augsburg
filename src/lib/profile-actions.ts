@@ -36,7 +36,9 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
 
   try {
     // Check if email is already taken by another user
-    if (email !== session.user.email) {
+    const isEmailChange = email.trim().toLowerCase() !== session.user.email?.toLowerCase();
+
+    if (isEmailChange) {
       const existingUser = await prisma.user.findUnique({
         where: { email },
       });
@@ -51,6 +53,15 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
       data: {
         name,
         email,
+        // A changed address is unproven until it is verified again.
+        //
+        // Event registrations are keyed by email string — there is no user id
+        // on them — so an account that could silently adopt a *verified*
+        // address inherited that person's registrations, and `exportMyData`
+        // would hand them over under Art. 15. Dropping the flag here, and
+        // requiring verification before email-matched records are returned,
+        // is what closes that.
+        ...(isEmailChange ? { emailVerified: null } : {}),
         phone,
         address,
         city,

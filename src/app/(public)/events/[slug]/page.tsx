@@ -74,6 +74,9 @@ export default function EventDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [memberStatus, setMemberStatus] = useState<MemberStatus>({
     isMember: false,
+    hasPending: false,
+    status: null,
+    plan: null,
   });
   const [copied, setCopied] = useState(false);
 

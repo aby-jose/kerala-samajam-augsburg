@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
 
 import { NOT_REVOKED, prisma } from "./prisma";
-import { publicAuthOptions } from "./auth";
-import { recordConsent } from "./legal-actions";
+import { requireUser } from "./guards";
+import { recordConsent } from "./consent-recorder";
 import { LegalSlug } from "./legal-schema";
 
 /**
@@ -17,11 +16,8 @@ import { LegalSlug } from "./legal-schema";
  * between complying and claiming to.
  */
 
-async function requireUser() {
-  const session = await getServerSession(publicAuthOptions);
-  const id = (session?.user as { id?: string } | undefined)?.id;
-  if (!id) throw new Error("Not signed in");
-  return id;
+async function requireUserId() {
+  return (await requireUser()).id;
 }
 
 // --- Art. 15(1)(a)–(h): what has this person agreed to ------------------
@@ -38,7 +34,7 @@ export interface ConsentHistoryEntry {
 }
 
 export async function getMyConsentHistory(): Promise<ConsentHistoryEntry[]> {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   const consents = await prisma.userConsent.findMany({
     where: { userId },
@@ -61,7 +57,7 @@ export async function getMyConsentHistory(): Promise<ConsentHistoryEntry[]> {
 // --- Art. 9(2)(a): biometric consent ------------------------------------
 
 export async function getBiometricConsentStatus() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   const [latest, profile] = await Promise.all([
     prisma.userConsent.findFirst({
@@ -84,7 +80,7 @@ export async function getBiometricConsentStatus() {
  * else is exactly what supervisory authorities treat as invalid.
  */
 export async function grantBiometricConsent() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
   await recordConsent({ type: "BIOMETRIC", source: "profile", userId, granted: true });
   revalidatePath("/profile");
   return { success: true };
@@ -97,7 +93,7 @@ export async function grantBiometricConsent() {
  * that consent once existed is itself required evidence.
  */
 export async function withdrawBiometricConsent() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   await prisma.userFaceProfile.deleteMany({ where: { userId } });
 
@@ -123,7 +119,7 @@ export async function withdrawBiometricConsent() {
  * control. Whether a face profile exists is reported instead.
  */
 export async function exportMyData() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("Account not found");
@@ -135,11 +131,16 @@ export async function exportMyData() {
         include: { plan: { select: { name: true, price: true, duration: true } } },
       }),
       // Registrations are keyed by email rather than user id — anonymous
-      // sign-ups are allowed — so they are matched the same way here.
-      prisma.registration.findMany({
-        where: { email: user.email ?? "" },
-        include: { event: { select: { title: true, date: true, location: true } } },
-      }),
+      // sign-ups are allowed — so they are matched the same way here, but
+      // only once the address has been verified. Without that check, changing
+      // the profile email to someone else's address would pull their event
+      // history into this export.
+      user.emailVerified && user.email
+        ? prisma.registration.findMany({
+            where: { email: user.email },
+            include: { event: { select: { title: true, date: true, location: true } } },
+          })
+        : Promise.resolve([]),
       prisma.mediaContribution.findMany({
         where: { userId },
         select: {
@@ -181,7 +182,7 @@ export async function exportMyData() {
 // --- Art. 17: erasure ----------------------------------------------------
 
 export async function getDeletionRequestStatus() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { deletionRequestedAt: true, anonymizedAt: true },
@@ -203,7 +204,7 @@ export async function getDeletionRequestStatus() {
  * immediately: the biometric template, which rests purely on consent.
  */
 export async function requestAccountDeletion() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   await prisma.userFaceProfile.deleteMany({ where: { userId } });
 
@@ -224,7 +225,7 @@ export async function requestAccountDeletion() {
 }
 
 export async function cancelDeletionRequest() {
-  const userId = await requireUser();
+  const userId = await requireUserId();
 
   await prisma.user.update({
     where: { id: userId },

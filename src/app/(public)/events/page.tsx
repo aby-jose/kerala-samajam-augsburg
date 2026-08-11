@@ -99,7 +99,7 @@ export default function EventsPage() {
                 date: e.date.toISOString(),
                 location: e.location,
                 description: e.description,
-                image: e.imageUrl || "/images/placeholder.jpg",
+                image: e.imageUrl || "/images/placeholder.svg",
               }))}
             />
           </motion.div>
@@ -138,7 +138,7 @@ export default function EventsPage() {
                   event={{
                     ...event,
                     date: event.date.toISOString(),
-                    image: event.imageUrl || "/images/placeholder.jpg",
+                    image: event.imageUrl || "/images/placeholder.svg",
                     category: event.category ?? undefined,
                   }}
                 />

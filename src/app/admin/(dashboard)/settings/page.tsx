@@ -40,7 +40,6 @@ const settingsSchema = z.object({
   contactEmail: z.string().email("Invalid email address"),
   contactPhone: z.string().optional(),
   address: z.string().optional(),
-  footerText: z.string().optional(),
   branding: z.object({
     primaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid hex color"),
     secondaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid hex color"),
@@ -88,8 +87,13 @@ const settingsSchema = z.object({
     dpoEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
     supervisoryAuthority: z.string().optional().or(z.literal("")),
     hostingProvider: z.string().optional().or(z.literal("")),
+    accountHolder: z.string().optional().or(z.literal("")),
     bankName: z.string().optional().or(z.literal("")),
     iban: z.string().optional().or(z.literal("")),
+    bic: z.string().optional().or(z.literal("")),
+    // Same reason as `boardMembers` above: no `.default()`, because getConfig()
+    // merges the defaults in and a default here would split input/output types.
+    paymentTermsDays: z.number().int().min(1).max(365),
   }),
 });
 
@@ -160,6 +164,7 @@ export default function SettingsPage() {
   }
 
   const primaryColor = watch("branding.primaryColor");
+  const siteName = watch("siteName");
 
   return (
     <div className="space-y-6">
@@ -266,9 +271,20 @@ export default function SettingsPage() {
                       </div>
                     </div>
 
+                    {/*
+                      The footer line is derived from the site name and the
+                      current year rather than typed, so it can never go stale
+                      the way a hand-written "© 2024 …" does. Shown read-only
+                      so admins can still see what the site renders.
+                    */}
                     <div className="space-y-2">
-                      <Label htmlFor="footerText" className="text-sm font-medium">Footer text</Label>
-                      <Input id="footerText" {...register("footerText")} className="h-9 rounded-lg" placeholder="© 2024 Your Organization. All rights reserved." />
+                      <Label className="text-sm font-medium">Footer copyright</Label>
+                      <p className="flex h-9 items-center rounded-lg border border-dashed border-input bg-muted/40 px-3 text-sm text-muted-foreground">
+                        © {new Date().getFullYear()} {siteName || "Your organisation"}. All rights reserved.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Generated automatically from the site name and the current year.
+                      </p>
                     </div>
                   </div>
                 </section>
@@ -406,18 +422,59 @@ export default function SettingsPage() {
                         <p className="text-xs text-muted-foreground">Where members can complain. For Bavaria this is the BayLDA in Ansbach.</p>
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Hosting provider</Label>
-                          <Input {...register("legal.hostingProvider")} className="h-9 rounded-lg" />
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Hosting provider</Label>
+                        <Input {...register("legal.hostingProvider")} className="h-9 rounded-lg md:max-w-md" />
+                      </div>
+
+                      {/*
+                        These are not decoration. With no payment gateway they
+                        are the only instructions a member gets for how to pay,
+                        and they are printed on the invoice PDF and in the
+                        payment-request email.
+                      */}
+                      <div className="space-y-4 rounded-lg border border-border bg-muted/20 p-4">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Bank details</p>
+                          <p className="text-xs text-muted-foreground">
+                            Shown to members when they apply and printed on every invoice.
+                          </p>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Bank</Label>
-                          <Input {...register("legal.bankName")} className="h-9 rounded-lg" />
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Account holder</Label>
+                            <Input {...register("legal.accountHolder")} className="h-9 rounded-lg" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Bank</Label>
+                            <Input {...register("legal.bankName")} className="h-9 rounded-lg" />
+                          </div>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">IBAN</Label>
-                          <Input {...register("legal.iban")} className="h-9 rounded-lg font-mono text-xs" />
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label className="text-sm font-medium">IBAN</Label>
+                            <Input {...register("legal.iban")} className="h-9 rounded-lg font-mono text-xs" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">BIC</Label>
+                            <Input {...register("legal.bic")} className="h-9 rounded-lg font-mono text-xs" />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 md:max-w-xs">
+                          <Label className="text-sm font-medium">Payment term (days)</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={365}
+                            {...register("legal.paymentTermsDays", { valueAsNumber: true })}
+                            className="h-9 rounded-lg"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            How long a member has to pay before the due date shown on their invoice.
+                          </p>
                         </div>
                       </div>
                     </FieldGroup>

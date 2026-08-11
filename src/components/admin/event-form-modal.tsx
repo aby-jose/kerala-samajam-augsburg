@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { upsertEvent, generateEventDetails, improveEventTitle, improveEventDescription, generateCategory, generateEventImage } from "@/lib/event-actions";
+import { uploadImageAction } from "@/lib/gallery-actions";
 import { eventSchema, type EventFormValues } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -137,30 +138,45 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
     }
   }, [title, setValue, initialData]);
 
+  /**
+   * Upload the cover image and keep the returned URL.
+   *
+   * This used to read the file into a base64 data URL and put *that* in the
+   * form field — the comment said "Mock upload or use a server action here".
+   * It did reach Cloudinary in the end, because `upsertEvent` spots the
+   * `data:image` prefix and uploads server-side, but it meant a 4 MB photo
+   * became a ~5.4 MB string carried in React state and re-sent on every save.
+   * It was also the only upload path in the app that skipped `validateUpload`,
+   * so nothing checked the size or that the file was really an image.
+   */
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
+
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("upload_preset", "ksa_events"); // You might need to set this in Cloudinary
 
     try {
-      // Direct upload to Cloudinary for simplicity, or use a server action
-      // For now, let's assume a server-side helper or direct upload
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-         const base64 = reader.result as string;
-         // Mock upload or use a server action here
-         // For now, we set the base64 or a placeholder URL
-         setValue("imageUrl", base64);
-         setIsUploading(false);
+      const result = (await uploadImageAction(formData, "kerala-samajam/events")) as {
+        url?: string;
+        error?: string;
       };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error("Upload failed:", error);
+
+      if (result.error || !result.url) {
+        error(result.error || "Upload failed. Please try again.");
+        return;
+      }
+
+      setValue("imageUrl", result.url, { shouldValidate: true });
+    } catch (err) {
+      console.error("Upload failed:", err);
+      error(err instanceof Error ? err.message : "Upload failed. Please try again.");
+    } finally {
       setIsUploading(false);
+      // Let the same file be chosen again after a failure.
+      e.target.value = "";
     }
   };
 

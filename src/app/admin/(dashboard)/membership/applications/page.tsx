@@ -15,6 +15,7 @@ import {
   Mail,
   School,
   CheckCircle2,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,8 +28,10 @@ import { DataTable, type DataTableColumn } from "@/components/admin/ui/data-tabl
 import {
   getPendingSubscriptions,
   approveMembership,
-  rejectMembership
+  rejectMembership,
+  recordSubscriptionPayment
 } from "@/lib/membership-actions";
+import RecordPaymentModal from "@/components/admin/record-payment-modal";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/ui/toast";
 import { formatDate, cn } from "@/lib/utils";
@@ -67,6 +70,9 @@ export default function AdminApplicationsPage() {
   const [rejectingSub, setRejectingSub] = useState<any | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
 
+  // Payment State
+  const [recordingSub, setRecordingSub] = useState<any | null>(null);
+
   const fetchPending = async () => {
     setIsLoading(true);
     try {
@@ -86,9 +92,14 @@ export default function AdminApplicationsPage() {
 
   const handleApprove = async (id: string) => {
     const isConfirmed = await confirm({
-      title: "Approve Membership",
-      message: "Are you sure you want to approve this student membership? Please ensure you have verified the ID card.",
-      confirmText: "Verify & Approve",
+      // Verification and payment are two separate steps now — approving used
+      // to activate a cash membership outright, so the wording has to be
+      // clear that this only unlocks the payment request.
+      title: "Verify student ID",
+      message:
+        "Confirm that you have checked the ID card. The applicant will be asked to pay; " +
+        "their membership starts once you record that payment.",
+      confirmText: "Verify & request payment",
       variant: "info"
     });
 
@@ -97,14 +108,27 @@ export default function AdminApplicationsPage() {
     setIsProcessing(id);
     try {
       await approveMembership(id);
-      success("Membership approved and member notified.");
+      success("ID verified — payment details sent to the member.");
       fetchPending();
       if (viewingSub?.id === id) setViewingSub(null);
-    } catch (err) {
-      error("Failed to approve membership.");
+    } catch (err: any) {
+      error(err?.message || "Failed to verify the application.");
     } finally {
       setIsProcessing(null);
     }
+  };
+
+  const handleRecordPayment = async (values: {
+    receivedOn: string;
+    method: "BANK_TRANSFER" | "CASH";
+    reference: string;
+    note: string;
+  }) => {
+    if (!recordingSub) return;
+    await recordSubscriptionPayment(recordingSub.id, values);
+    setRecordingSub(null);
+    success("Payment recorded — the membership is now active.");
+    fetchPending();
   };
 
   const handleRejectSubmit = async () => {
@@ -198,17 +222,45 @@ export default function AdminApplicationsPage() {
       header: "Actions",
       width: "w-[25%]",
       align: "right",
-      render: (sub) =>
-        sub.status === "REJECTED" ? (
-          <div className="flex flex-col items-end gap-1">
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
-              <Ban className="h-3.5 w-3.5" /> Rejected
-            </span>
-            <p className="max-w-[220px] text-right text-xs text-muted-foreground">
-              &ldquo;{(sub.details as any)?.rejectionReason || "No reason provided."}&rdquo;
-            </p>
-          </div>
-        ) : (
+      render: (sub) => {
+        if (sub.status === "REJECTED") {
+          return (
+            <div className="flex flex-col items-end gap-1">
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 dark:text-red-400">
+                <Ban className="h-3.5 w-3.5" /> Rejected
+              </span>
+              <p className="max-w-[220px] text-right text-xs text-muted-foreground">
+                &ldquo;{(sub.details as any)?.rejectionReason || "No reason provided."}&rdquo;
+              </p>
+            </div>
+          );
+        }
+
+        // Two distinct steps, and only one of them applies to a given row:
+        // an unverified student ID cannot be paid for, and a verified
+        // application has nothing left to verify.
+        if (sub.status === "AWAITING_PAYMENT") {
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                onClick={() => setRejectingSub(sub)}
+                disabled={isProcessing === sub.id}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
+                aria-label="Reject application"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+              <Button onClick={() => setRecordingSub(sub)} className="h-9 rounded-lg">
+                <Wallet className="mr-2 h-4 w-4" />
+                Record payment
+              </Button>
+            </div>
+          );
+        }
+
+        return (
           <div className="flex items-center justify-end gap-2">
             <Button
               onClick={() => setRejectingSub(sub)}
@@ -230,10 +282,11 @@ export default function AdminApplicationsPage() {
               ) : (
                 <Check className="mr-2 h-4 w-4" />
               )}
-              Approve
+              Verify ID
             </Button>
           </div>
-        ),
+        );
+      },
     },
   ];
 
@@ -241,7 +294,7 @@ export default function AdminApplicationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Membership applications"
-        description="Review and verify student identity documents."
+        description="Verify student IDs, then record payments to start membership terms."
       />
 
       <DataTable
@@ -413,10 +466,13 @@ export default function AdminApplicationsPage() {
                       ) : (
                         <Check className="mr-2 h-4 w-4" />
                       )}
-                      Approve
+                      Verify ID
                     </Button>
                   </div>
-                  <p className="text-center text-xs text-muted-foreground">This will notify {viewingSub.user.name} by email.</p>
+                  <p className="text-center text-xs text-muted-foreground">
+                    This notifies {viewingSub.user.name} by email and sends them the payment details.
+                    Their membership starts when you record the payment.
+                  </p>
                 </div>
               </div>
             </motion.div>
@@ -469,6 +525,24 @@ export default function AdminApplicationsPage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Record payment modal */}
+      <AnimatePresence>
+        {recordingSub && (
+          <RecordPaymentModal
+            target={{
+              id: recordingSub.id,
+              description: `${recordingSub.plan.name} membership`,
+              who: recordingSub.user.name || recordingSub.user.email || "Member",
+              amount: recordingSub.plan.price,
+              method: recordingSub.paymentMethod,
+              startsTerm: true,
+            }}
+            onClose={() => setRecordingSub(null)}
+            onSubmit={handleRecordPayment}
+          />
         )}
       </AnimatePresence>
     </div>

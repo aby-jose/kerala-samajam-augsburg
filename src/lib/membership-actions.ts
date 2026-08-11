@@ -1,23 +1,42 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
+import { z } from "zod";
+
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
-import { stripe } from "./stripe";
-import { addYears } from "date-fns";
 import { getServerSession } from "next-auth";
-import { publicAuthOptions, adminAuthOptions } from "./auth";
+import { publicAuthOptions } from "./auth";
+import { requireAdmin, requireUser } from "./guards";
 import { sendEmail } from "./email";
-import { 
-  getMembershipApplicationEmail, 
-  getAdminNotificationEmail, 
-  getApprovalEmail, 
-  getRejectionEmail 
+import {
+  getMembershipApplicationEmail,
+  getAdminNotificationEmail,
+  getApprovalEmail,
+  getRejectionEmail,
 } from "./email-templates";
 import { getConfig } from "./config-utils";
-import { recordDocumentConsents } from "./legal-actions";
+import { adminEmail, adminEmailOrNull } from "./admin-contact";
+import { recordDocumentConsents } from "./consent-recorder";
+import {
+  PAYMENT_METHODS,
+  PENDING_STATUSES,
+  SUBSCRIPTION_STATUS,
+  isPaymentMethod,
+  paymentReferenceFor,
+  termEnd,
+  type PaymentMethod,
+} from "./membership-term";
+import { sendMembershipPaymentRequest, sendSubscriptionReceipt } from "./invoice-actions";
 
+/**
+ * Every plan, including deactivated ones — the admin plans table.
+ * The public site uses `getActiveMembershipPlans` below.
+ */
 export async function getMembershipPlans() {
+  await requireAdmin();
+
   return await prisma.membershipPlan.findMany({
     orderBy: { price: 'asc' }
   });
@@ -31,9 +50,7 @@ export async function getActiveMembershipPlans() {
 }
 
 export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const validated = membershipPlanSchema.parse(data);
   const { id, ...planData } = validated;
@@ -62,9 +79,7 @@ export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
 }
 
 export async function deleteMembershipPlan(id: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const subscriptionCount = await prisma.subscription.count({
     where: { planId: id }
@@ -87,9 +102,7 @@ export async function deleteMembershipPlan(id: string) {
 }
 
 export async function togglePlanStatus(id: string, isActive: boolean) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   await prisma.membershipPlan.update({
     where: { id },
@@ -101,24 +114,45 @@ export async function togglePlanStatus(id: string, isActive: boolean) {
   return { success: true };
 }
 
+/**
+ * Is this member currently a member, and if not, are they waiting on us?
+ *
+ * The two questions are asked separately on purpose. The single query this
+ * replaces filtered on `endDate >= now`, which silently excluded every
+ * application that has not been paid for — those now carry no `endDate` at
+ * all — so `hasPending` could never be true and an applicant was shown the
+ * join form again.
+ */
 export async function checkCurrentMemberStatus() {
   const session = await getServerSession(publicAuthOptions);
-  if (!session?.user?.id) return { isMember: false };
+  if (!session?.user?.id) return { isMember: false, hasPending: false, status: null, plan: null };
 
-  const sub = await prisma.subscription.findFirst({
+  const userId = session.user.id as string;
+
+  const active = await prisma.subscription.findFirst({
     where: {
-      userId: session.user.id as string,
-      status: { in: ["ACTIVE", "PENDING_VERIFICATION", "APPROVED_PENDING_PAYMENT", "PENDING", "REJECTED"] },
-      endDate: { gte: new Date() }
+      userId,
+      status: SUBSCRIPTION_STATUS.ACTIVE,
+      endDate: { gte: new Date() },
     },
-    include: { plan: true }
+    include: { plan: true },
+  });
+
+  if (active) {
+    return { isMember: true, hasPending: false, status: active.status, plan: active.plan };
+  }
+
+  const pending = await prisma.subscription.findFirst({
+    where: { userId, status: { in: [...PENDING_STATUSES, SUBSCRIPTION_STATUS.REJECTED] } },
+    orderBy: { createdAt: "desc" },
+    include: { plan: true },
   });
 
   return {
-    isMember: !!sub && sub.status === "ACTIVE",
-    hasPending: !!sub && sub.status !== "ACTIVE",
-    status: sub?.status || null,
-    plan: sub?.plan || null
+    isMember: false,
+    hasPending: !!pending && pending.status !== SUBSCRIPTION_STATUS.REJECTED,
+    status: pending?.status || null,
+    plan: pending?.plan || null,
   };
 }
 
@@ -154,36 +188,62 @@ export async function getDetailedMemberStatus() {
   };
 }
 
+/**
+ * Submit a membership application.
+ *
+ * Nothing about the term is decided here. The row is created with no
+ * `startDate` and no `endDate`: the membership begins on the day an
+ * administrator records the payment, and until then the applicant is not a
+ * member. `paymentMethod` records only how they *intend* to pay.
+ */
 export async function createMembershipSubscription(data: {
   planId: string;
-  paymentMethod: "STRIPE" | "CASH";
+  paymentMethod?: PaymentMethod;
   details?: any;
 }) {
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) throw new Error("Authentication required");
+
+  const userId = session.user.id as string;
 
   const plan = await prisma.membershipPlan.findUnique({
     where: { id: data.planId }
   });
 
   if (!plan) throw new Error("Plan not found");
+  if (!plan.isActive) throw new Error("This plan is no longer available");
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id as string }
-  });
+  const user = await prisma.user.findUnique({ where: { id: userId } });
 
   if (!user?.address || !user?.city || !user?.zip) {
     throw new Error("ADDRESS_REQUIRED");
   }
 
+  // A second application while one is already open would leave two rows an
+  // administrator has to choose between, and the member unsure which one their
+  // transfer paid for.
+  const open = await prisma.subscription.findFirst({
+    where: {
+      userId,
+      OR: [
+        { status: { in: PENDING_STATUSES } },
+        { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { gte: new Date() } },
+      ],
+    },
+  });
+  if (open) throw new Error("You already have a membership application in progress.");
+
   const isStudentPlan = plan.name.toLowerCase().includes("student");
+  const paymentMethod = isPaymentMethod(data.paymentMethod)
+    ? data.paymentMethod
+    : PAYMENT_METHODS.BANK_TRANSFER;
 
   // Record what the member agreed to at the versions live right now. A paid
   // membership is a distance contract, so the terms, the privacy policy and
   // the withdrawal instruction all have to be evidenced at this moment.
   try {
     await recordDocumentConsents(
-      session.user.id as string,
+      userId,
       isStudentPlan ? ["privacy", "terms"] : ["privacy", "terms", "withdrawal"],
       "membership"
     );
@@ -191,188 +251,74 @@ export async function createMembershipSubscription(data: {
     console.error("Failed to record membership consent:", consentError);
   }
 
-  if (isStudentPlan) {
-    const subscription = await prisma.subscription.create({
-      data: {
-        userId: session.user.id as string,
-        planId: data.planId,
-        paymentMethod: "NOT_SELECTED",
-        paymentStatus: "PENDING",
-        status: "PENDING_VERIFICATION",
-        isApproved: false,
-        startDate: new Date(),
-        endDate: addYears(new Date(), 1),
-        details: data.details || {},
-      }
-    });
-
-    // Notify Member
-    const config = await getConfig();
-    await sendEmail({
-       to: session.user.email!,
-       subject: `We've received your student membership application - ${config.siteName}`,
-       html: getMembershipApplicationEmail(plan.name, { 
-         logoUrl: config.branding.logoUrl, 
-         siteName: config.siteName,
-         primaryColor: config.branding.primaryColor
-       })
-    });
-
-    // Notify Admin
-    const adminEmail = process.env.ADMIN_EMAIL || "admin@keralasamajam.de";
-    await sendEmail({
-       to: adminEmail,
-       subject: `New Student Verification Request - ${config.siteName}`,
-       html: getAdminNotificationEmail(session.user.name || "A member", plan.name, { 
-         logoUrl: config.branding.logoUrl, 
-         siteName: config.siteName,
-         primaryColor: config.branding.primaryColor
-       })
-    });
-
-    revalidatePath("/profile");
-    return { success: true, method: "PENDING", subscriptionId: subscription.id };
-  }
-
-  // CASH for non-student (manual approval)
-  if (data.paymentMethod === "CASH") {
-    const subscription = await prisma.subscription.create({
-      data: {
-        userId: session.user.id as string,
-        planId: data.planId,
-        paymentMethod: "CASH",
-        paymentStatus: "PENDING",
-        status: "PENDING",
-        isApproved: false,
-        startDate: new Date(),
-        endDate: addYears(new Date(), 1),
-        details: data.details || {},
-      }
-    });
-
-    revalidatePath("/profile");
-    return { success: true, method: "CASH", subscriptionId: subscription.id };
-  }
-
-  // Regular Stripe Flow
-  const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-  const checkoutSession = await stripe.checkout.sessions.create({
-    payment_method_types: ["card", "sepa_debit"],
-    line_items: [
-      {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `KSA Membership: ${plan.name}`,
-            description: plan.description || undefined,
-          },
-          unit_amount: Math.round(plan.price * 100),
-          recurring: {
-            interval: "year",
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    mode: "subscription",
-    success_url: `${baseUrl}/profile?success=membership`,
-    cancel_url: `${baseUrl}/membership?canceled=true`,
-    metadata: {
-      userId: session.user.id as string,
-      planId: data.planId,
-      type: "membership",
-      details: data.details ? JSON.stringify(data.details) : "{}"
-    }
-  });
-
-  return { success: true, method: "STRIPE", url: checkoutSession.url };
-}
-
-export async function initiateSubscriptionPayment(subscriptionId: string) {
-  const session = await getServerSession(publicAuthOptions);
-  if (!session?.user?.id) throw new Error("Authentication required");
-
-  const sub = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    include: { plan: true, user: true }
-  });
-
-  if (!sub || sub.userId !== session.user.id) throw new Error("Subscription not found");
-  
-  if (!sub.user.address || !sub.user.city || !sub.user.zip) {
-    throw new Error("ADDRESS_REQUIRED");
-  }
-
-  if (!sub.isApproved && sub.plan.name.toLowerCase().includes("student")) {
-    throw new Error("Student verification still pending review.");
-  }
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const checkoutSession = await stripe.checkout.sessions.create({
-    payment_method_types: ["card", "sepa_debit"],
-    line_items: [
-      {
-        price_data: {
-          currency: "eur",
-          product_data: {
-            name: `KSA Membership: ${sub.plan.name}`,
-            description: sub.plan.description || undefined,
-          },
-          unit_amount: Math.round(sub.plan.price * 100),
-          recurring: {
-            interval: "year",
-          },
-        },
-        quantity: 1,
-      },
-    ],
-    mode: "subscription",
-    success_url: `${baseUrl}/profile?success=membership`,
-    cancel_url: `${baseUrl}/profile?canceled=true`,
-    metadata: {
-      userId: session.user.id as string,
-      planId: sub.planId,
-      subscriptionId: sub.id,
-      type: "membership_payment"
-    }
-  });
-
-  return { success: true, url: checkoutSession.url };
-}
-
-export async function cancelSubscription(subscriptionId: string) {
-  const session = await getServerSession(publicAuthOptions);
-  if (!session?.user?.id) throw new Error("Authentication required");
-
-  const sub = await prisma.subscription.findUnique({
-    where: { id: subscriptionId },
-    include: { plan: true }
-  });
-
-  if (!sub || sub.userId !== session.user.id) throw new Error("Subscription not found");
-  if (!sub.stripeSubscriptionId) throw new Error("Only Stripe subscriptions can be cancelled online.");
-
-  // Cancel in Stripe at period end
-  await stripe.subscriptions.update(sub.stripeSubscriptionId, {
-    cancel_at_period_end: true,
-  });
-
-  // Update in DB
-  await prisma.subscription.update({
-    where: { id: subscriptionId },
+  const subscription = await prisma.subscription.create({
     data: {
-      status: "CANCELLED_AT_PERIOD_END",
+      userId,
+      planId: data.planId,
+      paymentMethod,
+      paymentStatus: "PENDING",
+      // A student ID has to be checked before we ask anyone for money.
+      status: isStudentPlan
+        ? SUBSCRIPTION_STATUS.PENDING_VERIFICATION
+        : SUBSCRIPTION_STATUS.AWAITING_PAYMENT,
+      isApproved: !isStudentPlan,
+      details: data.details || {},
     }
   });
+
+  const config = await getConfig();
+  const branding = {
+    logoUrl: config.branding.logoUrl,
+    siteName: config.siteName,
+    primaryColor: config.branding.primaryColor,
+  };
+
+  if (isStudentPlan) {
+    // No payment instructions yet — they would be premature while the ID is
+    // still unverified and the application may be refused.
+    if (session.user.email) {
+      await sendEmail({
+        to: session.user.email,
+        subject: `We've received your student membership application - ${config.siteName}`,
+        html: getMembershipApplicationEmail(plan.name, branding),
+      });
+    }
+
+    await sendEmail({
+      to: adminEmail(),
+      subject: `New Student Verification Request - ${config.siteName}`,
+      html: getAdminNotificationEmail(session.user.name || "A member", plan.name, branding),
+    });
+  } else {
+    // Email failure must not lose the application, which is already written.
+    try {
+      await sendMembershipPaymentRequest(subscription.id);
+    } catch (mailError) {
+      console.error("Failed to send payment request:", mailError);
+    }
+  }
 
   revalidatePath("/profile");
-  return { success: true };
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/membership/applications");
+
+  return {
+    success: true,
+    status: subscription.status,
+    subscriptionId: subscription.id,
+  };
 }
 
+/**
+ * Verify a student's identity document.
+ *
+ * Verification is not payment. This used to activate a cash membership
+ * outright, which meant a member could be active having paid nothing; all it
+ * does now is move the application on to awaiting payment and send the
+ * payment instructions that were withheld until the ID was checked.
+ */
 export async function approveMembership(subscriptionId: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -380,40 +326,193 @@ export async function approveMembership(subscriptionId: string) {
   });
 
   if (!sub) throw new Error("Subscription not found");
+  if (sub.paymentStatus === "PAID") throw new Error("This membership is already paid and active.");
 
   await prisma.subscription.update({
     where: { id: subscriptionId },
     data: {
       isApproved: true,
-      status: sub.paymentMethod === "CASH" ? "ACTIVE" : "APPROVED_PENDING_PAYMENT",
-      paymentStatus: sub.paymentMethod === "CASH" ? "PAID" : "PENDING",
+      status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT,
     }
   });
 
-  // Notify Member
   if (sub.user.email) {
      const config = await getConfig();
      await sendEmail({
         to: sub.user.email,
-        subject: `Your student status has been verified! - ${config.siteName}`,
-        html: getApprovalEmail(sub.plan.name, { 
-          logoUrl: config.branding.logoUrl, 
+        subject: `Your student status has been verified - ${config.siteName}`,
+        html: getApprovalEmail(sub.plan.name, {
+          logoUrl: config.branding.logoUrl,
           siteName: config.siteName,
           primaryColor: config.branding.primaryColor
         })
      });
   }
 
+  try {
+    await sendMembershipPaymentRequest(subscriptionId);
+  } catch (mailError) {
+    console.error("Failed to send payment request:", mailError);
+  }
+
   revalidatePath("/admin/membership");
+  revalidatePath("/admin/membership/applications");
+  revalidatePath("/admin/payments");
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+/**
+ * Record that a membership payment arrived — the one action that starts a
+ * membership term.
+ *
+ * `receivedOn` is the day the money actually arrived and may be backdated, so
+ * cash handed over at last month's event produces the term the member
+ * actually bought. `recordedAt` separately captures when an administrator
+ * pressed the button, which is the fact that cannot be restated.
+ */
+export async function recordSubscriptionPayment(
+  subscriptionId: string,
+  input: {
+    receivedOn?: string | Date;
+    method?: PaymentMethod;
+    reference?: string;
+    note?: string;
+  } = {}
+) {
+  const admin = await requireAdmin();
+
+  const sub = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: { plan: true, user: true },
+  });
+
+  if (!sub) throw new Error("Subscription not found");
+  if (sub.paymentStatus === "PAID") throw new Error("This payment has already been recorded.");
+  if (sub.status === SUBSCRIPTION_STATUS.REJECTED) {
+    throw new Error("This application was rejected. Reopen it before recording a payment.");
+  }
+  if (sub.status === SUBSCRIPTION_STATUS.PENDING_VERIFICATION) {
+    throw new Error("Verify the student ID before recording a payment.");
+  }
+
+  const receivedOn = input.receivedOn ? new Date(input.receivedOn) : new Date();
+  if (Number.isNaN(receivedOn.getTime())) throw new Error("Invalid payment date");
+
+  // A term cannot start in the future: it would leave the member neither
+  // active nor awaiting payment, and the profile page has no state for that.
+  if (receivedOn.getTime() > Date.now()) {
+    throw new Error("The payment date cannot be in the future.");
+  }
+
+  const method = isPaymentMethod(input.method) ? input.method : (sub.paymentMethod as PaymentMethod);
+
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: SUBSCRIPTION_STATUS.ACTIVE,
+      paymentStatus: "PAID",
+      paymentMethod: method,
+      isApproved: true,
+      startDate: receivedOn,
+      endDate: termEnd(receivedOn, sub.plan.duration),
+      paymentReference: input.reference?.trim() || null,
+      paymentNote: input.note?.trim() || null,
+      recordedById: admin.id,
+      recordedAt: new Date(),
+    },
+  });
+
+  try {
+    await sendSubscriptionReceipt(subscriptionId);
+  } catch (mailError) {
+    console.error("Failed to send membership receipt:", mailError);
+  }
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/members");
   revalidatePath("/admin/membership/applications");
   revalidatePath("/profile");
   return { success: true };
 }
 
+/**
+ * Undo a payment that was recorded against the wrong member or the wrong row.
+ *
+ * The term dates go with it — leaving them would keep the membership active
+ * on a payment we have just said did not happen.
+ */
+export async function revertSubscriptionPayment(subscriptionId: string, reason?: string) {
+  const admin = await requireAdmin();
+
+  const sub = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
+  if (!sub) throw new Error("Subscription not found");
+  if (sub.paymentStatus !== "PAID") throw new Error("No recorded payment to undo.");
+
+  const details = (sub.details as any) || {};
+
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT,
+      paymentStatus: "PENDING",
+      startDate: null,
+      endDate: null,
+      paymentReference: null,
+      recordedById: null,
+      recordedAt: null,
+      details: {
+        ...details,
+        paymentReversals: [
+          ...(Array.isArray(details.paymentReversals) ? details.paymentReversals : []),
+          { at: new Date().toISOString(), by: admin.email || admin.id, reason: reason || null },
+        ],
+      },
+    },
+  });
+
+  revalidatePath("/admin/payments");
+  revalidatePath("/admin/members");
+  revalidatePath("/profile");
+  return { success: true };
+}
+
+/**
+ * End a membership early. There is no recurring charge to stop, so this is
+ * purely a record that the term no longer runs.
+ */
+export async function cancelSubscriptionAsAdmin(subscriptionId: string, reason?: string) {
+  const admin = await requireAdmin();
+
+  const sub = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
+  if (!sub) throw new Error("Subscription not found");
+
+  const details = (sub.details as any) || {};
+
+  await prisma.subscription.update({
+    where: { id: subscriptionId },
+    data: {
+      status: SUBSCRIPTION_STATUS.CANCELLED,
+      endDate: new Date(),
+      details: {
+        ...details,
+        cancellation: {
+          at: new Date().toISOString(),
+          by: admin.email || admin.id,
+          reason: reason || null,
+        },
+      },
+    },
+  });
+
+  revalidatePath("/admin/members");
+  revalidatePath("/admin/payments");
+  revalidatePath("/profile");
+  return { success: true };
+}
+
 export async function rejectMembership(subscriptionId: string, reason?: string) {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -455,14 +554,13 @@ export async function rejectMembership(subscriptionId: string, reason?: string) 
 }
 
 export async function resetRejectedSubscription(subscriptionId: string) {
-  const session = await getServerSession(publicAuthOptions);
-  if (!session?.user?.id) throw new Error("Unauthorized");
+  const user = await requireUser();
 
   await prisma.subscription.delete({
-    where: { 
+    where: {
       id: subscriptionId,
-      userId: session.user.id as string,
-      status: "REJECTED"
+      userId: user.id,
+      status: SUBSCRIPTION_STATUS.REJECTED
     }
   });
 
@@ -470,19 +568,18 @@ export async function resetRejectedSubscription(subscriptionId: string) {
   return { success: true };
 }
 
+/**
+ * Everything an administrator still has to act on: IDs to verify and payments
+ * to record.
+ *
+ * The old `{ isApproved: false }` clause is gone — it was true for every
+ * rejected application too, so refusals kept reappearing in the queue.
+ */
 export async function getPendingSubscriptions() {
-  let session = await getServerSession(adminAuthOptions);
-  if (!session) session = await getServerSession(publicAuthOptions);
-  if ((session?.user as any)?.role !== "ADMIN") throw new Error("Unauthorized");
+  await requireAdmin();
 
   return await prisma.subscription.findMany({
-    where: {
-      OR: [
-        { status: "PENDING_VERIFICATION" },
-        { status: "PENDING" },
-        { isApproved: false }
-      ]
-    },
+    where: { status: { in: PENDING_STATUSES } },
     include: {
       user: {
         select: {
@@ -496,15 +593,51 @@ export async function getPendingSubscriptions() {
   });
 }
 
-export async function getAllMembers() {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+/**
+ * What the signed-in member needs in order to pay: the amount, the bank
+ * details and the reference to quote.
+ *
+ * This replaces the "Pay now" button that used to open a checkout session.
+ */
+export async function getMembershipPaymentDetails() {
+  const user = await requireUser();
 
-  const adminEmail = process.env.ADMIN_EMAIL || "ajmoviezone1@gmail.com";
+  const sub = await prisma.subscription.findFirst({
+    where: { userId: user.id, status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT },
+    orderBy: { createdAt: "desc" },
+    include: { plan: true },
+  });
+
+  if (!sub) return null;
+
+  const config = await getConfig();
+
+  return {
+    subscriptionId: sub.id,
+    planName: sub.plan.name,
+    amount: sub.plan.price,
+    duration: sub.plan.duration,
+    method: sub.paymentMethod,
+    appliedAt: sub.createdAt,
+    reference: paymentReferenceFor(sub.id, user.name),
+    bank: {
+      accountHolder: config.legal.accountHolder,
+      bankName: config.legal.bankName,
+      iban: config.legal.iban,
+      bic: config.legal.bic,
+      termsDays: config.legal.paymentTermsDays,
+    },
+  };
+}
+
+export async function getAllMembers() {
+  await requireAdmin();
+
+  const notifyAddress = adminEmailOrNull();
 
   const users = await prisma.user.findMany({
     where: {
-      email: { not: adminEmail }
+      email: { not: notifyAddress }
     },
     include: {
       subscriptions: {
@@ -537,8 +670,13 @@ export async function getAllMembers() {
 }
 
 export async function suspendUser(userId: string, currentStatus: string) {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+  const admin = await requireAdmin();
+
+  // Suspending yourself locks the last administrator out of the panel with no
+  // way back in through the UI.
+  if (admin.id === userId) {
+    throw new Error("You cannot suspend your own account.");
+  }
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
@@ -559,30 +697,63 @@ export async function suspendUser(userId: string, currentStatus: string) {
   return { success: true, status: newRole.startsWith("SUSPENDED_") ? "SUSPENDED" : "ACTIVE" };
 }
 
-export async function updateMemberDetails(userId: string, data: { 
-  name?: string; 
-  email?: string;
-  phone?: string;
-  address?: string;
-  city?: string;
-  zip?: string;
-  dob?: string | Date;
-  occupation?: string;
-  bio?: string;
-  role?: string;
-}) {
-  const session = await getServerSession(adminAuthOptions);
-  if (!session) throw new Error("Unauthorized");
+/**
+ * Fields an administrator may edit on someone else's account.
+ *
+ * Spelled out as a schema rather than spread from the caller: this action used
+ * to pass `{ ...data }` straight into `prisma.user.update`, so anything the
+ * client sent was written — `role` included, and `password` or `emailVerified`
+ * had it occurred to anyone to send them.
+ */
+const memberDetailsSchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().max(40).optional(),
+  address: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  zip: z.string().max(20).optional(),
+  dob: z.union([z.string(), z.date()]).optional(),
+  occupation: z.string().max(120).optional(),
+  bio: z.string().max(2000).optional(),
+  // Present so the existing admin form keeps working, but constrained to the
+  // two real roles and cross-checked below. It is the only field here that
+  // grants anything.
+  role: z.enum(["MEMBER", "ADMIN"]).optional(),
+});
+
+export type MemberDetailsInput = z.input<typeof memberDetailsSchema>;
+
+export async function updateMemberDetails(userId: string, data: MemberDetailsInput) {
+  const admin = await requireAdmin();
+
+  const parsed = memberDetailsSchema.safeParse(data);
+  if (!parsed.success) throw new Error("Invalid member details");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
 
-  const updateData: any = { ...data };
-  if (data.dob) updateData.dob = new Date(data.dob);
+  const { role, dob, ...rest } = parsed.data;
+  const updateData: Prisma.UserUpdateInput = { ...rest };
+
+  if (dob) updateData.dob = new Date(dob);
+
+  if (role && role !== user.role) {
+    // Changing your own role is how an admin accidentally demotes the last
+    // administrator — and it is the shape a self-escalation attempt takes.
+    if (admin.id === userId) {
+      throw new Error("You cannot change your own role.");
+    }
+    // A suspended account keeps its role behind the SUSPENDED_ prefix; writing
+    // a bare role here would silently reinstate it.
+    if (user.role.startsWith("SUSPENDED_")) {
+      throw new Error("Reinstate this account before changing its role.");
+    }
+    updateData.role = role;
+  }
 
   await prisma.user.update({
     where: { id: userId },
-    data: updateData
+    data: updateData,
   });
 
   revalidatePath("/admin/members");

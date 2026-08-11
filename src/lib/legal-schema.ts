@@ -210,9 +210,9 @@ export interface PendingConsent {
 
 /**
  * The site runs no third-party analytics, no advertising pixels and no
- * client-side payment SDK — Stripe is a server-side redirect to Stripe's own
- * domain, so it sets nothing here. The honest consequence is that this list
- * is short and "essential only" is a real, fully functional choice.
+ * payment SDK of any kind — payment happens by bank transfer or in cash,
+ * entirely outside the browser. The honest consequence is that this list is
+ * short and "essential only" is a real, fully functional choice.
  */
 export interface CookieCategories {
   /** Session, CSRF and the consent record itself. Cannot be switched off. */

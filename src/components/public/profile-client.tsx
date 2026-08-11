@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useRef } from "react";
+import React, { useState, useTransition, useRef, useEffect } from "react";
 import { Container } from "@/components/layout/container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,9 @@ import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import MembershipSuccessOverlay from "./membership-success-overlay";
-import { initiateSubscriptionPayment, cancelSubscription } from "@/lib/membership-actions";
+import PaymentInstructions from "./payment-instructions";
+import { getMembershipPaymentDetails } from "@/lib/membership-actions";
+import { displayStatus, isTermRunning } from "@/lib/membership-term";
 import { updateProfile } from "@/lib/profile-actions";
 import { PrivacyPanel } from "@/components/legal/privacy-panel";
 import { uploadProfileImage } from "@/lib/upload-actions";
@@ -70,21 +72,37 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
   const [isUploading, setIsUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<boolean>(false);
-  const [isPaying, setIsPaying] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
   const [userMemories, setUserMemories] = useState<any[]>([]);
   const [isScanningMemories, setIsScanningMemories] = useState(false);
   const [profileImage, setProfileImage] = useState(user.image || null);
-  
+  const [paymentDetails, setPaymentDetails] =
+    useState<Awaited<ReturnType<typeof getMembershipPaymentDetails>>>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const showSuccess = searchParams.get("success") === "membership";
-  
-  const activeSub = subscriptions.find(s => (s.status === "ACTIVE" || s.status === "CANCELLED_AT_PERIOD_END") && s.isApproved);
-  const pendingSub = subscriptions.find(s => 
-    ["PENDING", "PENDING_VERIFICATION", "APPROVED_PENDING_PAYMENT"].includes(s.status) ||
-    (s.paymentMethod === "CASH" && !s.isApproved)
+
+  // A term whose end date has passed is expired whether or not anything got
+  // around to rewriting the row — nothing sweeps the database now.
+  const activeSub = subscriptions.find(s => isTermRunning(s));
+  const awaitingPaymentSub = subscriptions.find(s => s.status === "AWAITING_PAYMENT");
+  const pendingSub = subscriptions.find(s =>
+    ["AWAITING_PAYMENT", "PENDING_VERIFICATION"].includes(s.status)
   );
+
+  // Only fetched when there is something to pay — it carries bank details.
+  useEffect(() => {
+    if (!awaitingPaymentSub) {
+      setPaymentDetails(null);
+      return;
+    }
+    let cancelled = false;
+    getMembershipPaymentDetails()
+      .then(details => { if (!cancelled) setPaymentDetails(details); })
+      .catch(() => { /* the panel simply stays collapsed */ });
+    return () => { cancelled = true; };
+  }, [awaitingPaymentSub?.id]);
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
@@ -162,41 +180,9 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
     }
   };
 
-  const handlePayNow = async (subId: string) => {
-    setIsPaying(subId);
-    try {
-      const result = await initiateSubscriptionPayment(subId);
-      if (result.url) {
-        window.location.href = result.url;
-      }
-    } catch (error: any) {
-      if (error.message === "ADDRESS_REQUIRED") {
-        alert("Please complete your address details (Street, City, and Zip) in the 'Personal Information' section before proceeding with the payment.");
-        const personalSection = document.getElementById("personal-details");
-        if (personalSection) {
-          personalSection.scrollIntoView({ behavior: "smooth" });
-        } else {
-          setIsEditing(true); // Open edit mode if section not found
-        }
-      } else {
-        alert(error.message || "Failed to initiate payment");
-      }
-    } finally {
-      setIsPaying(null);
-    }
-  };
-
-  const handleCancelSubscription = async (subId: string) => {
-    if (!confirm("Are you sure you want to cancel your recurring subscription? Your membership will remain active until the end of the current period.")) return;
-    
-    startTransition(async () => {
-      try {
-        await cancelSubscription(subId);
-      } catch (error: any) {
-        alert(error.message || "Failed to cancel subscription");
-      }
-    });
-  };
+  // There is no "pay now" and no self-service cancellation any more: payments
+  // are recorded by the committee, and with no recurring charge there is
+  // nothing for a member to stop. Membership questions go to the committee.
 
   const latestSub = [...subscriptions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
@@ -301,11 +287,11 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                          </Badge>
                        ) : pendingSub ? (
                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                            Pending Verification
+                            {pendingSub.status === "AWAITING_PAYMENT" ? "Payment Pending" : "Pending Verification"}
                          </Badge>
-                       ) : latestSub?.status === "CANCELLED_AT_PERIOD_END" ? (
+                       ) : displayStatus(latestSub) === "EXPIRED" ? (
                          <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                            Cancelling
+                            Expired
                          </Badge>
                        ) : (
                          <Badge className="bg-muted text-muted-foreground border-border font-bold text-[9px] uppercase tracking-wider px-2 h-5">
@@ -322,34 +308,35 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                     <span className="truncate">{user.email}</span>
                   </div>
                   {activeSub && (
-                    <div className="flex items-center gap-4 text-sm text-emerald-600 font-bold uppercase tracking-wider">
-                       <ShieldCheck className="h-4 w-4" /> Verified Member
-                    </div>
+                    <>
+                      <div className="flex items-center gap-4 text-sm text-emerald-600 font-bold uppercase tracking-wider">
+                         <ShieldCheck className="h-4 w-4" /> Verified Member
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                         <span className="text-muted-foreground font-medium">Member since</span>
+                         <span className="font-bold">{formatDate(activeSub.startDate)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                         <span className="text-muted-foreground font-medium">Valid until</span>
+                         <span className="font-bold">{formatDate(activeSub.endDate)}</span>
+                      </div>
+                    </>
                   )}
-                  {latestSub?.status === "CANCELLED_AT_PERIOD_END" && (
+                  {displayStatus(latestSub) === "EXPIRED" && (
                     <div className="flex items-start gap-4 text-xs text-amber-600 bg-amber-500/5 p-3 rounded-lg border border-amber-500/10">
                        <Clock className="h-4 w-4 mt-0.5 shrink-0" />
                        <div>
-                          <p className="font-bold">Subscription Cancelled</p>
-                          <p className="mt-0.5 opacity-80 font-medium">Expires on {formatDate(latestSub.endDate)}</p>
+                          <p className="font-bold">Membership Expired</p>
+                          <p className="mt-0.5 opacity-80 font-medium">
+                             Ended on {formatDate(latestSub.endDate)}. Renew from the membership page.
+                          </p>
                        </div>
                     </div>
                   )}
                </div>
 
                <div className="mt-8 space-y-3">
-                  {activeSub?.stripeSubscriptionId && latestSub?.status !== "CANCELLED_AT_PERIOD_END" && (
-                    <Button 
-                      onClick={() => handleCancelSubscription(activeSub.id)}
-                      disabled={isPending}
-                      variant="ghost" 
-                      className="w-full h-11 rounded-lg text-xs font-bold text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-all"
-                    >
-                      {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" /> : <AlertCircle className="w-3.5 h-3.5 mr-2" />} 
-                      Cancel Subscription
-                    </Button>
-                  )}
-                  <Button 
+                  <Button
                     onClick={() => signOut()}
                     variant="outline" 
                     className="w-full h-11 rounded-lg text-xs font-bold border-border hover:bg-muted/50 transition-colors"
@@ -385,6 +372,49 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
             
             {activeTab === "profile" && (
               <>
+                {/*
+                  Awaiting payment. This is where the "Pay now" button used to
+                  open a checkout session; the member now needs the bank
+                  details and the reference instead, and a clear statement that
+                  nothing starts until the committee records the money.
+                */}
+                {awaitingPaymentSub && paymentDetails && (
+                  <div className="bg-card border border-amber-500/30 rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-8 py-6 border-b border-border bg-amber-500/5 flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <h2 className="text-lg font-bold">Payment Pending</h2>
+                        <p className="text-xs text-muted-foreground">
+                          Your {paymentDetails.planName} application is accepted and waiting on payment.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="p-8">
+                      <PaymentInstructions
+                        data={{
+                          planName: paymentDetails.planName,
+                          amount: paymentDetails.amount,
+                          reference: paymentDetails.reference,
+                          method: paymentDetails.method,
+                          bank: paymentDetails.bank,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {pendingSub?.status === "PENDING_VERIFICATION" && (
+                  <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+                    <div className="px-8 py-6 flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-amber-500 shrink-0" />
+                      <p className="text-sm text-muted-foreground">
+                        Your student ID is being reviewed. We will email you the payment details
+                        once it is verified.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Identity Details Section */}
                 <div id="personal-details" className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
                    <div className="px-8 py-6 border-b border-border flex justify-between items-center bg-muted/30">
@@ -494,7 +524,7 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                       <div key={reg.id} className="p-6 flex flex-col sm:flex-row items-center justify-between gap-6 hover:bg-muted/30 transition-colors">
                          <div className="flex items-center gap-5">
                             <div className="h-16 w-16 rounded-lg overflow-hidden border border-border shrink-0">
-                               <img src={reg.event.imageUrl || "/placeholder.jpg"} className="h-full w-full object-cover" />
+                               <img src={reg.event.imageUrl || "/images/placeholder.svg"} alt="" className="h-full w-full object-cover" />
                             </div>
                             <div>
                                <h4 className="font-bold">{reg.event.title}</h4>
@@ -530,21 +560,45 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                       <thead className="bg-muted/50 border-b border-border">
                          <tr className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                             <th className="px-8 py-4">Description</th>
+                            <th className="px-8 py-4">Status</th>
                             <th className="px-8 py-4">Date</th>
                             <th className="px-8 py-4 text-right">Value</th>
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                         {subscriptions.map((sub) => (
-                           <tr key={sub.id} className="text-sm hover:bg-muted/10 transition-colors">
-                              <td className="px-8 py-5">
-                                 <p className="font-bold">{sub.plan.name} Membership</p>
-                                 <p className="text-[10px] text-muted-foreground uppercase font-bold mt-0.5">{sub.paymentMethod}</p>
-                              </td>
-                              <td className="px-8 py-5 text-muted-foreground">{formatDate(sub.createdAt)}</td>
-                              <td className="px-8 py-5 text-right font-bold tabular-nums">€{sub.plan.price.toFixed(2)}</td>
-                           </tr>
-                         ))}
+                         {/*
+                           `startDate` is the day the payment was recorded, so
+                           it is the only honest date for a paid row. An
+                           unpaid application has none and shows when it was
+                           submitted instead — the old table showed
+                           `createdAt` for everything, which made an
+                           outstanding application look settled.
+                         */}
+                         {subscriptions.map((sub) => {
+                           const paid = sub.paymentStatus === "PAID";
+                           return (
+                             <tr key={sub.id} className="text-sm hover:bg-muted/10 transition-colors">
+                                <td className="px-8 py-5">
+                                   <p className="font-bold">{sub.plan.name} Membership</p>
+                                   <p className="text-[10px] text-muted-foreground uppercase font-bold mt-0.5">
+                                     {sub.paymentMethod === "BANK_TRANSFER" ? "Bank transfer" : "Cash"}
+                                   </p>
+                                </td>
+                                <td className="px-8 py-5">
+                                   <Badge className={cn(
+                                     "text-[9px] font-bold px-3 py-1 border-none",
+                                     paid ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
+                                   )}>
+                                     {paid ? "Paid" : "Awaiting payment"}
+                                   </Badge>
+                                </td>
+                                <td className="px-8 py-5 text-muted-foreground">
+                                   {paid ? formatDate(sub.startDate) : `Applied ${formatDate(sub.createdAt)}`}
+                                </td>
+                                <td className="px-8 py-5 text-right font-bold tabular-nums">€{sub.plan.price.toFixed(2)}</td>
+                             </tr>
+                           );
+                         })}
                       </tbody>
                    </table>
                    {subscriptions.length === 0 && (

@@ -28,6 +28,7 @@ import { deleteAlbum } from "@/lib/gallery-actions";
 import { cardSurface, toolbarChip } from "@/components/admin/ui/surface";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function GalleryClient({
   initialAlbums,
@@ -40,6 +41,7 @@ export default function GalleryClient({
   const [selectedAlbum, setSelectedAlbum] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const confirm = useConfirm();
+  const router = useRouter();
 
   const handleCreateNew = () => {
     setSelectedAlbum(null);
@@ -60,7 +62,15 @@ export default function GalleryClient({
     });
 
     if (isConfirmed) {
-      await deleteAlbum(album.id);
+      // Deletion can partially fail — if Cloudinary rejects some assets the
+      // album is deliberately left intact rather than orphaning the files, so
+      // the admin has to be told rather than seeing the row silently stay.
+      const result = await deleteAlbum(album.id);
+      if (result && "error" in result && result.error) {
+        window.alert(result.error);
+        return;
+      }
+      router.refresh();
     }
   };
 
