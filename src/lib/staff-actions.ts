@@ -353,19 +353,25 @@ export async function revokeStaffAccess(userId: string) {
       remainingSuperAdmins: await superAdminCount(),
     });
 
-    // The membership account survives — only the admin grant is withdrawn.
-    await prisma.user.update({
-      where: { id: userId },
-      data: { role: "MEMBER", staffRoleId: null },
-    });
-
     // An administrator removed for cause could otherwise have mailed
     // themselves (or an accomplice) an invitation minutes earlier and
     // accepted it after losing access. Any invite they issued that is still
     // outstanding is burned in the same stroke.
+    //
+    // Done before the demotion below, not after: if this throws, the target
+    // is still staff and a retry re-enters this function normally. The other
+    // order would let a failure here strand the demotion — a retry would
+    // find someone the `isStaffMember` check above now refuses outright, so
+    // those invites could never be revoked through this action again.
     const revoked = await prisma.staffInvite.updateMany({
       where: { invitedById: userId, acceptedAt: null, revokedAt: null },
       data: { revokedAt: new Date() },
+    });
+
+    // The membership account survives — only the admin grant is withdrawn.
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: "MEMBER", staffRoleId: null },
     });
 
     await sendMail({

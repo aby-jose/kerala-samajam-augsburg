@@ -48,92 +48,117 @@ export async function acceptInvite(token: string, password: string) {
   const check = passwordSchema.safeParse(password);
   if (!check.success) return { error: check.error.issues[0].message };
 
-  const invite = await prisma.staffInvite.findUnique({
-    where: { tokenHash: hashInviteToken(token) },
-    include: { role: { select: { id: true, name: true } } },
-  });
+  try {
+    const invite = await prisma.staffInvite.findUnique({
+      where: { tokenHash: hashInviteToken(token) },
+      include: { role: { select: { id: true, name: true } } },
+    });
 
-  const usable = isInviteUsable(invite, new Date());
-  if (!usable.usable || !invite) return { error: GENERIC_INVITE_ERROR };
+    const usable = isInviteUsable(invite, new Date());
+    if (!usable.usable || !invite) return { error: GENERIC_INVITE_ERROR };
 
-  const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
-  const now = new Date();
+    // The match is case-insensitive on purpose, and deliberately not a plain
+    // `upsert` keyed on `invite.email`. `registerUser` stores addresses exactly
+    // as typed, MongoDB's unique index on `email` is case-sensitive, and
+    // `inviteStaff` normalises to lower case before storing the invite — so an
+    // invite to "Foo@Example.com" and an existing "foo@example.com" account are
+    // the same person but two different index entries. An `upsert` keyed on the
+    // lower-cased address would miss that account and create a second one,
+    // orphaning the first one's history and falsifying the invite email's
+    // promise that the new password "works for both". Finding the account
+    // first and updating it by id avoids that regardless of which casing it was
+    // originally created with.
+    const existingAccount = await prisma.user.findFirst({
+      where: { email: { equals: invite.email, mode: "insensitive" } },
+    });
 
-  // `passwordChangedAt` is what evicts anything already signed in as this
-  // person — the jwt callback rejects tokens issued before it. An existing
-  // member account is updated in place, not duplicated: they keep their
-  // account and gain admin access on top of it.
-  //
-  // The match is case-insensitive on purpose, and deliberately not a plain
-  // `upsert` keyed on `invite.email`. `registerUser` stores addresses exactly
-  // as typed, MongoDB's unique index on `email` is case-sensitive, and
-  // `inviteStaff` normalises to lower case before storing the invite — so an
-  // invite to "Foo@Example.com" and an existing "foo@example.com" account are
-  // the same person but two different index entries. An `upsert` keyed on the
-  // lower-cased address would miss that account and create a second one,
-  // orphaning the first one's history and falsifying the invite email's
-  // promise that the new password "works for both". Finding the account
-  // first and updating it by id avoids that regardless of which casing it was
-  // originally created with.
-  const existingAccount = await prisma.user.findFirst({
-    where: { email: { equals: invite.email, mode: "insensitive" } },
-  });
+    // A suspension is a deliberate decision this must not silently reverse.
+    // `inviteStaff` and `resendInvite` already refuse to (re-)invite a
+    // suspended address, but an invite minted before the suspension is still
+    // a live credential — this is the redemption-side half of that same
+    // check; `suspendUser` revokes an address's own outstanding invites for
+    // the same reason, but a suspension and an already-in-flight acceptance
+    // can still race, so this backs that up rather than replacing it. The
+    // generic error, not a specific one: this page is unauthenticated, and
+    // "this account is suspended" discloses account state to whoever holds
+    // the link, who may not be its owner.
+    if (existingAccount?.role.startsWith("SUSPENDED_")) {
+      return { error: GENERIC_INVITE_ERROR };
+    }
 
-  const user = existingAccount
-    ? await prisma.user.update({
-        where: { id: existingAccount.id },
-        data: {
-          password: hashed,
-          passwordChangedAt: now,
-          emailVerified: now,
-          role: "ADMIN",
-          staffRoleId: invite.roleId,
-        },
-      })
-    : await prisma.user.create({
-        data: {
-          email: invite.email,
-          password: hashed,
-          passwordChangedAt: now,
-          emailVerified: now,
-          role: "ADMIN",
-          staffRoleId: invite.roleId,
-        },
-      });
+    const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const now = new Date();
 
-  // Single use. Burn every other outstanding invite for this address too, so
-  // an older link cannot be replayed afterwards.
-  await prisma.staffInvite.updateMany({
-    where: { email: invite.email, acceptedAt: null },
-    data: { acceptedAt: now },
-  });
+    // `passwordChangedAt` is what evicts anything already signed in as this
+    // person — the jwt callback rejects tokens issued before it. An existing
+    // member account is updated in place, not duplicated: they keep their
+    // account and gain admin access on top of it.
+    const user = existingAccount
+      ? await prisma.user.update({
+          where: { id: existingAccount.id },
+          data: {
+            password: hashed,
+            passwordChangedAt: now,
+            emailVerified: now,
+            role: "ADMIN",
+            staffRoleId: invite.roleId,
+          },
+        })
+      : await prisma.user.create({
+          data: {
+            email: invite.email,
+            password: hashed,
+            passwordChangedAt: now,
+            emailVerified: now,
+            role: "ADMIN",
+            staffRoleId: invite.roleId,
+          },
+        });
 
-  // Not `describeAudit()`: that call is a no-op unless `requirePermission`
-  // already opened a row earlier in this request, and this action is
-  // reachable without a session — the invite token is the credential, so
-  // there is no guard call here to have opened one. The row is written
-  // directly instead.
-  await prisma.auditLog.create({
-    data: {
-      actorId: user.id,
-      actorEmail: invite.email,
-      action: "staff.invite",
-      summary: `${invite.email} accepted their invitation as ${invite.role.name}`,
-      entity: "User",
+    // Single use. Burn every other outstanding invite for this address too, so
+    // an older link cannot be replayed afterwards.
+    await prisma.staffInvite.updateMany({
+      where: { email: invite.email, acceptedAt: null },
+      data: { acceptedAt: now },
+    });
+
+    // Not `describeAudit()`: that call is a no-op unless `requirePermission`
+    // already opened a row earlier in this request, and this action is
+    // reachable without a session — the invite token is the credential, so
+    // there is no guard call here to have opened one. The row is written
+    // directly instead.
+    await prisma.auditLog.create({
+      data: {
+        actorId: user.id,
+        actorEmail: invite.email,
+        action: "staff.invite",
+        summary: `${invite.email} accepted their invitation as ${invite.role.name}`,
+        entity: "User",
+        entityId: user.id,
+      },
+    });
+
+    await sendMail({
+      template: "account.password-changed",
+      to: invite.email,
       entityId: user.id,
-    },
-  });
+      build: (ctx) =>
+        templates.account.passwordChanged(ctx, {
+          name: user.name || "there",
+          changedAt: now,
+        }),
+    });
 
-  await sendMail({
-    template: "account.password-changed",
-    to: invite.email,
-    entityId: user.id,
-    build: (ctx) =>
-      templates.account.passwordChanged(ctx, {
-        name: user.name || "there",
-        changedAt: now,
-      }),
-  });
-
-  return { success: true };
+    return { success: true };
+  } catch (error) {
+    // An orphaned role relation (see `getInviteForToken`), a `create` losing
+    // a race on the unique email index, or any other unexpected failure must
+    // not produce a response shape distinguishable from an ordinary bad
+    // token. This is the one endpoint reachable without a session — a
+    // different error here is an enumeration tell, not just a worse error
+    // page — so everything collapses to the same generic answer, exactly
+    // like `getInviteForToken`.
+    console.error("acceptInvite failed", error);
+    return { error: GENERIC_INVITE_ERROR };
+  }
 }

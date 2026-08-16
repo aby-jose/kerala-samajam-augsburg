@@ -61,7 +61,11 @@ describe("acceptInvite — matches an existing account case-insensitively (I4)",
     // The invite was normalised to lower case by inviteStaff, but the real
     // account was registered as "Foo@Example.com" — a different string, same
     // person.
-    mockedFindFirstUser.mockResolvedValue({ id: "existing-user-1", name: "Foo" } as never);
+    mockedFindFirstUser.mockResolvedValue({
+      id: "existing-user-1",
+      name: "Foo",
+      role: "MEMBER",
+    } as never);
     mockedUpdateUser.mockResolvedValue({ id: "existing-user-1", name: "Foo" } as never);
 
     const result = await acceptInvite(TOKEN, VALID_PASSWORD);
@@ -89,6 +93,72 @@ describe("acceptInvite — matches an existing account case-insensitively (I4)",
       data: expect.objectContaining({ email: "foo@example.com", role: "ADMIN" }),
     });
     expect(mockedUpdateUser).not.toHaveBeenCalled();
+  });
+});
+
+describe("acceptInvite — refuses a suspended account (Finding 1, redemption side)", () => {
+  it("does not grant access when the matched account is suspended", async () => {
+    mockedFindUniqueInvite.mockResolvedValue(pendingInvite() as never);
+    // Same shape inviteStaff/resendInvite already refuse to (re-)invite —
+    // the invite here was minted before the suspension and is still a live
+    // credential unless acceptInvite checks too.
+    mockedFindFirstUser.mockResolvedValue({
+      id: "existing-user-1",
+      name: "Alice",
+      role: "SUSPENDED_MEMBER",
+    } as never);
+
+    const result = await acceptInvite(TOKEN, VALID_PASSWORD);
+
+    // The generic invite error, not a specific "your account is suspended"
+    // message — this page is unauthenticated and must not disclose account
+    // state to whoever holds the link.
+    expect(result).toEqual({
+      error: "This invitation link is no longer valid. Ask the committee to send a new one.",
+    });
+    expect(mockedUpdateUser).not.toHaveBeenCalled();
+    expect(mockedCreateUser).not.toHaveBeenCalled();
+  });
+
+  it("still accepts normally for a non-suspended matched account", async () => {
+    mockedFindUniqueInvite.mockResolvedValue(pendingInvite() as never);
+    mockedFindFirstUser.mockResolvedValue({
+      id: "existing-user-1",
+      name: "Alice",
+      role: "MEMBER",
+    } as never);
+    mockedUpdateUser.mockResolvedValue({ id: "existing-user-1", name: "Alice" } as never);
+
+    const result = await acceptInvite(TOKEN, VALID_PASSWORD);
+
+    expect(result).toEqual({ success: true });
+    expect(mockedUpdateUser).toHaveBeenCalled();
+  });
+});
+
+describe("acceptInvite — never throws out of the action (Finding 3)", () => {
+  it("returns the generic error instead of throwing when something unexpected fails", async () => {
+    // Same shape as the orphaned-role failure `getInviteForToken` already
+    // handles — a required relation that can't resolve.
+    mockedFindUniqueInvite.mockRejectedValue(
+      new Error("Inconsistent query result: Field role is required to return data, got `null`")
+    );
+
+    await expect(acceptInvite(TOKEN, VALID_PASSWORD)).resolves.toEqual({
+      error: "This invitation link is no longer valid. Ask the committee to send a new one.",
+    });
+  });
+
+  it("also collapses a create-time failure (e.g. a unique-index race) to the generic error", async () => {
+    mockedFindUniqueInvite.mockResolvedValue(pendingInvite() as never);
+    mockedFindFirstUser.mockResolvedValue(null as never);
+    mockedCreateUser.mockRejectedValue(
+      Object.assign(new Error("Unique constraint failed"), { code: "P2002" })
+    );
+
+    await expect(acceptInvite(TOKEN, VALID_PASSWORD)).resolves.toEqual({
+      error: "This invitation link is no longer valid. Ask the committee to send a new one.",
+    });
   });
 });
 

@@ -768,8 +768,53 @@ export async function suspendUser(userId: string, currentStatus: string) {
 
   const nextStatus = newRole.startsWith("SUSPENDED_") ? "SUSPENDED" : "ACTIVE";
 
+  // Suspension is another way an admin can lose access abruptly — the same
+  // reason `revokeStaffAccess` burns outstanding invites. Two directions
+  // matter here: an invite already addressed to this person (so a link they
+  // already hold can't be used to clear the suspension the moment it's
+  // accepted — `acceptInvite` also refuses a suspended account itself, but
+  // the two can race, and this is the side that closes the window rather
+  // than just detecting it) and, if they were staff themselves, any invite
+  // they had issued. Done before the role write below, not after: if this
+  // throws, the account is not yet suspended and a retry re-enters normally,
+  // instead of stranding a suspension whose invites were never revoked.
+  let revokedForThem = 0;
+  let revokedByThem = 0;
+  if (nextStatus === "SUSPENDED") {
+    if (user.email) {
+      const forThem = await prisma.staffInvite.updateMany({
+        where: {
+          email: { equals: user.email, mode: "insensitive" },
+          acceptedAt: null,
+          revokedAt: null,
+        },
+        data: { revokedAt: new Date() },
+      });
+      revokedForThem = forThem.count;
+    }
+
+    const byThem = await prisma.staffInvite.updateMany({
+      where: { invitedById: userId, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    revokedByThem = byThem.count;
+  }
+
+  const invitePart = [
+    revokedForThem > 0
+      ? `${revokedForThem} pending invitation${revokedForThem === 1 ? "" : "s"} sent to them`
+      : null,
+    revokedByThem > 0
+      ? `${revokedByThem} pending invitation${revokedByThem === 1 ? "" : "s"} they had sent`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
+
   await describeAudit({
-    summary: `${nextStatus === "ACTIVE" ? "Reinstated" : "Suspended"} ${user.email}`,
+    summary:
+      `${nextStatus === "ACTIVE" ? "Reinstated" : "Suspended"} ${user.email}` +
+      (invitePart ? ` and revoked ${invitePart}` : ""),
     entity: "User",
     entityId: user.id,
   });
