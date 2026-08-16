@@ -66,7 +66,6 @@ export default function AuditClient({
   // A new filter invalidates the current page.
   React.useEffect(() => {
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actorEmail, action, from, to]);
 
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
