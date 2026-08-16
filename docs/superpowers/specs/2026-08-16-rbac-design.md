@@ -48,7 +48,7 @@ Deliberately excluded; each can be added later without rework.
 | D5 | Invites are single-use hashed token links; no password is ever emailed | "Must reset after first login" is satisfied by construction — the first login *is* the password creation. |
 | D6 | No `User` row is created until an invite is accepted | Avoids passwordless half-accounts accumulating behind revoked invites. |
 | D7 | Promotion of an existing member uses the same token link and sets a fresh password | Re-proves mailbox control before granting admin, and replaces a possibly-weak member password. |
-| D8 | Verb-level granularity (55 keys), not resource-level | Separates recording a payment from reversing one, and editing an event from mass-mailing every member. |
+| D8 | Verb-level granularity (53 keys), not resource-level | Separates recording a payment from reversing one, and editing an event from mass-mailing every member. |
 | D9 | Super Admin's permission set is computed as "all", never stored | A stored array silently omits permissions added in a later release. |
 | D10 | `uploadImageAction`'s folder escape requires `gallery.media.upload` | Otherwise any staff account, including one with no gallery rights, bypasses the contribution quarantine. |
 | D11 | Vitest is added to the project | The coverage guarantee and the invite/lockout logic both need somewhere to run. |
@@ -165,7 +165,7 @@ table is out of scope here but should be recorded as a follow-up.
 
 ## 7. Permission catalogue
 
-55 keys in `resource.verb` form, typed as `keyof typeof PERMISSIONS`. Each entry
+53 keys in `resource.verb` form, typed as `keyof typeof PERMISSIONS`. Each entry
 carries a display group, a human label, and a `mutates` flag that drives
 automatic audit logging.
 
@@ -199,11 +199,9 @@ export type Permission = keyof typeof PERMISSIONS;
 | `registrations.edit` | `updateRegistrationAmount` |
 | `registrations.checkin` | `toggleCheckIn`, `getRegistrationByTicketId` |
 | `registrations.delete` | `deleteRegistration` |
-| `registrations.ticket` | `sendEventTicket` |
 | `payments.view` | `getAllPayments`, `getMembershipPaymentDetails` |
 | `payments.record` | `recordRegistrationPayment`, `recordSubscriptionPayment` |
 | `payments.revert` | `revertRegistrationPayment`, `revertSubscriptionPayment` |
-| `payments.invoice` | `sendMembershipPaymentRequest`, `sendSubscriptionReceipt` |
 | `members.view` | `getAllMembers` |
 | `members.edit` | `updateMemberDetails` |
 | `members.suspend` | `suspendUser` |
