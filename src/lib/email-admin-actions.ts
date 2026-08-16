@@ -12,6 +12,7 @@ import {
   sendMail,
   templates,
   transportStatus,
+  wasRedactedForStorage,
 } from "./email";
 
 /**
@@ -188,6 +189,19 @@ export async function resendEmail(id: string) {
   const storedHtml = original.html;
   if (!storedHtml) {
     throw new Error("The rendered copy of this email is no longer stored, so it cannot be resent.");
+  }
+
+  // Every credential-bearing link (password reset, email verification, staff
+  // invite, the one-click unsubscribe link) is redacted out of the stored
+  // copy at send time — see `redactCredentialsForStorage` in
+  // `email/send.ts`. Re-delivering that copy byte-for-byte, which is the
+  // whole point of this action, would mail the recipient a dead link while
+  // reporting success. Matched by the placeholder itself, not by template
+  // name, so this covers every current and future redacted template.
+  if (wasRedactedForStorage(storedHtml)) {
+    throw new Error(
+      "This email's stored copy has a credential link redacted for security and cannot be resent as-is. Trigger a fresh send instead."
+    );
   }
 
   const config = await getConfig();

@@ -8,7 +8,7 @@
  * any module reach straight for a provider and drop the result on the floor.
  */
 
-export { sendMail, sendMailBatch, getEmailContext, buildFrom } from "./send";
+export { sendMail, sendMailBatch, getEmailContext, buildFrom, wasRedactedForStorage } from "./send";
 export type { SendMailOptions, SendMailResult, TemplateOutput, EmailCategory } from "./send";
 export type { EmailContext, EmailDocument } from "./layout";
 export { renderEmail } from "./layout";

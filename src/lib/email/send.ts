@@ -221,6 +221,18 @@ function htmlToText(html: string): string {
 const REDACTED = "token withheld from the stored copy";
 
 /**
+ * True when a stored body has had a credential link redacted out of it —
+ * by the automatic pattern-based pass below, by a template's own
+ * `redactForStorage`, or both. `resendEmail` (`email-admin-actions.ts`) uses
+ * this to refuse re-delivering a body whose links no longer work: matching
+ * the placeholder rather than the template name means it catches every
+ * redacted send, including ones added after this check was written.
+ */
+export function wasRedactedForStorage(html: string): boolean {
+  return html.includes(REDACTED);
+}
+
+/**
  * Strip credential values out of rendered HTML before it is written to
  * `EmailLog.html`. Runs on *every* send, unconditionally — unlike
  * `redactForStorage`, which a template has to opt into — so a future
