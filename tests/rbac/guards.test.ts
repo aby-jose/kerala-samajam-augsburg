@@ -30,11 +30,13 @@ vi.mock("@/lib/rbac/audit", () => ({
 }));
 
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/rbac/audit";
 import { can, requirePermission, requirePermissionPage } from "@/lib/guards";
 
 const mockedGetServerSession = vi.mocked(getServerSession);
+const mockedRedirect = vi.mocked(redirect);
 const mockedFindUnique = vi.mocked(prisma.user.findUnique);
 const mockedRecordAudit = vi.mocked(recordAudit);
 
@@ -91,7 +93,16 @@ const SUPER_ADMIN_ROLE: StaffRoleRow = {
 };
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // resetAllMocks (not clearAllMocks) so a mockResolvedValue from one test
+  // cannot silently persist into the next one — every test must stock the
+  // database stub it actually needs, not inherit a prior test's answer.
+  vi.resetAllMocks();
+  // resetAllMocks wipes the throwing implementation set in the vi.mock
+  // factory above (it counts as this mock's "initial implementation"), so
+  // it has to be re-established here.
+  mockedRedirect.mockImplementation((url: string) => {
+    throw new Error(`REDIRECT:${url}`);
+  });
 });
 
 describe("requirePermission", () => {
@@ -122,7 +133,16 @@ describe("requirePermission", () => {
     // but the database row, read fresh on every call, says otherwise. This is
     // the whole reason getStaffContext queries the database instead of trusting
     // the token: a revoked administrator must not coast on a stale signature.
-    signedInAs({ sessionRole: "ADMIN", dbRole: "MEMBER", staffRole: null });
+    //
+    // staffRole is deliberately a real, non-null role here (not null, unlike
+    // case 5 below). getStaffContext's guard is one compound condition —
+    // `!row || row.role !== "ADMIN" || !row.staffRole` — and if staffRole
+    // were also null, a regression that checked the session's role instead of
+    // the database row would still be caught by the third disjunct, and this
+    // test would pass for the wrong reason. With a real staffRole, the
+    // database-role check is the ONLY disjunct that can fire, so this test
+    // can only pass if that specific check is doing its job.
+    signedInAs({ sessionRole: "ADMIN", dbRole: "MEMBER", staffRole: ORDINARY_ROLE });
 
     await expect(requirePermission("payments.view")).rejects.toThrow("Unauthorized");
   });
