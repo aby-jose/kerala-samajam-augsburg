@@ -1,7 +1,11 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 
 import { adminAuthOptions, publicAuthOptions } from "./auth";
+import { prisma } from "./prisma";
+import type { Permission } from "./permissions";
+import { resolvePermissions } from "./rbac/resolve";
 
 /**
  * One place where "is this caller allowed to do this" is decided.
@@ -118,4 +122,85 @@ export async function requireAnyUser(): Promise<SessionUser & { isAdmin: boolean
   if (admin) return { ...admin, isAdmin: true };
 
   throw new Error("Not signed in");
+}
+
+export interface StaffContext {
+  id: string;
+  email: string;
+  name: string | null;
+  roleName: string;
+  permissions: ReadonlySet<Permission>;
+  has(permission: Permission): boolean;
+}
+
+/**
+ * The signed-in staff member and their live permission set, or null.
+ *
+ * The set is read from the database rather than the token on purpose. The role
+ * is signed into the JWT and refreshed only every ROLE_REFRESH_INTERVAL_MS, so
+ * a token-carried permission list would leave a revoked permission usable for
+ * up to five minutes — and would add roughly a kilobyte to every request.
+ *
+ * `cache()` scopes the lookup to the request, so a page rendering six guarded
+ * calls performs one query, not six.
+ */
+export const getStaffContext = cache(async (): Promise<StaffContext | null> => {
+  const user = await getAdminUser();
+  if (!user?.id) return null;
+
+  const row = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      staffRole: { select: { name: true, permissions: true, isSystem: true } },
+    },
+  });
+
+  // Re-checked against the database, not the token: access revoked seconds ago
+  // must not survive on the strength of a five-minute-old signature.
+  if (!row || row.role !== "ADMIN" || !row.staffRole) return null;
+
+  const permissions = resolvePermissions(row.staffRole);
+  return {
+    id: row.id,
+    email: row.email ?? "",
+    name: row.name,
+    roleName: row.staffRole.name,
+    permissions,
+    has: (permission: Permission) => permissions.has(permission),
+  };
+});
+
+/** Throws unless the caller holds the permission. For server actions. */
+export async function requirePermission(permission: Permission): Promise<StaffContext> {
+  const ctx = await getStaffContext();
+  if (!ctx || !ctx.has(permission)) throw new Error("Unauthorized");
+  return ctx;
+}
+
+/** Redirects unless the caller holds the permission. For server components. */
+export async function requirePermissionPage(permission: Permission): Promise<StaffContext> {
+  const ctx = await getStaffContext();
+  if (!ctx) redirect("/admin/login");
+  if (!ctx.has(permission)) redirect("/admin/dashboard");
+  return ctx;
+}
+
+/** Boolean check for rendering. Never a substitute for the two above. */
+export async function can(permission: Permission): Promise<boolean> {
+  const ctx = await getStaffContext();
+  return ctx?.has(permission) ?? false;
+}
+
+/**
+ * Any staff member, whatever their role. For the handful of actions where
+ * being staff is the whole question — not a shortcut for skipping a check.
+ */
+export async function requireStaff(): Promise<StaffContext> {
+  const ctx = await getStaffContext();
+  if (!ctx) throw new Error("Unauthorized");
+  return ctx;
 }
