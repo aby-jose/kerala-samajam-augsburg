@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { requirePermission } from "./guards";
+import { assertFeature } from "./feature-gate";
 import { describeAudit } from "./rbac/audit";
 import { generateCaptcha, verifyCaptcha } from "./captcha";
 import { enforceRateLimit } from "./rate-limit";
@@ -589,6 +590,11 @@ export async function registerForEvent(data: {
   /** How the attendee intends to settle up. Nothing is charged here. */
   paymentMethod?: PaymentMethod;
 }) {
+  // Hiding the form is not enough — this action is reachable directly, and a
+  // registration accepted while the module is off would produce a ticket and
+  // an email for an event nobody is taking sign-ups for.
+  await assertFeature("enableRegistration");
+
   const { eventId, name, email, phone, attendees, captchaId, captchaCode } = data;
   const paymentMethod = isPaymentMethod(data.paymentMethod)
     ? data.paymentMethod

@@ -12,9 +12,19 @@ export interface SiteConfig {
     youtube?: string;
   };
   branding: {
+    /**
+     * The single accent colour. Written onto `<html>` as `--primary` during the
+     * server render in `app/layout.tsx`.
+     *
+     * There is deliberately no second brand colour. One existed here for a
+     * while, with a picker on the settings screen, and nothing ever read it:
+     * the only slot it could have filled is shadcn's `--secondary`, which is
+     * the neutral grey behind secondary buttons and muted panels, so honouring
+     * it would have tinted every quiet surface on the site.
+     */
     primaryColor: string;
-    secondaryColor: string;
     logoUrl?: string;
+    /** Browser-tab icon. Falls back to the bundled `/favicon.ico` when unset. */
     faviconUrl?: string;
   };
   email: {
@@ -212,7 +222,6 @@ export const defaultConfig: SiteConfig = {
   },
   branding: {
     primaryColor: "#e11d48", // Rose 600
-    secondaryColor: "#4f46e5", // Indigo 600
   },
   email: {
     fromName: "Kerala Samajam Augsburg",

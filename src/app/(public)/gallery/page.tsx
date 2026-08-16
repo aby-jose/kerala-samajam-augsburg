@@ -1,10 +1,15 @@
 import React from "react";
 import { prisma } from "@/lib/prisma";
+import { requireFeature } from "@/lib/feature-gate";
 import GalleryLandingClient from "./gallery-landing-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
+  // Before the query, not after: a switched-off gallery should not be reading
+  // albums out of the database to then throw them away.
+  await requireFeature("enableGallery");
+
   const albums = await prisma.galleryAlbum.findMany({
     where: { isPublished: true },
     include: {

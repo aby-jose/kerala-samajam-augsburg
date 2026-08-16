@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Container } from "@/components/layout/container";
+import { useConfig } from "@/components/providers/config-provider";
 import { Countdown } from "@/components/layout/countdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -69,6 +70,7 @@ export default function EventDetailPage() {
   const pathname = usePathname();
   const reduced = useReducedMotion();
   const { data: session } = useSession();
+  const { features } = useConfig();
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -170,7 +172,10 @@ export default function EventDetailPage() {
     ? Math.max(event.maxAttendees - registered, 0)
     : null;
   const isFull = seatsLeft === 0;
-  const registrationOpen = !isPast && !isFull;
+  // The switch closes sign-ups without hiding the event itself: the calendar
+  // and this page stay readable, only the ability to take a place goes away.
+  const registrationEnabled = features.enableRegistration;
+  const registrationOpen = !isPast && !isFull && registrationEnabled;
 
   const hasTieredPricing =
     event.memberPrice !== null || event.nonMemberPrice !== null;
@@ -582,6 +587,16 @@ export default function EventDetailPage() {
                       title="Fully booked"
                       body={`All ${event.maxAttendees} places have been taken. Drop us a line — places occasionally free up, and we will let you know if one does.`}
                       action={{ href: "/contact", label: "Ask About a Place" }}
+                    />
+                  ) : !registrationEnabled ? (
+                    /* Ordered after "passed" and "fully booked" on purpose:
+                       those say something specific about this event, and are
+                       more use to the reader than the general notice. */
+                    <ClosedPanel
+                      icon={CalendarDays}
+                      title="Registration is closed"
+                      body="We aren't taking sign-ups through the website at the moment. Send us a message and we'll let you know when places open."
+                      action={{ href: "/contact", label: "Get in Touch" }}
                     />
                   ) : !session ? (
                     /* The action first: an icon tile and a heading above it

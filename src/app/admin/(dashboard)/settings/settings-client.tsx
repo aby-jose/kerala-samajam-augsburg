@@ -45,8 +45,8 @@ const settingsSchema = z.object({
   address: z.string().optional(),
   branding: z.object({
     primaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid hex color"),
-    secondaryColor: z.string().regex(/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, "Invalid hex color"),
     logoUrl: z.string().optional(),
+    faviconUrl: z.string().optional(),
   }),
   socials: z.object({
     facebook: z.string().url().optional().or(z.literal("")),
@@ -506,7 +506,7 @@ function SettingsPageContent() {
                       </div>
                       <div>
                         <h2 className="font-sans text-sm font-semibold text-foreground">Branding</h2>
-                        <p className="text-xs text-muted-foreground">Colors and logo that define the site's visual identity.</p>
+                        <p className="text-xs text-muted-foreground">The accent color, logo and favicon that define the site&apos;s visual identity.</p>
                       </div>
                     </div>
                   </header>
@@ -522,17 +522,9 @@ function SettingsPageContent() {
                             />
                             <Input {...register("branding.primaryColor")} className="h-9 rounded-lg font-mono" />
                           </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-sm font-medium">Secondary color</Label>
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="h-9 w-9 shrink-0 rounded-lg border border-border"
-                              style={{ backgroundColor: watch("branding.secondaryColor") }}
-                            />
-                            <Input {...register("branding.secondaryColor")} className="h-9 rounded-lg font-mono" />
-                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Drives buttons, links and accents across the public site.
+                          </p>
                         </div>
                       </div>
 
@@ -628,6 +620,79 @@ function SettingsPageContent() {
                             />
                           </div>
                         </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Favicon</Label>
+                      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-muted/30 p-5 sm:flex-row sm:items-center">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-white">
+                          {watch("branding.faviconUrl") ? (
+                            <img
+                              src={watch("branding.faviconUrl")}
+                              alt="Favicon"
+                              className="h-full w-full object-contain p-1.5"
+                            />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground">
+                            The small icon in the browser tab. Square, 32x32px or larger. Leave
+                            empty to use the bundled default.
+                          </p>
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => {
+                                const input = document.createElement("input");
+                                input.type = "file";
+                                input.accept = "image/*";
+                                input.onchange = async (e) => {
+                                  const file = (e.target as HTMLInputElement).files?.[0];
+                                  if (!file) return;
+
+                                  const formData = new FormData();
+                                  formData.append("file", file);
+
+                                  const res = await uploadLogo(formData);
+                                  if (res.url) {
+                                    setValue("branding.faviconUrl", res.url);
+                                    success("Favicon uploaded successfully");
+                                  } else {
+                                    toastError(res.error || "Failed to upload favicon");
+                                  }
+                                };
+                                input.click();
+                              }}
+                              className="h-9 shrink-0 rounded-lg"
+                            >
+                              <Upload className="mr-2 h-4 w-4" />
+                              Upload favicon
+                            </Button>
+
+                            <Input
+                              {...register("branding.faviconUrl")}
+                              placeholder="Or paste an image URL…"
+                              className="h-9 w-full rounded-lg sm:max-w-xs"
+                            />
+                          </div>
+                        </div>
+
+                        {watch("branding.faviconUrl") && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setValue("branding.faviconUrl", "")}
+                            className="h-9 shrink-0 rounded-lg text-muted-foreground hover:text-red-600"
+                          >
+                            <X className="mr-2 h-3.5 w-3.5" />
+                            Remove
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>

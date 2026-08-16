@@ -74,8 +74,12 @@ export function Footer() {
             <ul className="space-y-3">
               <li><Link href="/about" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">About Us</Link></li>
               <li><Link href="/events" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Events</Link></li>
-              <li><Link href="/membership" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Membership</Link></li>
-              <li><Link href="/gallery" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Gallery</Link></li>
+              {config.features.enableMembership && (
+                <li><Link href="/membership" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Membership</Link></li>
+              )}
+              {config.features.enableGallery && (
+                <li><Link href="/gallery" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Gallery</Link></li>
+              )}
               <li><Link href="/contact" className="hover:text-primary transition-colors text-sm font-medium text-muted-foreground">Help Center</Link></li>
             </ul>
           </div>

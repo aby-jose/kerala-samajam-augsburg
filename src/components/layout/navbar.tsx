@@ -22,8 +22,8 @@ const navItems = [
   { name: "Home", href: "/", icon: Home },
   { name: "About", href: "/about", icon: Info },
   { name: "Events", href: "/events", icon: Calendar },
-  { name: "Membership", href: "/membership", icon: Users },
-  { name: "Gallery", href: "/gallery", icon: ImageIcon },
+  { name: "Membership", href: "/membership", icon: Users, feature: "enableMembership" },
+  { name: "Gallery", href: "/gallery", icon: ImageIcon, feature: "enableGallery" },
   { name: "Contact", href: "/contact", icon: Mail },
 ];
 
@@ -61,6 +61,19 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
   const { data: session, status } = useSession();
   const pathname = usePathname();
   const isHomePage = pathname === "/";
+
+  // A switched-off module's route 404s, so linking to it would just advertise
+  // a dead end. This only tidies the menu — the enforcement is server-side in
+  // `feature-gate.ts`, not here.
+  const visibleNavItems = React.useMemo(
+    () =>
+      navItems.filter(
+        (item) =>
+          !item.feature ||
+          config.features[item.feature as keyof typeof config.features]
+      ),
+    [config]
+  );
 
   React.useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -139,7 +152,7 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
                   : "bg-muted/50 border-border/60"
               )}
             >
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const active = isActive(item.href);
                 return (
                   <Link
@@ -288,7 +301,7 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
             >
               <div className="px-4 sm:px-6 py-5 pb-8 flex flex-col gap-5">
                 <nav className="flex flex-col gap-1">
-                  {navItems.map((item) => {
+                  {visibleNavItems.map((item) => {
                     const active = isActive(item.href);
                     return (
                       <Link

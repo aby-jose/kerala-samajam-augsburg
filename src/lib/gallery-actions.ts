@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { can, requireAnyUser, requirePermission, requireUser } from "./guards";
+import { assertFeature } from "./feature-gate";
 import { resolveUploadFolder } from "./rbac/upload-folder";
 import { validateUpload } from "./upload-validation";
 import { sendMail, templates } from "./email";
@@ -367,6 +368,8 @@ export async function submitMediaContribution(data: {
   height?: number;
   caption?: string;
 }, skipEmail?: boolean) {
+  await assertFeature("enableGallery");
+
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) throw new Error("Authentication required");
 
@@ -408,6 +411,8 @@ export async function submitBulkMediaContributions(albumId: string, items: {
   height?: number;
   caption?: string;
 }[]) {
+  await assertFeature("enableGallery");
+
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) throw new Error("Authentication required");
 

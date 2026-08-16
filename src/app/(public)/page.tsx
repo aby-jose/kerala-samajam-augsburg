@@ -20,8 +20,14 @@ import Link from "next/link";
 
 import React, { useState, useEffect } from "react";
 import { getUpcomingEvents } from "@/lib/event-actions";
+import { useConfig } from "@/components/providers/config-provider";
 
 export default function Home() {
+  // A module that is switched off 404s its own route, so leaving its section
+  // on the homepage would send visitors from a polished panel straight into a
+  // not-found page.
+  const { features } = useConfig();
+
   // Starts empty rather than seeded with invented events.
   //
   // This used to render four hardcoded events — with titles, dates and venues
@@ -135,15 +141,16 @@ export default function Home() {
       </section>
 
       {/* ================= Gallery — surface 1 ================= */}
-      <GalleryStrip />
+      {features.enableGallery && <GalleryStrip />}
 
       {/* ================= Committee — surface 3 ================= */}
       <LeadershipRow />
 
       {/* ================= How to join — surface 1 ================= */}
-      <JoinSteps />
+      {features.enableMembership && <JoinSteps />}
 
       {/* ================= Join — deep band ================= */}
+      {features.enableMembership && (
       <section className="relative overflow-hidden bg-surface-deep py-28 md:py-36">
         <div className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]" />
         <div
@@ -200,6 +207,7 @@ export default function Home() {
           </motion.div>
         </Container>
       </section>
+      )}
     </main>
   );
 }

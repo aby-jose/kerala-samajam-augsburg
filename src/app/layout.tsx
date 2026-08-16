@@ -20,20 +20,32 @@ const newsreader = Newsreader({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Kerala Samajam Augsburg (KSA) | Malayali Community in Germany",
-  description: "Experience the vibrant culture and community of Kerala in Augsburg, Germany. Join us for events, celebrations, and togetherness.",
-  keywords: ["Kerala Samajam", "Augsburg", "Malayali", "Germany", "KSA", "Indian Community", "Kerala Events"],
-  authors: [{ name: "KSA Team" }],
-  openGraph: {
-    type: "website",
-    locale: "en_GB",
-    url: "https://ksaugsburg.de",
-    title: "Kerala Samajam Augsburg (KSA)",
-    description: "Kerala Samajam Augsburg (KSA) - Your Malayali home in Augsburg.",
-    siteName: "KSA",
-  },
-};
+// A function rather than a static object because the favicon is an admin
+// setting and has to be read per request. The rest of the metadata is left
+// hardcoded on purpose — `siteName` and `siteDescription` are config-driven
+// but the page title, keywords and Open Graph copy are tuned for search and
+// are not the same strings.
+export async function generateMetadata(): Promise<Metadata> {
+  const { branding } = await getConfig();
+
+  return {
+    title: "Kerala Samajam Augsburg (KSA) | Malayali Community in Germany",
+    description: "Experience the vibrant culture and community of Kerala in Augsburg, Germany. Join us for events, celebrations, and togetherness.",
+    keywords: ["Kerala Samajam", "Augsburg", "Malayali", "Germany", "KSA", "Indian Community", "Kerala Events"],
+    authors: [{ name: "KSA Team" }],
+    // Next serves `app/favicon.ico` by convention when `icons` is absent; naming
+    // it explicitly here keeps that same file as the fallback once the key exists.
+    icons: { icon: branding.faviconUrl || "/favicon.ico" },
+    openGraph: {
+      type: "website",
+      locale: "en_GB",
+      url: "https://ksaugsburg.de",
+      title: "Kerala Samajam Augsburg (KSA)",
+      description: "Kerala Samajam Augsburg (KSA) - Your Malayali home in Augsburg.",
+      siteName: "KSA",
+    },
+  };
+}
 
 // Light-only site — one theme colour, regardless of the OS setting.
 export const viewport: Viewport = {
