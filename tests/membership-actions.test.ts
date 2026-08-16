@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ publicAuthOptions: {} }));
-vi.mock("@/lib/guards", () => ({ requirePermission: vi.fn(), requireUser: vi.fn() }));
+vi.mock("@/lib/guards", () => ({ requirePermission: vi.fn(), requireUser: vi.fn(), can: vi.fn() }));
 vi.mock("@/lib/rbac/audit", () => ({ describeAudit: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), templates: {} }));
 vi.mock("@/lib/config-utils", () => ({ getConfig: vi.fn() }));
@@ -38,11 +38,12 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/guards";
+import { can, requirePermission } from "@/lib/guards";
 import { describeAudit } from "@/lib/rbac/audit";
 import { suspendUser, updateMemberDetails } from "@/lib/membership-actions";
 
 const mockedRequirePermission = vi.mocked(requirePermission);
+const mockedCan = vi.mocked(can);
 const mockedFindUniqueUser = vi.mocked(prisma.user.findUnique);
 const mockedUpdateUser = vi.mocked(prisma.user.update);
 const mockedCountUser = vi.mocked(prisma.user.count);
@@ -60,6 +61,9 @@ beforeEach(() => {
   // lockout describes below), but stubbed for every test so a suspension of
   // an ordinary member never trips over an unmocked prisma call.
   mockedCountUser.mockResolvedValue(2 as never);
+  // Defaults to "no" — tests that need the staff.manage holder path opt in
+  // explicitly, so a forgotten stub fails closed rather than open.
+  mockedCan.mockResolvedValue(false);
 });
 
 describe("suspendUser — kills pending invites (Finding 1, suspension side)", () => {
@@ -224,5 +228,100 @@ describe("updateMemberDetails — cannot write role (Blocker 3)", () => {
 
     const [[call]] = mockedUpdateUser.mock.calls;
     expect(call.data).not.toHaveProperty("role");
+  });
+});
+
+describe("updateMemberDetails — cannot move a staff member's email without staff.manage (Fix 1)", () => {
+  const NEEDS_STAFF_MANAGE = {
+    error: "Changing a staff member's email address requires the Staff management permission.",
+  };
+
+  it("refuses a members.edit-only caller changing a Super Admin's email", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-1",
+      email: "super@example.org",
+      role: "ADMIN",
+    } as never);
+    mockedCan.mockResolvedValue(false);
+
+    const result = await updateMemberDetails("super-1", { email: "attacker@evil.org" });
+
+    expect(result).toEqual(NEEDS_STAFF_MANAGE);
+    expect(mockedUpdateUser).not.toHaveBeenCalled();
+  });
+
+  it("still lets a members.edit-only caller change an ordinary member's email", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "member-1",
+      email: "member@example.org",
+      role: "MEMBER",
+    } as never);
+    mockedCan.mockResolvedValue(false);
+
+    const result = await updateMemberDetails("member-1", { email: "member-new@example.org" });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedUpdateUser).toHaveBeenCalledWith({
+      where: { id: "member-1" },
+      data: { email: "member-new@example.org" },
+    });
+  });
+
+  it("lets a staff.manage holder change a staff member's email", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-2",
+      email: "super2@example.org",
+      role: "ADMIN",
+    } as never);
+    mockedCan.mockResolvedValue(true);
+
+    const result = await updateMemberDetails("super-2", { email: "super2-new@example.org" });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedUpdateUser).toHaveBeenCalledWith({
+      where: { id: "super-2" },
+      data: { email: "super2-new@example.org" },
+    });
+  });
+
+  it("does not block a staff member's own unchanged email from being resubmitted", async () => {
+    // Every other field edit on a staff member re-submits the current email
+    // along with whatever actually changed. This must keep working for a
+    // caller who only holds members.edit.
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-3",
+      email: "super3@example.org",
+      role: "ADMIN",
+    } as never);
+    mockedCan.mockResolvedValue(false);
+
+    const result = await updateMemberDetails("super-3", {
+      email: "super3@example.org",
+      name: "New Name",
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(mockedUpdateUser).toHaveBeenCalledWith({
+      where: { id: "super-3" },
+      data: { email: "super3@example.org", name: "New Name" },
+    });
+  });
+
+  it("treats a suspended admin's email as staff-owned too", async () => {
+    // A suspended admin keeps their staffRoleId and can be reinstated later —
+    // see suspendUser, which only flips the role prefix. Capturing the email
+    // now pays off the moment someone reinstates the account without
+    // noticing it was moved.
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "susp-1",
+      email: "susp@example.org",
+      role: "SUSPENDED_ADMIN",
+    } as never);
+    mockedCan.mockResolvedValue(false);
+
+    const result = await updateMemberDetails("susp-1", { email: "attacker@evil.org" });
+
+    expect(result).toEqual(NEEDS_STAFF_MANAGE);
+    expect(mockedUpdateUser).not.toHaveBeenCalled();
   });
 });

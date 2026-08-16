@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
-import { requirePermission, requireUser } from "./guards";
+import { can, requirePermission, requireUser } from "./guards";
 import { describeAudit } from "./rbac/audit";
 import { assertAssignable, LockoutError } from "./rbac/lockout";
 import { superAdminCount } from "./rbac/staff-queries";
@@ -888,6 +888,31 @@ export async function updateMemberDetails(userId: string, data: MemberDetailsInp
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
+
+  // Rewriting a staff member's email is rewriting who can sign in as that
+  // account: `requestPasswordReset` mails a token to whatever address is on
+  // file, with no role check of its own, so a `members.edit` holder could
+  // move a Super Admin's email to one they control and then walk in through
+  // the ordinary "forgot password" flow. The lockout rules never see this —
+  // no role or staffRoleId changes — so it has to be stopped here.
+  //
+  // `SUSPENDED_ADMIN` counts as staff too: `suspendUser` only prefixes the
+  // role, so the account keeps its `staffRoleId` and a later reinstatement
+  // flips it straight back to `ADMIN` without ever touching email. Capturing
+  // the address while suspended pays off the moment someone reinstates the
+  // account without noticing it moved.
+  //
+  // Only the change is blocked, not the field: every other edit on a staff
+  // member re-submits their current email unchanged, and that must keep
+  // working for a caller who holds nothing beyond `members.edit`.
+  const targetIsStaff = user.role === "ADMIN" || user.role === "SUSPENDED_ADMIN";
+  const emailIsChanging = parsed.data.email !== undefined && parsed.data.email !== user.email;
+
+  if (targetIsStaff && emailIsChanging && !(await can("staff.manage"))) {
+    return {
+      error: "Changing a staff member's email address requires the Staff management permission.",
+    };
+  }
 
   const { dob, ...rest } = parsed.data;
   const updateData: Prisma.UserUpdateInput = { ...rest };
