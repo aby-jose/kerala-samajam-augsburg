@@ -9,7 +9,10 @@ import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { requirePermission, requireUser } from "./guards";
+import { assertFeature } from "./feature-gate";
 import { describeAudit } from "./rbac/audit";
+import { assertAssignable, LockoutError } from "./rbac/lockout";
+import { superAdminCount } from "./rbac/staff-queries";
 import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail, adminEmailOrNull } from "./admin-contact";
@@ -196,6 +199,8 @@ export async function createMembershipSubscription(data: {
   paymentMethod?: PaymentMethod;
   details?: any;
 }) {
+  await assertFeature("enableMembership");
+
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) throw new Error("Authentication required");
 
@@ -756,7 +761,10 @@ export async function suspendUser(userId: string, currentStatus: string) {
     throw new Error("You cannot suspend your own account.");
   }
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { staffRole: { select: { isSystem: true } } },
+  });
   if (!user) throw new Error("User not found");
 
   let newRole = user.role;
@@ -767,6 +775,23 @@ export async function suspendUser(userId: string, currentStatus: string) {
   }
 
   const nextStatus = newRole.startsWith("SUSPENDED_") ? "SUSPENDED" : "ACTIVE";
+
+  // Lockout rule 2 (spec §10.2): the last Super Admin cannot be demoted,
+  // revoked, or suspended. Only checked on the way into suspension — a
+  // reinstatement can never be the move that strands the committee.
+  if (nextStatus === "SUSPENDED") {
+    try {
+      assertAssignable({
+        actorId: admin.id,
+        targetId: user.id,
+        targetIsSuperAdmin: user.staffRole?.isSystem ?? false,
+        remainingSuperAdmins: await superAdminCount(),
+      });
+    } catch (error) {
+      if (error instanceof LockoutError) return { error: error.message };
+      throw error;
+    }
+  }
 
   // Suspension is another way an admin can lose access abruptly — the same
   // reason `revokeStaffAccess` burns outstanding invites. Two directions
@@ -835,6 +860,14 @@ export async function suspendUser(userId: string, currentStatus: string) {
  * to pass `{ ...data }` straight into `prisma.user.update`, so anything the
  * client sent was written — `role` included, and `password` or `emailVerified`
  * had it occurred to anyone to send them.
+ *
+ * `role` is deliberately not a field here. Staff role changes go through
+ * `changeStaffRole` (staff-actions.ts) under `staff.manage`, which applies the
+ * last-Super-Admin lockout rule and keeps `role`/`staffRoleId` in step. This
+ * schema used to accept `role: z.enum(["MEMBER", "ADMIN"])` gated only by
+ * `members.edit`, which could demote the sole Super Admin with no lockout
+ * check, or promote a member to `role: "ADMIN"` with no `staffRoleId` — an
+ * account that holds no permissions but can still reach an admin session.
  */
 const memberDetailsSchema = z.object({
   name: z.string().min(2).max(120).optional(),
@@ -846,16 +879,12 @@ const memberDetailsSchema = z.object({
   dob: z.union([z.string(), z.date()]).optional(),
   occupation: z.string().max(120).optional(),
   bio: z.string().max(2000).optional(),
-  // Present so the existing admin form keeps working, but constrained to the
-  // two real roles and cross-checked below. It is the only field here that
-  // grants anything.
-  role: z.enum(["MEMBER", "ADMIN"]).optional(),
 });
 
 export type MemberDetailsInput = z.input<typeof memberDetailsSchema>;
 
 export async function updateMemberDetails(userId: string, data: MemberDetailsInput) {
-  const admin = await requirePermission("members.edit");
+  await requirePermission("members.edit");
 
   const parsed = memberDetailsSchema.safeParse(data);
   if (!parsed.success) throw new Error("Invalid member details");
@@ -863,24 +892,10 @@ export async function updateMemberDetails(userId: string, data: MemberDetailsInp
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("User not found");
 
-  const { role, dob, ...rest } = parsed.data;
+  const { dob, ...rest } = parsed.data;
   const updateData: Prisma.UserUpdateInput = { ...rest };
 
   if (dob) updateData.dob = new Date(dob);
-
-  if (role && role !== user.role) {
-    // Changing your own role is how an admin accidentally demotes the last
-    // administrator — and it is the shape a self-escalation attempt takes.
-    if (admin.id === userId) {
-      throw new Error("You cannot change your own role.");
-    }
-    // A suspended account keeps its role behind the SUSPENDED_ prefix; writing
-    // a bare role here would silently reinstate it.
-    if (user.role.startsWith("SUSPENDED_")) {
-      throw new Error("Reinstate this account before changing its role.");
-    }
-    updateData.role = role;
-  }
 
   await prisma.user.update({
     where: { id: userId },

@@ -6,6 +6,7 @@ import { prisma } from "./prisma";
 import { requirePermission } from "./guards";
 import { describeAudit } from "./rbac/audit";
 import { assertAssignable, LockoutError } from "./rbac/lockout";
+import { superAdminCount } from "./rbac/staff-queries";
 import { INVITE_TTL_MS, hashInviteToken, mintInviteToken } from "./rbac/invite-token";
 import { absoluteUrl, sendMail, templates } from "./email";
 import { persistentRateLimit } from "./rate-limit";
@@ -302,13 +303,6 @@ export async function revokeInvite(inviteId: string) {
 
   revalidatePath("/admin/staff");
   return { success: true };
-}
-
-/** Counts the holders of the system role, used by the last-Super-Admin rule. */
-async function superAdminCount(): Promise<number> {
-  return prisma.user.count({
-    where: { role: "ADMIN", staffRole: { isSystem: true } },
-  });
 }
 
 export async function changeStaffRole(userId: string, roleId: string) {

@@ -32,7 +32,7 @@ vi.mock("@/lib/invoice-actions", () => ({
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: { findUnique: vi.fn(), update: vi.fn() },
+    user: { findUnique: vi.fn(), update: vi.fn(), count: vi.fn() },
     staffInvite: { updateMany: vi.fn() },
   },
 }));
@@ -40,11 +40,12 @@ vi.mock("@/lib/prisma", () => ({
 import { prisma } from "@/lib/prisma";
 import { requirePermission } from "@/lib/guards";
 import { describeAudit } from "@/lib/rbac/audit";
-import { suspendUser } from "@/lib/membership-actions";
+import { suspendUser, updateMemberDetails } from "@/lib/membership-actions";
 
 const mockedRequirePermission = vi.mocked(requirePermission);
 const mockedFindUniqueUser = vi.mocked(prisma.user.findUnique);
 const mockedUpdateUser = vi.mocked(prisma.user.update);
+const mockedCountUser = vi.mocked(prisma.user.count);
 const mockedUpdateManyInvite = vi.mocked(prisma.staffInvite.updateMany);
 const mockedDescribeAudit = vi.mocked(describeAudit);
 
@@ -55,6 +56,10 @@ beforeEach(() => {
   mockedRequirePermission.mockResolvedValue(ADMIN);
   mockedUpdateManyInvite.mockResolvedValue({ count: 0 } as never);
   mockedUpdateUser.mockResolvedValue({} as never);
+  // Only consulted when the target is flagged as a Super Admin (see the
+  // lockout describes below), but stubbed for every test so a suspension of
+  // an ordinary member never trips over an unmocked prisma call.
+  mockedCountUser.mockResolvedValue(2 as never);
 });
 
 describe("suspendUser — kills pending invites (Finding 1, suspension side)", () => {
@@ -138,5 +143,86 @@ describe("suspendUser — kills pending invites (Finding 1, suspension side)", (
       where: { id: "dave-1" },
       data: { role: "SUSPENDED_MEMBER" },
     });
+  });
+});
+
+describe("suspendUser — lockout rule 2, the last Super Admin cannot be suspended (Blocker 2)", () => {
+  it("refuses to suspend the sole remaining Super Admin", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-1",
+      email: "super@example.org",
+      role: "ADMIN",
+      staffRole: { isSystem: true },
+    } as never);
+    mockedCountUser.mockResolvedValue(1 as never);
+
+    const result = await suspendUser("super-1", "ACTIVE");
+
+    expect(result).toEqual({
+      error: "This is the last Super Admin. Promote someone else before changing this account.",
+    });
+    expect(mockedUpdateUser).not.toHaveBeenCalled();
+    expect(mockedUpdateManyInvite).not.toHaveBeenCalled();
+  });
+
+  it("allows suspending a Super Admin when another one remains", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-2",
+      email: "super2@example.org",
+      role: "ADMIN",
+      staffRole: { isSystem: true },
+    } as never);
+    mockedCountUser.mockResolvedValue(2 as never);
+
+    const result = await suspendUser("super-2", "ACTIVE");
+
+    expect(result).toEqual({ success: true, status: "SUSPENDED" });
+    expect(mockedUpdateUser).toHaveBeenCalled();
+  });
+
+  it("does not block reinstating a suspended Super Admin, even if they are the only one", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-3",
+      email: "super3@example.org",
+      role: "SUSPENDED_ADMIN",
+      staffRole: { isSystem: true },
+    } as never);
+    mockedCountUser.mockResolvedValue(1 as never);
+
+    const result = await suspendUser("super-3", "SUSPENDED");
+
+    expect(result).toEqual({ success: true, status: "ACTIVE" });
+    expect(mockedUpdateUser).toHaveBeenCalled();
+  });
+});
+
+describe("updateMemberDetails — cannot write role (Blocker 3)", () => {
+  it("silently drops a role field the caller sends, and never touches the database with it", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "target-1",
+      email: "target@example.org",
+      role: "MEMBER",
+    } as never);
+
+    await updateMemberDetails("target-1", { name: "New Name", role: "ADMIN" } as never);
+
+    expect(mockedUpdateUser).toHaveBeenCalledWith({
+      where: { id: "target-1" },
+      data: { name: "New Name" },
+    });
+  });
+
+  it("cannot be used to demote the sole Super Admin", async () => {
+    mockedFindUniqueUser.mockResolvedValue({
+      id: "super-1",
+      email: "super@example.org",
+      role: "ADMIN",
+      staffRole: { isSystem: true },
+    } as never);
+
+    await updateMemberDetails("super-1", { role: "MEMBER" } as never);
+
+    const [[call]] = mockedUpdateUser.mock.calls;
+    expect(call.data).not.toHaveProperty("role");
   });
 });

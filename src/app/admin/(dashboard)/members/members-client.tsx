@@ -668,14 +668,19 @@ export default function MembersClient() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">Role</label>
-                    <select
-                      value={editForm.role}
-                      onChange={(e) => setEditForm({...editForm, role: e.target.value === "ADMIN" ? "ADMIN" : "MEMBER"})}
-                      className="flex h-9 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="MEMBER">Member</option>
-                      <option value="ADMIN">Admin</option>
-                    </select>
+                    {/* Read-only here on purpose — admin access is granted and
+                        revoked through /admin/staff (staff.manage), which
+                        applies the last-Super-Admin lockout rule. This modal
+                        can no longer write `role` at all. */}
+                    <div className="flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
+                      <span>{editForm.role === "ADMIN" ? "Admin" : "Member"}</span>
+                      <a
+                        href="/admin/staff"
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        Manage in Staff →
+                      </a>
+                    </div>
                   </div>
                 </div>
 
