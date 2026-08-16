@@ -3,7 +3,7 @@
 import type { EmailContext } from "../layout";
 import { themed } from "../layout";
 import type { TemplateOutput } from "../send";
-import { button, dataCard, note, notice, paragraph, stack } from "../components";
+import { button, dataCard, esc, note, notice, paragraph, stack } from "../components";
 
 export const invite = (
   ctx: EmailContext,
@@ -21,18 +21,18 @@ export const invite = (
     previewText: `Set up your ${data.roleName} access. The link expires in ${data.expiresHours} hours.`,
     eyebrow: "Invitation",
     title: "Set up your access",
-    lead: `${data.invitedByName} has invited you to help run ${ctx.siteName} as ${data.roleName}. Choose a password to get started.`,
+    lead: `${esc(data.invitedByName)} has invited you to help run ${esc(ctx.siteName)} as ${esc(data.roleName)}. Choose a password to get started.`,
     body: stack([
       dataCard(t, {
         rows: [
-          { label: "Role", value: data.roleName },
-          { label: "Invited by", value: data.invitedByName },
+          { label: "Role", value: esc(data.roleName) },
+          { label: "Invited by", value: esc(data.invitedByName) },
         ],
       }),
       data.hasExistingAccount
         ? notice(t, {
             title: "You already have an account",
-            body: `The password you set here replaces your current one, and works for both ${ctx.siteName} and the admin area.`,
+            body: `The password you set here replaces your current one, and works for both ${esc(ctx.siteName)} and the admin area.`,
             tone: "neutral",
           })
         : paragraph(t, "You'll be asked to choose a password, then sign in with it."),
@@ -65,10 +65,11 @@ export const accessChanged = (
       ? "Your administrator access has been removed."
       : `You are now ${data.roleName}.`,
     eyebrow: "Security",
+    tone: revoked ? "warning" : "neutral",
     title: revoked ? "Admin access removed" : "Your role has changed",
     lead: revoked
-      ? `${data.changedByName} has removed your administrator access. Your membership account is unaffected.`
-      : `${data.changedByName} has changed your role to ${data.roleName}.`,
+      ? `${esc(data.changedByName)} has removed your administrator access. Your membership account is unaffected.`
+      : `${esc(data.changedByName)} has changed your role to ${esc(data.roleName)}.`,
     body: notice(t, {
       title: "Didn't expect this?",
       body: "Reply to this email and tell the committee.",
