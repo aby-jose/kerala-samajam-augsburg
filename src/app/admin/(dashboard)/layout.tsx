@@ -127,6 +127,7 @@ const NAV_GROUPS: {
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3, isActive: (p) => p === "/admin/analytics" },
       { href: "/admin/emails", label: "Email", icon: Send, isActive: (p) => p.startsWith("/admin/emails") },
+      { href: "/admin/staff", label: "Staff", icon: Users, isActive: (p) => p.startsWith("/admin/staff") },
       { href: "/admin/roles", label: "Roles", icon: ShieldCheck, isActive: (p) => p.startsWith("/admin/roles") },
       { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p === "/admin/settings" },
     ],
@@ -156,6 +157,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   preview: "Template gallery",
   roles: "Roles",
   settings: "Settings",
+  staff: "Staff",
   "check-in": "Check-in",
   legal: "Legal",
   consents: "Consents",
