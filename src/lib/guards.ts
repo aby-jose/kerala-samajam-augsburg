@@ -4,8 +4,10 @@ import { cache } from "react";
 
 import { adminAuthOptions, publicAuthOptions } from "./auth";
 import { prisma } from "./prisma";
+import { PERMISSIONS } from "./permissions";
 import type { Permission } from "./permissions";
 import { resolvePermissions } from "./rbac/resolve";
+import { recordAudit } from "./rbac/audit";
 
 /**
  * One place where "is this caller allowed to do this" is decided.
@@ -178,6 +180,9 @@ export const getStaffContext = cache(async (): Promise<StaffContext | null> => {
 export async function requirePermission(permission: Permission): Promise<StaffContext> {
   const ctx = await getStaffContext();
   if (!ctx || !ctx.has(permission)) throw new Error("Unauthorized");
+  // The floor: any mutating permission leaves a trace whether or not the
+  // action bothers to describe itself.
+  if (PERMISSIONS[permission].mutates) await recordAudit(ctx, permission);
   return ctx;
 }
 
