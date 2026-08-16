@@ -171,6 +171,10 @@ export default function MembersClient() {
     setIsProcessing(member.id);
     try {
       const res = await suspendUser(member.id, member.status);
+      if ("error" in res && res.error) {
+        error(res.error);
+        return;
+      }
       success(isSuspended ? "Account reactivated." : "Account suspended.");
       setMembers(members.map(m => m.id === member.id ? { ...m, status: res.status } : m));
       if (selectedMember?.id === member.id) setSelectedMember({ ...selectedMember, status: res.status });
@@ -201,7 +205,11 @@ export default function MembersClient() {
     if (!editingMember) return;
     setIsProcessing(editingMember.id);
     try {
-      await updateMemberDetails(editingMember.id, editForm);
+      const result = await updateMemberDetails(editingMember.id, editForm);
+      if ("error" in result && result.error) {
+        error(result.error);
+        return;
+      }
       success("Member details updated.");
       // Refresh to get full updated data or update local state manually
       await fetchMembers();
