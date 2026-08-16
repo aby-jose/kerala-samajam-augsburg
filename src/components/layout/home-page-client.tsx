@@ -22,6 +22,7 @@ export function HomePageClient({
         return (
           <Section
             key={id}
+            content={content.content[id]}
             surface={surface}
             tone={tone}
             bordered={bordered}

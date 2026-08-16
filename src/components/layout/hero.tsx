@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
+import { splitOnAccent } from "@/lib/accent";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -21,9 +23,16 @@ const fade = (delay: number) => ({
   transition: { duration: 1.3, ease: EASE, delay },
 });
 
-export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
+export function Hero({
+  content = DEFAULT_HOME_CONTENT.content.hero,
+  surface = "bg-black",
+}: {
+  content?: HomeContentT["content"]["hero"];
+  surface?: string;
+} = {}) {
   const ref = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
+  const { before, match, after } = splitOnAccent(content.headline, content.accentWord);
 
   // Fade + drift the whole composition as the next section takes over.
   const { scrollYProgress } = useScroll({
@@ -61,10 +70,10 @@ export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
             playsInline
             preload="metadata"
             disablePictureInPicture
-            poster="/hero-poster.jpg"
+            poster={content.posterUrl}
             className="absolute inset-0 h-full w-full object-cover"
           >
-            <source src="/hero.mp4" type="video/mp4" />
+            <source src={content.videoUrl} type="video/mp4" />
           </video>
         </motion.div>
       </motion.div>
@@ -113,7 +122,7 @@ export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
-              Kerala Samajam Augsburg
+              {content.badge}
             </span>
           </motion.div>
 
@@ -122,11 +131,13 @@ export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
             {...fade(0.4)}
             className="mt-7 max-w-4xl text-balance font-sans text-[2.25rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl md:text-6xl"
           >
-            A home for{" "}
-            <span className="bg-linear-to-br from-primary to-primary/70 bg-clip-text font-serif font-normal italic tracking-[-0.015em] text-transparent">
-              Kerala
-            </span>{" "}
-            in the heart of Augsburg
+            {before}
+            {match && (
+              <span className="bg-linear-to-br from-primary to-primary/70 bg-clip-text font-serif font-normal italic tracking-[-0.015em] text-transparent">
+                {match}
+              </span>
+            )}
+            {after}
           </motion.h1>
 
           {/* Sub-copy */}
@@ -134,9 +145,7 @@ export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
             {...fade(0.55)}
             className="mt-6 max-w-xl text-[15px] leading-relaxed text-white/60 md:text-base"
           >
-            The Malayali community in Bavaria — celebrating our culture,
-            supporting each other, and building a home away from home since
-            2012.
+            {content.lead}
           </motion.p>
 
           {/* Actions */}
@@ -144,19 +153,19 @@ export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
             {...fade(0.7)}
             className="mt-9 flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-center"
           >
-            <Link href="/membership" className="group">
+            <Link href={content.primaryCta.href} className="group">
               <Button className="h-12 w-full rounded-full px-8 text-[14px] font-bold shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-primary/35 sm:w-auto">
-                Become a Member
+                {content.primaryCta.label}
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
               </Button>
             </Link>
 
-            <Link href="/events" className="group">
+            <Link href={content.secondaryCta.href} className="group">
               <Button
                 variant="ghost"
                 className="h-12 w-full rounded-full border border-white/20 bg-white/[0.06] px-8 text-[14px] font-semibold text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
               >
-                Upcoming Events
+                {content.secondaryCta.label}
               </Button>
             </Link>
           </motion.div>
