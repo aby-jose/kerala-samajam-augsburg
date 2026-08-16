@@ -21,6 +21,17 @@ model AboutContent {
   updatedAt DateTime @updatedAt
 }
 
+/// One editable document per public page, keyed by slug. The singleton
+/// content models above (Config, AboutContent, HomeContent) each hold exactly
+/// one document and key on "current"; this table holds several, so the slug
+/// is the identity — see lib/page-content/registry.ts for what each means.
+model PageContent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug      String   @unique // contact | membership | listings
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
 /// A live, admin-editable legal document (Impressum, Datenschutz, AGB, …).
 /// `de` is the legally binding version; `en` is the courtesy translation for
 /// the membership. Both hold a LegalContent JSON blob — see lib/legal-schema.ts.

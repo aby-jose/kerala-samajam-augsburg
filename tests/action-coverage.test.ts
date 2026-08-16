@@ -35,6 +35,7 @@ const UNGUARDED_ACTIONS: Record<string, string> = {
   // Public site rendering: the site cannot draw a page without its config.
   fetchConfigAction: "Public — site chrome depends on it",
   getAboutContent: "Public — About page content, same category as fetchConfigAction",
+  getPageContent: "Public — page content, same category as getAboutContent",
   // Sign-up and recovery, reachable by definition before a session exists.
   getNewCaptcha: "Public — issued before sign-in",
   getCaptcha: "Public — issued before registration",
@@ -122,14 +123,19 @@ function isServerActionModule(source: string): boolean {
   return first.startsWith('"use server"') || first.startsWith("'use server'");
 }
 
-/** Every `-actions.ts` file under src/lib, however deep it's nested. */
+/**
+ * Every `-actions.ts` file under src/lib, however deep it's nested. Also
+ * matches a bare `actions.ts` — the convention a subdirectory module uses
+ * (e.g. `page-content/actions.ts`) once its own directory name already gives
+ * the prefix the flat `<name>-actions.ts` files spell out in the filename.
+ */
 function actionFiles(dir: string): string[] {
   const found: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       found.push(...actionFiles(full));
-    } else if (entry.isFile() && entry.name.endsWith("-actions.ts")) {
+    } else if (entry.isFile() && (entry.name.endsWith("-actions.ts") || entry.name === "actions.ts")) {
       found.push(full);
     }
   }

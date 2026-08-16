@@ -68,6 +68,7 @@ export const PERMISSIONS = {
   // --- Content ---
   "content.about.edit": { group: "Content", label: "Edit the About page", mutates: true },
   "content.leadership.edit": { group: "Content", label: "Edit the leadership list", mutates: true },
+  "content.pages.edit": { group: "Content", label: "Edit site pages", mutates: true },
 
   // --- Inquiries ---
   "inquiries.view": { group: "Inquiries", label: "Read contact messages", mutates: false },
