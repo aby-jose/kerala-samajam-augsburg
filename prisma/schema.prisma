@@ -248,6 +248,8 @@ model User {
   /// rejected instead, which is what makes a reset actually evict an attacker.
   passwordChangedAt DateTime?
   role          String    @default("MEMBER")
+  staffRoleId   String?   @db.ObjectId
+  staffRole     Role?     @relation(fields: [staffRoleId], references: [id])
   emailVerified DateTime?
   image         String?
   accounts      Account[]
@@ -486,4 +488,63 @@ model RateLimit {
   key     String   @unique
   count   Int      @default(0)
   resetAt DateTime
+}
+
+/// A named bundle of permission keys.
+///
+/// `permissions` is ignored when `isSystem` is true: Super Admin's set is
+/// computed from the live catalogue so a permission added in a later release
+/// is never missing from the one role that must hold everything.
+model Role {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  name        String        @unique
+  description String?
+  permissions String[]
+  isSystem    Boolean       @default(false)
+  users       User[]
+  invites     StaffInvite[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+/// A pending offer of staff access.
+///
+/// No User row is created until the invite is accepted, so a revoked invite
+/// leaves nothing behind. The raw token exists only in the email — a read of
+/// this collection yields no working links.
+model StaffInvite {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  email       String
+  tokenHash   String    @unique
+  roleId      String    @db.ObjectId
+  role        Role      @relation(fields: [roleId], references: [id])
+  invitedById String    @db.ObjectId
+  expires     DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([email])
+  @@index([expires])
+}
+
+/// Who did what. Written by the guard itself for any permission whose
+/// `mutates` flag is set, so an action cannot go unlogged by omission.
+model AuditLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  actorId    String?  @db.ObjectId
+  /// Denormalised so the entry survives the actor's deletion or anonymisation.
+  actorEmail String
+  /// The permission key that authorised the call.
+  action     String
+  entity     String?
+  entityId   String?
+  summary    String
+  metadata   Json?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
 }
