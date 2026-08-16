@@ -20,6 +20,17 @@ export function auditSummaryFor(action: Permission): string {
 }
 
 /**
+ * What may legally be stored in an audit entry's `metadata`.
+ *
+ * Deliberately narrower than `Record<string, unknown>`: a Date, a class
+ * instance or a circular object reaches Prisma as an unserialisable value,
+ * fails the write, and — because the write is wrapped to never throw — loses
+ * the detail silently. The type is the only thing that can catch that, so it
+ * has to be able to.
+ */
+type JsonSafe = string | number | boolean | null | JsonSafe[] | { [key: string]: JsonSafe };
+
+/**
  * Writes the baseline entry.
  *
  * Called by `requirePermission` for any permission whose `mutates` flag is
@@ -58,16 +69,22 @@ export async function describeAudit(detail: {
   summary?: string;
   entity?: string;
   entityId?: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, JsonSafe>;
 }): Promise<void> {
-  const id = auditSlot().id;
-  if (!id) return;
   try {
+    const id = auditSlot().id;
+    if (!id) return;
     await prisma.auditLog.update({
       where: { id },
-      data: { ...detail, metadata: detail.metadata as unknown as Prisma.InputJsonValue | undefined },
+      data: {
+        ...detail,
+        // Sound now that the input is JsonSafe rather than unknown: Prisma
+        // models a JSON null as `JsonNull`, not `null`, which is the one gap
+        // between this type and Prisma's own `InputJsonValue`.
+        metadata: detail.metadata as unknown as Prisma.InputJsonValue | undefined,
+      },
     });
   } catch (error) {
-    console.error("Failed to enrich audit entry", { id, error });
+    console.error("Failed to enrich audit entry", { error });
   }
 }
