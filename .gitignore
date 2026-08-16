@@ -57,3 +57,7 @@ scratch/
 # committed; they are stale within a day and can quote connection strings.
 errors*.txt
 *.log
+
+# Isolated worktrees created for agent-driven work
+.claude/worktrees/
+.superpowers/
