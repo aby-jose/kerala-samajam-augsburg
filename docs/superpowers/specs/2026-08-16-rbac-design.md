@@ -427,8 +427,12 @@ Both new admin screens sit under the existing **System** nav group.
 
 ## 13. Migration and seeding
 
-MongoDB, so `prisma db push`. An idempotent `scratch/seed-roles.ts` follows the
-convention already established by `scratch/migrate-offline-payments.ts`:
+MongoDB, so `prisma db push`. An idempotent `prisma/seed-roles.ts` (run with
+`npm run seed:roles`) does the work. It does not live under `scratch/` — that
+directory is gitignored precisely because scripts there talk to the live
+database and "have no place in the repository" (see `.gitignore`), but this
+one has to ship with the code so it can be run as a deploy step. Tracked,
+schema-adjacent, and idiomatic for Prisma:
 
 1. Create the six preset roles if absent.
 2. **Assign every existing user with `role === "ADMIN"` to Super Admin.**
