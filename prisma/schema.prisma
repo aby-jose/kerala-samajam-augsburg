@@ -21,6 +21,13 @@ model AboutContent {
   updatedAt DateTime @updatedAt
 }
 
+model HomeContent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("current")
+  value     Json     // Stores HomeContentT — see lib/home-schema.ts
+  updatedAt DateTime @updatedAt
+}
+
 /// A live, admin-editable legal document (Impressum, Datenschutz, AGB, …).
 /// `de` is the legally binding version; `en` is the courtesy translation for
 /// the membership. Both hold a LegalContent JSON blob — see lib/legal-schema.ts.

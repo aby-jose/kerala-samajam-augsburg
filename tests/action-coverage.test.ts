@@ -35,6 +35,7 @@ const UNGUARDED_ACTIONS: Record<string, string> = {
   // Public site rendering: the site cannot draw a page without its config.
   fetchConfigAction: "Public — site chrome depends on it",
   getAboutContent: "Public — About page content, same category as fetchConfigAction",
+  getHomeContent: "Public — Home page content, same category as fetchConfigAction",
   // Sign-up and recovery, reachable by definition before a session exists.
   getNewCaptcha: "Public — issued before sign-in",
   getCaptcha: "Public — issued before registration",
