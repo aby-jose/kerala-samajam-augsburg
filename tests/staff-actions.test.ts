@@ -253,8 +253,16 @@ describe("resendInvite — rate limited like inviteStaff (I6)", () => {
     id: "invite-1",
     email: "invitee@example.org",
     acceptedAt: null,
-    role: { name: "Payments Clerk" },
+    roleId: "role-1",
   };
+
+  beforeEach(() => {
+    // `resendInvite` now looks the role up separately (a still-live role, in
+    // these two tests — the orphaned-role path has its own coverage in
+    // tests/staff-actions-orphaned-role.test.ts) before it ever reaches the
+    // rate limit these tests are about.
+    mockedFindUniqueRole.mockResolvedValue({ id: "role-1", name: "Payments Clerk" } as never);
+  });
 
   it("shares inviteStaff's per-actor budget", async () => {
     mockedFindUniqueInvite.mockResolvedValue(PENDING_INVITE as never);

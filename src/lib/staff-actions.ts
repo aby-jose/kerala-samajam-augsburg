@@ -55,15 +55,21 @@ export async function listStaff(): Promise<{ staff: StaffRow[]; invites: Pending
   const users = await prisma.user.findMany({
     where: { role: "ADMIN", staffRoleId: { not: null } },
     select: {
-      id: true, name: true, email: true, createdAt: true,
+      id: true, name: true, email: true, createdAt: true, staffRoleId: true,
       staffRole: { select: { id: true, name: true, isSystem: true } },
     },
     orderBy: { createdAt: "asc" },
   });
 
+  // `role` is a required relation on `StaffInvite` — Prisma throws rather
+  // than returning null for a row whose `roleId` no longer resolves (see
+  // `deleteRole`'s comment: it stops *new* orphans, not rows that predate
+  // the guard, or ones a role got removed from by some other path). An
+  // `include` here would take the whole staff screen down over one bad row,
+  // so the role is fetched separately below and joined by hand, the same
+  // way `inviterEmail` already is.
   const pending = await prisma.staffInvite.findMany({
     where: { acceptedAt: null, revokedAt: null, expires: { gt: new Date() } },
-    include: { role: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -74,20 +80,36 @@ export async function listStaff(): Promise<{ staff: StaffRow[]; invites: Pending
   });
   const inviterEmail = new Map(inviters.map((u) => [u.id, u.email ?? "unknown"]));
 
+  const roleIds = [...new Set(pending.map((i) => i.roleId))];
+  const roles = await prisma.role.findMany({
+    where: { id: { in: roleIds } },
+    select: { id: true, name: true },
+  });
+  const roleNameById = new Map(roles.map((r) => [r.id, r.name]));
+
   return {
     staff: users.map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email ?? "",
-      roleName: u.staffRole!.name,
-      roleId: u.staffRole!.id,
-      isSystem: u.staffRole!.isSystem,
+      // `staffRole` is an *optional* relation, so an orphan resolves to
+      // `null` rather than throwing here — but the `where` above already
+      // filters `staffRoleId: { not: null }`, and `deleteRole` refuses to
+      // delete a role any user still holds, so this fallback is not expected
+      // to be exercised today. It's here so a future change to either guard
+      // degrades this row instead of crashing the map on a bare `!`.
+      roleName: u.staffRole?.name ?? "(role deleted)",
+      roleId: u.staffRole?.id ?? u.staffRoleId ?? "",
+      isSystem: u.staffRole?.isSystem ?? false,
       createdAt: u.createdAt,
     })),
     invites: pending.map((i) => ({
       id: i.id,
       email: i.email,
-      roleName: i.role.name,
+      // Shown, not omitted: an invite pointing at a deleted role is exactly
+      // what an administrator needs to see so they can revoke it — dropping
+      // the row would leave a live invite nobody could find or clear.
+      roleName: roleNameById.get(i.roleId) ?? "(role deleted)",
       expires: i.expires,
       invitedByEmail: inviterEmail.get(i.invitedById) ?? "unknown",
     })),
@@ -188,11 +210,24 @@ export async function inviteStaff(email: string, roleId: string) {
 export async function resendInvite(inviteId: string) {
   const actor = await requirePermission("staff.invite");
 
-  const invite = await prisma.staffInvite.findUnique({
-    where: { id: inviteId },
-    include: { role: { select: { name: true } } },
-  });
+  const invite = await prisma.staffInvite.findUnique({ where: { id: inviteId } });
   if (!invite || invite.acceptedAt) return { error: "That invitation is no longer pending." };
+
+  // `role` is a required relation, so an `include` on the query above would
+  // throw rather than return null for a row whose role has since been
+  // deleted — see the matching comment in `listStaff`. Fetched separately so
+  // that case reaches the actor as an ordinary `{ error }`, not an unhandled
+  // exception, and checked before the rate limit below so a permanently
+  // broken invite doesn't spend the actor's sending budget on every retry.
+  const role = await prisma.role.findUnique({
+    where: { id: invite.roleId },
+    select: { name: true },
+  });
+  if (!role) {
+    return {
+      error: "The role this invitation was for no longer exists. Revoke it and issue a fresh one.",
+    };
+  }
 
   // Same cap as inviteStaff, and for the same reason — this mails an address
   // that did not choose to hear from us, and shares the inviter's budget so
@@ -230,7 +265,7 @@ export async function resendInvite(inviteId: string) {
     build: (ctx) =>
       templates.staff.invite(ctx, {
         inviteLink: absoluteUrl(`/admin/invite/${raw}`),
-        roleName: invite.role.name,
+        roleName: role.name,
         invitedByName: actor.name ?? actor.email,
         expiresHours: INVITE_TTL_MS / (60 * 60 * 1000),
         hasExistingAccount: Boolean(existingAccount),
