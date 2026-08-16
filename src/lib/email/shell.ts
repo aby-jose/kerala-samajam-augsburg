@@ -148,7 +148,15 @@ export interface Message {
   accentWord?: string;
   /** One or two sentences under the headline. HTML — escape at the call site. */
   lead?: string;
-  sections?: MessageSection[];
+  /**
+   * The body, as ordered panels.
+   *
+   * Required, and the discriminator `renderFor` uses to tell which shell a
+   * template speaks to — an `EmailDocument` never carries it. A message with
+   * no body passes `[]`, and the presence of the array is what is checked,
+   * never its length.
+   */
+  sections: MessageSection[];
   close?: MessageClose;
 }
 
@@ -457,7 +465,7 @@ const closing = (t: EmailTheme, ctx: MessageContext): string => `
 /** Render a full message. */
 export function renderMessage(ctx: MessageContext, m: Message): string {
   const t = buildTheme(ctx.branding);
-  const sections = (m.sections || []).filter((s) => s.blocks.some((b) => !!b));
+  const sections = m.sections.filter((s) => s.blocks.some((b) => !!b));
 
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en">

@@ -15,6 +15,8 @@ import { getConfig } from "../config-utils";
 import type { NotificationEmailConfig } from "../config-schema";
 import type { EmailContext, EmailDocument } from "./layout";
 import { renderEmail } from "./layout";
+import type { Message } from "./shell";
+import { renderMessage } from "./shell";
 import { deliver, type TransportAttachment } from "./transport";
 import { siteOrigin } from "./tokens";
 
@@ -58,10 +60,30 @@ const NOTIFICATION_TOGGLE: Record<string, keyof NotificationEmailConfig> = {
 /**
  * What a template returns.
  *
- * An alias for `EmailDocument`: templates describe the message — eyebrow,
- * title, lead, blocks — and the layout decides how it is framed.
+ * Templates describe the message — eyebrow, title, lead, blocks — and the
+ * shell decides how it is framed.
+ *
+ * A union only while the 44 templates migrate from `EmailDocument` onto
+ * `Message`. Both shells render side by side so nothing is half-converted at
+ * runtime; Task 9 of the migration collapses this back to `Message` alone and
+ * deletes `layout.ts`.
  */
-export type TemplateOutput = EmailDocument;
+export type TemplateOutput = EmailDocument | Message;
+
+/**
+ * Which shell a template speaks to.
+ *
+ * `sections` is required on `Message` and absent from `EmailDocument`, so the
+ * presence of the array decides it. Length is deliberately not consulted — a
+ * message with no body panels is still a message.
+ */
+const isMessage = (doc: TemplateOutput): doc is Message =>
+  Array.isArray((doc as Message).sections);
+
+/** Render whichever shell this template speaks to. */
+export function renderFor(ctx: EmailContext, doc: TemplateOutput): string {
+  return isMessage(doc) ? renderMessage(ctx, doc) : renderEmail(ctx, doc);
+}
 
 /**
  * What kind of mail this is, which decides whether a member can turn it off.
@@ -351,7 +373,7 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
   let html: string;
   try {
     built = options.build(ctx);
-    html = renderEmail(ctx, built);
+    html = renderFor(ctx, built);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[email] ${options.template} failed to render:`, error);
