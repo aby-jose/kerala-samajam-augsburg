@@ -77,13 +77,6 @@ export async function getAdminUser(): Promise<SessionUser | null> {
   return user;
 }
 
-/** Throws unless the caller is an administrator. */
-export async function requireAdmin(): Promise<SessionUser> {
-  const user = await getAdminUser();
-  if (!user) throw new Error("Unauthorized");
-  return user;
-}
-
 /** The signed-in member, or null. Suspended accounts count as signed out. */
 export async function getCurrentUser(): Promise<(SessionUser & { id: string }) | null> {
   const user = userOf(await getServerSession(publicAuthOptions));
@@ -95,20 +88,6 @@ export async function getCurrentUser(): Promise<(SessionUser & { id: string }) |
 export async function requireUser(): Promise<SessionUser & { id: string }> {
   const user = await getCurrentUser();
   if (!user) throw new Error("Not signed in");
-  return user;
-}
-
-/**
- * Page-level guard for admin server components.
- *
- * Server components render and stream their payload before any client-side
- * effect runs, so the redirect in the dashboard layout cannot protect the
- * data — by the time it fires, the rows are already on the wire. Pages that
- * read from the database must call this first.
- */
-export async function requireAdminPage(): Promise<SessionUser> {
-  const user = await getAdminUser();
-  if (!user) redirect("/admin/login");
   return user;
 }
 
@@ -186,7 +165,14 @@ export async function requirePermission(permission: Permission): Promise<StaffCo
   return ctx;
 }
 
-/** Redirects unless the caller holds the permission. For server components. */
+/**
+ * Redirects unless the caller holds the permission. For server components.
+ *
+ * Server components render and stream their payload before any client-side
+ * effect runs, so a redirect in the dashboard's client layout cannot protect
+ * the data — by the time it fires, the rows are already on the wire. Every
+ * admin page must call this first, with the specific permission it needs.
+ */
 export async function requirePermissionPage(permission: Permission): Promise<StaffContext> {
   const ctx = await getStaffContext();
   if (!ctx) redirect("/admin/login");

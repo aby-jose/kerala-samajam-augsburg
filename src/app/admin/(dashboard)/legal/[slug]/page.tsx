@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { isLegalSlug } from "@/lib/legal-schema";
-import { requireAdminPage } from "@/lib/guards";
+import { requirePermissionPage } from "@/lib/guards";
 import { LegalEditorClient } from "./legal-editor-client";
 
 export default async function AdminLegalEditorPage({
@@ -9,7 +9,7 @@ export default async function AdminLegalEditorPage({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  await requireAdminPage();
+  await requirePermissionPage("legal.view");
 
   const { slug } = await params;
   if (!isLegalSlug(slug)) notFound();

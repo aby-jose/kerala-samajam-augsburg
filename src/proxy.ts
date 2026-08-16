@@ -16,11 +16,12 @@ import { ADMIN_JWT_SECRET, ADMIN_SESSION_COOKIE, adminJwt } from "@/lib/auth-tok
  * This is the outer perimeter, not the whole defence: it checks the signed
  * role in the token, which can be up to `ROLE_REFRESH_INTERVAL_MS` stale, and
  * middleware runs on the Edge runtime where the database is out of reach. The
- * `requireAdmin()` call inside each action stays authoritative.
+ * `requirePermission()` / `requirePermissionPage()` calls inside each action
+ * and page stay authoritative.
  */
 
 /** Reachable without a session — otherwise signing in would be impossible. */
-const PUBLIC_ADMIN_PATHS = ["/admin/login"];
+const PUBLIC_ADMIN_PATHS = ["/admin/login", "/admin/invite"];
 
 export default async function proxy(req: NextRequest) {
   const { pathname, search } = req.nextUrl;

@@ -1,12 +1,12 @@
 import React from "react";
 import { prisma } from "@/lib/prisma";
-import { requireAdminPage } from "@/lib/guards";
+import { requirePermissionPage } from "@/lib/guards";
 import GalleryClient from "./gallery-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminGalleryPage() {
-  await requireAdminPage();
+  await requirePermissionPage("gallery.view");
 
   const albums = await prisma.galleryAlbum.findMany({
     include: {

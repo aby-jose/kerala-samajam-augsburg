@@ -1,14 +1,8 @@
-"use client";
+import { requirePermissionPage } from "@/lib/guards";
+import ConfigRedirectClient from "./config-client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+export default async function ConfigPage() {
+  await requirePermissionPage("settings.edit");
 
-export default function ConfigRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace("/admin/settings");
-  }, [router]);
-
-  return null;
+  return <ConfigRedirectClient />;
 }

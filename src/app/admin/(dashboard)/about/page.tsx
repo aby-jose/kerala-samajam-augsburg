@@ -1,9 +1,9 @@
-import { requireAdminPage } from "@/lib/guards";
+import { requirePermissionPage } from "@/lib/guards";
 import { getAboutContent } from "@/lib/about-actions";
 import { AboutContentEditor } from "@/components/admin/about-content-editor";
 
 export default async function AdminAboutPage() {
-  await requireAdminPage();
+  await requirePermissionPage("content.about.edit");
 
   const content = await getAboutContent();
 
