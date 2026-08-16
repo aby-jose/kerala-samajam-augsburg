@@ -729,10 +729,100 @@ git commit -m "Add contact page schema with today's copy as defaults"
 - Modify: `src/app/(public)/contact/page.tsx` (rewritten)
 
 **Interfaces:**
-- Consumes: `getPageContent` (Task 1), `ContactContentT` (Task 3), `withAccent` and `InlineLinks`.
-- Produces: `<ContactClient content={...} />`.
+- Consumes: `getPageContent` (Task 1), `ContactContentT` (Task 3), `InlineLinks` (Task 2).
+- Produces: `splitOnAccent` and `withAccent` (if absent), `<ContactClient content={...} />`.
 
-`withAccent` comes from `src/components/layout/with-accent.tsx`, landed by Phase 1.
+- [ ] **Step 0: Ensure the shared accent helper exists**
+
+Same overlap as Task 5's `Field`: home-plan Task 3 extracts this, and whichever plan runs first creates it. If `src/lib/accent.ts` and `src/components/layout/with-accent.tsx` both already exist, skip to Step 1.
+
+Otherwise create them by lifting the local `withAccent` out of `src/components/layout/about-page-client.tsx` (it sits just above the component). It splits into a pure half that tests can import and a JSX half that they cannot.
+
+First the test — append to `tests/page-content.test.ts`:
+
+```ts
+import { splitOnAccent } from "@/lib/accent";
+
+describe("splitOnAccent", () => {
+  it("splits a title around the accent word", () => {
+    expect(splitOnAccent("A home for Kerala in Augsburg", "Kerala")).toEqual({
+      before: "A home for ",
+      match: "Kerala",
+      after: " in Augsburg",
+    });
+  });
+
+  it("returns the whole title when the accent is blank", () => {
+    expect(splitOnAccent("Upcoming Events", "")).toEqual({
+      before: "Upcoming Events",
+      match: "",
+      after: "",
+    });
+  });
+
+  it("returns the whole title when the accent is absent or differs in case", () => {
+    expect(splitOnAccent("Upcoming Events", "Missing").match).toBe("");
+    expect(splitOnAccent("Upcoming Events", "events").match).toBe("");
+  });
+
+  it("splits on the first occurrence only", () => {
+    expect(splitOnAccent("Events after Events", "Events")).toEqual({
+      before: "",
+      match: "Events",
+      after: " after Events",
+    });
+  });
+});
+```
+
+Then `src/lib/accent.ts`:
+
+```ts
+/**
+ * Split `text` on the first occurrence of `accent`. `match` is empty when the
+ * accent is blank or not found, which is the signal to render plain text —
+ * admin-entered copy must never crash a page.
+ *
+ * Kept free of JSX so it can be unit tested under Vitest's node environment;
+ * the rendering half lives in components/layout/with-accent.tsx.
+ */
+export function splitOnAccent(text: string, accent?: string) {
+  if (!accent) return { before: text, match: "", after: "" };
+
+  const index = text.indexOf(accent);
+  if (index === -1) return { before: text, match: "", after: "" };
+
+  return {
+    before: text.slice(0, index),
+    match: accent,
+    after: text.slice(index + accent.length),
+  };
+}
+```
+
+Then `src/components/layout/with-accent.tsx`:
+
+```tsx
+import { splitOnAccent } from "@/lib/accent";
+import { Accent } from "@/components/layout/section-heading";
+
+/** Wraps the accent slice of `text` in <Accent>, falling back to plain text
+ *  when the accent word is blank or absent. */
+export function withAccent(text: string, accent?: string) {
+  const { before, match, after } = splitOnAccent(text, accent);
+  if (!match) return text;
+
+  return (
+    <>
+      {before}
+      <Accent>{match}</Accent>
+      {after}
+    </>
+  );
+}
+```
+
+Finally delete the local `withAccent` from `about-page-client.tsx` and import the shared one. Leave both its call sites as they are. If `Accent` is now unused in that file, drop it from the `section-heading` import; if other JSX still uses it, keep it — run `npm run lint` to find out rather than guessing. Then open `/about` and confirm "About **Kerala** Samajam Augsburg" and "Where We **Come From**" still render their accent word in serif italic.
 
 - [ ] **Step 1: Move the page into a client component**
 
