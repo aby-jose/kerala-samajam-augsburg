@@ -172,11 +172,21 @@ export async function requirePermission(permission: Permission): Promise<StaffCo
  * effect runs, so a redirect in the dashboard's client layout cannot protect
  * the data — by the time it fires, the rows are already on the wire. Every
  * admin page must call this first, with the specific permission it needs.
+ *
+ * The denial branch redirects to `/admin/no-access`, not `/admin/dashboard`.
+ * `/admin/dashboard` is itself gated behind `dashboard.view` — a role
+ * missing that one permission (nothing exotic; the seeded Content Editor and
+ * Gallery Moderator presets both lacked it before this comment was written)
+ * would be denied, redirected to the fallback, denied again by the same
+ * check, forever. The fallback this redirects to must never itself require
+ * a specific permission — see `/admin/no-access/page.tsx`, guarded only by
+ * `requireStaff()` — or a future edit that repoints this at some other
+ * "safe-looking" admin page can reintroduce the same loop.
  */
 export async function requirePermissionPage(permission: Permission): Promise<StaffContext> {
   const ctx = await getStaffContext();
   if (!ctx) redirect("/admin/login");
-  if (!ctx.has(permission)) redirect("/admin/dashboard");
+  if (!ctx.has(permission)) redirect("/admin/no-access");
   return ctx;
 }
 

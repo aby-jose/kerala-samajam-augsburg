@@ -183,7 +183,25 @@ describe("requirePermissionPage", () => {
     // Signed in, but the held role lacks this permission.
     signedInAs({ sessionRole: "ADMIN", dbRole: "ADMIN", staffRole: ORDINARY_ROLE });
     await expect(requirePermissionPage("payments.revert")).rejects.toThrow(
-      "REDIRECT:/admin/dashboard"
+      "REDIRECT:/admin/no-access"
+    );
+  });
+
+  it("never redirects a denial to a page that is itself permission-guarded", async () => {
+    // Regression guard for the loop this fixed: /admin/dashboard requires
+    // dashboard.view, so a role denied *that* permission and sent back to
+    // /admin/dashboard would be denied again, forever. A role missing
+    // dashboard.view — exactly the state the seeded Content Editor and
+    // Gallery Moderator presets were in — must land somewhere that does not
+    // itself check a permission.
+    signedInAs({
+      sessionRole: "ADMIN",
+      dbRole: "ADMIN",
+      staffRole: { name: "Content Editor", permissions: ["content.about.edit"], isSystem: false },
+    });
+
+    await expect(requirePermissionPage("dashboard.view")).rejects.toThrow(
+      "REDIRECT:/admin/no-access"
     );
   });
 });

@@ -56,6 +56,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     description: "Maintains the public-facing pages and answers inquiries.",
     isSystem: false,
     permissions: [
+      "dashboard.view",
       "content.about.edit", "content.leadership.edit",
       "events.view",
       "gallery.view", "gallery.albums.edit", "gallery.media.upload",
@@ -68,6 +69,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     description: "Reviews the photos members upload after events.",
     isSystem: false,
     permissions: [
+      "dashboard.view",
       "gallery.view", "gallery.albums.edit", "gallery.albums.delete",
       "gallery.media.upload", "gallery.media.delete",
       "gallery.contributions.view", "gallery.contributions.moderate",
