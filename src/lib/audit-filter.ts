@@ -13,6 +13,35 @@
  * an unrecognised or malformed filter degrades to "no bound" rather than
  * erroring the whole query.
  *
+ * An inverted range (`from` later than `to`) is handled differently, on
+ * purpose — it is NOT dropped the way an unparseable string is, even though
+ * the two look like the same kind of "bad input" at a glance:
+ *
+ *   - An unparseable string is *ambiguous*. There is no reading of
+ *     "not-a-date" that means anything, so ignoring it and falling back to
+ *     "no bound" is a fair default.
+ *   - An inverted range is *unambiguous*. Both dates parsed fine; the person
+ *     typed two valid dates in the wrong order. Dropping both bounds in that
+ *     case would silently turn "narrow this to a window" into "show
+ *     everything" — the dangerous direction specifically on this screen.
+ *     Someone filtering the audit log from June to January, expecting a
+ *     narrow slice, would instead see the entire unfiltered log, read it as
+ *     scoped, and could conclude an action never happened when it is simply
+ *     outside the window they thought they'd applied. An empty result is
+ *     self-evidently a filter problem; a full log looks like a legitimate
+ *     answer. So the literal bounds are passed through unchanged instead:
+ *     Prisma combines `gte` and `lte` on the same field into one condition,
+ *     and no `Date` can be simultaneously `>=` a later date and `<=` an
+ *     earlier one — that's true for any totally ordered type, not a Prisma
+ *     quirk — so the query matches nothing. Narrowing to zero rows, not
+ *     widening to everything, the same direction an empty filter should fail
+ *     in. (This codebase already relies on the same single-field
+ *     `{ gte, lte }` combination — see `analytics-actions.ts` — so it isn't
+ *     a new assumption about how Prisma/MongoDB handles it here.)
+ *
+ * Do not "simplify" this back into treating both cases alike; that would
+ * reintroduce the silent-widening bug.
+ *
  * Split out of audit-actions.ts (rather than kept as a local function there)
  * so this pure logic can be unit-tested directly, without a database — the
  * same reason AUDIT_PAGE_SIZE lives in audit-constants.ts instead: a
@@ -26,11 +55,6 @@ export function parseAuditDateRange(
   const lte = parseDate(to);
 
   if (!gte && !lte) return undefined;
-
-  // An inverted range can never match a row. Treating it as "no bound" keeps
-  // a fat-fingered swap from silently rendering an empty page — the same
-  // "degrade, don't error" choice as an unparseable value gets.
-  if (gte && lte && gte > lte) return undefined;
 
   return {
     ...(gte ? { gte } : {}),

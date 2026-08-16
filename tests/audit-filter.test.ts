@@ -41,9 +41,17 @@ describe("parseAuditDateRange", () => {
     expect(parseAuditDateRange("nope", "still-nope")).toBeUndefined();
   });
 
-  it("drops an inverted range (from later than to) rather than matching nothing", () => {
+  it("keeps both bounds of an inverted range (from later than to) instead of dropping them", () => {
+    // Unlike an unparseable string, both dates here are valid — just typed in
+    // the wrong order — so this must NOT collapse to undefined (which would
+    // silently show the entire unfiltered log instead of narrowing it).
     const range = parseAuditDateRange("2026-06-01", "2026-01-01");
-    expect(range).toBeUndefined();
+    expect(range?.gte).toEqual(new Date("2026-06-01"));
+    expect(range?.lte).toEqual(new Date("2026-01-01"));
+    // The returned interval is empty by construction: no Date can be both
+    // >= this gte and <= this lte, so a Prisma query built from it is
+    // guaranteed to match zero rows — narrowing, never widening.
+    expect(range!.gte!.getTime()).toBeGreaterThan(range!.lte!.getTime());
   });
 
   it("never throws, however garbage the input", () => {

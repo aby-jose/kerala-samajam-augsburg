@@ -52,8 +52,10 @@ export async function getAuditLog(
   // for arbitrary strings in the log.
   if (filter.action && isPermission(filter.action)) where.action = filter.action;
   if (filter.entity) where.entity = filter.entity;
-  // Unparseable or inverted bounds are dropped rather than sent to Prisma —
-  // see audit-filter.ts for why this can't just be `new Date(filter.from)`.
+  // Unparseable bounds are dropped; an inverted range is kept as-is and
+  // matches nothing rather than nothing-filtered — see audit-filter.ts for
+  // why this can't just be `new Date(filter.from)`, and why those two
+  // malformed-input cases are handled differently on purpose.
   const dateRange = parseAuditDateRange(filter.from, filter.to);
   if (dateRange) where.createdAt = dateRange;
 
