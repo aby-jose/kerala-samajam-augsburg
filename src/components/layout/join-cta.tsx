@@ -3,21 +3,26 @@
 import { motion, Variants } from "framer-motion";
 import { Container } from "@/components/layout/container";
 import {
-  Accent,
   Eyebrow,
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
+import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 export function JoinCta({
+  content = DEFAULT_HOME_CONTENT.content.cta,
   surface = "bg-surface-deep",
+  tone = "dark",
   bordered = false,
 }: {
+  content?: HomeContentT["content"]["cta"];
   surface?: string;
+  tone?: "surface" | "dark";
   bordered?: boolean;
 } = {}) {
   const revealVariants: Variants = {
@@ -61,31 +66,30 @@ export function JoinCta({
           variants={revealVariants}
         >
           <div className="flex justify-center">
-            <Eyebrow tone="dark">Join us</Eyebrow>
+            <Eyebrow tone={tone}>{content.eyebrow}</Eyebrow>
           </div>
 
-          <SectionTitle tone="dark" className="mt-7 md:text-5xl">
-            Become a Member of <Accent>KSA</Accent>
+          <SectionTitle tone={tone} className="mt-7 md:text-5xl">
+            {withAccent(content.title, content.accentWord)}
           </SectionTitle>
 
-          <SectionLead tone="dark" className="mx-auto mt-6 max-w-xl">
-            Join the families who keep this going — and get every invitation,
-            every class and every celebration for the year ahead.
+          <SectionLead tone={tone} className="mx-auto mt-6 max-w-xl">
+            {content.lead}
           </SectionLead>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/membership" className="group w-full sm:w-auto">
+            <Link href={content.primaryCta.href} className="group w-full sm:w-auto">
               <Button className="h-12 w-full rounded-full px-9 text-[14px] font-bold shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 sm:w-auto">
-                Apply for Membership
+                {content.primaryCta.label}
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
               </Button>
             </Link>
-            <Link href="/contact" className="w-full sm:w-auto">
+            <Link href={content.secondaryCta.href} className="w-full sm:w-auto">
               <Button
                 variant="ghost"
                 className="h-12 w-full rounded-full border border-white/15 bg-white/[0.06] px-9 text-[14px] font-semibold text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
               >
-                Ask a Question First
+                {content.secondaryCta.label}
               </Button>
             </Link>
           </div>
