@@ -104,6 +104,24 @@ export interface SendMailOptions {
   once?: boolean;
   /** Build the message. Receives the context so templates stay pure. */
   build: (ctx: EmailContext) => TemplateOutput;
+  /**
+   * Rewrite the rendered HTML before it is written to `EmailLog.html`. What
+   * is actually delivered is never touched — this only changes the stored
+   * copy.
+   *
+   * `getEmailHtml` (`email-admin-actions.ts`) lets anyone holding
+   * `email.view` — a much lower bar than whatever permission sent the mail —
+   * read a stored message back, and the retention window (90 days) outlives
+   * plenty of short-lived credentials (an invite token's 72 hours, for one).
+   * A template whose body carries such a credential should use this to strip
+   * it before the row is written, rather than leaving a working link sitting
+   * in a log every low-trust viewer can open.
+   *
+   * Deliberately opt-in and per-call, not a default: most templates have
+   * nothing to redact, and an admin inspecting *those* still needs the real
+   * body, not a guess at what might be sensitive.
+   */
+  redactForStorage?: (html: string) => string;
 }
 
 export interface SendMailResult {
@@ -294,6 +312,9 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
     return { ok: false, error: message, logId: log.id };
   }
 
+  // `html` itself is untouched and is what `deliver` below actually sends —
+  // only the copy written to the log goes through the redaction, so a
+  // caller-supplied `redactForStorage` can never accidentally break delivery.
   const log = await prisma.emailLog.create({
     data: {
       template: options.template,
@@ -301,7 +322,7 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
       subject: built.subject,
       status: "QUEUED",
       entityId: options.entityId,
-      html,
+      html: options.redactForStorage ? options.redactForStorage(html) : html,
     },
   });
 

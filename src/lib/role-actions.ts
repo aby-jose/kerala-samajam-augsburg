@@ -104,6 +104,20 @@ export async function deleteRole(id: string) {
 
     assertRoleDeletable({ isSystem: role.isSystem, userCount: role._count.users });
 
+    // A pending invite still names this role by id. Deleting the role first
+    // would leave that invite's required `role` relation unresolvable —
+    // `getInviteForToken` (reached from the unauthenticated accept page)
+    // and `listStaff` both fail outright when that happens rather than
+    // treating it as an ordinary missing role.
+    const pendingInvites = await prisma.staffInvite.count({
+      where: { roleId: id, acceptedAt: null, revokedAt: null },
+    });
+    if (pendingInvites > 0) {
+      const invites =
+        pendingInvites === 1 ? "1 pending invitation" : `${pendingInvites} pending invitations`;
+      return { error: `This role still has ${invites} outstanding. Revoke them first.` };
+    }
+
     await prisma.role.delete({ where: { id } });
     await describeAudit({
       summary: `Deleted the "${role.name}" role`,

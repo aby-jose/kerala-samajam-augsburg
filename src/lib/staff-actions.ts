@@ -28,6 +28,27 @@ export interface PendingInvite {
   invitedByEmail: string;
 }
 
+/**
+ * Strips the raw invite token out of the copy written to `EmailLog.html`.
+ *
+ * `getEmailHtml` (`email-admin-actions.ts`) lets anyone holding `email.view`
+ * — including the seeded Viewer preset, which holds every non-mutating key —
+ * read a stored message back. Left in, the link in that stored copy is a
+ * live credential for whatever role was invited, readable by staff nowhere
+ * near trusted enough to invite anyone, unattributably (the audit row names
+ * the invitee, not whoever opened the log), and for up to the log's 90-day
+ * retention — well past the token's own 72-hour life. The delivered copy is
+ * untouched; only the inspectable record loses the credential.
+ */
+function redactInviteLink(html: string, rawToken: string): string {
+  return html.split(rawToken).join("[invite link — token withheld from the stored copy]");
+}
+
+/** A user row that currently holds a live staff grant. */
+function isStaffMember(user: { role: string; staffRoleId: string | null }): boolean {
+  return user.role === "ADMIN" && user.staffRoleId !== null;
+}
+
 export async function listStaff(): Promise<{ staff: StaffRow[]; invites: PendingInvite[] }> {
   await requirePermission("staff.view");
 
@@ -89,11 +110,29 @@ export async function inviteStaff(email: string, roleId: string) {
   const role = await prisma.role.findUnique({ where: { id: roleId } });
   if (!role) return { error: "Pick a role for this person." };
 
-  const alreadyStaff = await prisma.user.findFirst({
-    where: { email: normalised, role: "ADMIN", staffRoleId: { not: null } },
-    select: { id: true },
+  // Case-insensitive: MongoDB's unique index on `email` is case-sensitive but
+  // `registerUser` stores addresses exactly as typed, so "Foo@Example.com"
+  // and "foo@example.com" are the same account to a person even though they
+  // are two different index entries. `acceptInvite` matches the same way —
+  // see the identical lookup there — so the two stay in agreement about
+  // which account this invite belongs to.
+  const existingAccount = await prisma.user.findFirst({
+    where: { email: { equals: normalised, mode: "insensitive" } },
+    select: { id: true, role: true, staffRoleId: true },
   });
-  if (alreadyStaff) return { error: "That person already has admin access." };
+
+  if (existingAccount && isStaffMember(existingAccount)) {
+    return { error: "That person already has admin access." };
+  }
+
+  // A suspension is a deliberate decision this must not quietly reverse:
+  // `acceptInvite` sets `role: "ADMIN"` unconditionally, which would clear a
+  // `SUSPENDED_ADMIN` / `SUSPENDED_MEMBER` the moment the invite is accepted.
+  if (existingAccount?.role.startsWith("SUSPENDED_")) {
+    return {
+      error: "This person's account is suspended. Lift the suspension before inviting them.",
+    };
+  }
 
   const outstanding = await prisma.staffInvite.findFirst({
     where: {
@@ -106,11 +145,6 @@ export async function inviteStaff(email: string, roleId: string) {
   if (outstanding) {
     return { error: "An invitation is already pending for that address. Resend it instead." };
   }
-
-  const existingAccount = await prisma.user.findUnique({
-    where: { email: normalised },
-    select: { id: true },
-  });
 
   const raw = mintInviteToken();
   await prisma.staffInvite.create({
@@ -126,6 +160,7 @@ export async function inviteStaff(email: string, roleId: string) {
   const result = await sendMail({
     template: "staff.invite",
     to: normalised,
+    redactForStorage: (html) => redactInviteLink(html, raw),
     build: (ctx) =>
       templates.staff.invite(ctx, {
         inviteLink: absoluteUrl(`/admin/invite/${raw}`),
@@ -159,6 +194,23 @@ export async function resendInvite(inviteId: string) {
   });
   if (!invite || invite.acceptedAt) return { error: "That invitation is no longer pending." };
 
+  // Same cap as inviteStaff, and for the same reason — this mails an address
+  // that did not choose to hear from us, and shares the inviter's budget so
+  // resending cannot be used to double it.
+  const { ok } = await persistentRateLimit(`invite:${actor.id}`, 20, 60 * 60 * 1000);
+  if (!ok) return { error: "Too many invitations sent. Try again in an hour." };
+
+  const existingAccount = await prisma.user.findFirst({
+    where: { email: { equals: invite.email, mode: "insensitive" } },
+    select: { id: true, role: true },
+  });
+
+  if (existingAccount?.role.startsWith("SUSPENDED_")) {
+    return {
+      error: "This person's account is suspended. Lift the suspension before inviting them.",
+    };
+  }
+
   // A fresh token replaces the old one, so a link sitting in an inbox from the
   // first email stops working the moment this is sent.
   const raw = mintInviteToken();
@@ -171,14 +223,10 @@ export async function resendInvite(inviteId: string) {
     },
   });
 
-  const existingAccount = await prisma.user.findUnique({
-    where: { email: invite.email },
-    select: { id: true },
-  });
-
   const result = await sendMail({
     template: "staff.invite",
     to: invite.email,
+    redactForStorage: (html) => redactInviteLink(html, raw),
     build: (ctx) =>
       templates.staff.invite(ctx, {
         inviteLink: absoluteUrl(`/admin/invite/${raw}`),
@@ -234,9 +282,14 @@ export async function changeStaffRole(userId: string, roleId: string) {
   try {
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, staffRole: { select: { isSystem: true } } },
+      select: {
+        id: true, name: true, email: true, role: true, staffRoleId: true,
+        staffRole: { select: { isSystem: true } },
+      },
     });
-    if (!target) return { error: "That person is not on the staff list." };
+    if (!target || !isStaffMember(target)) {
+      return { error: "That person is not on the staff list." };
+    }
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
     if (!role) return { error: "Pick a role." };
@@ -284,9 +337,14 @@ export async function revokeStaffAccess(userId: string) {
   try {
     const target = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, staffRole: { select: { isSystem: true } } },
+      select: {
+        id: true, name: true, email: true, role: true, staffRoleId: true,
+        staffRole: { select: { isSystem: true } },
+      },
     });
-    if (!target) return { error: "That person is not on the staff list." };
+    if (!target || !isStaffMember(target)) {
+      return { error: "That person is not on the staff list." };
+    }
 
     assertAssignable({
       actorId: actor.id,
@@ -299,6 +357,15 @@ export async function revokeStaffAccess(userId: string) {
     await prisma.user.update({
       where: { id: userId },
       data: { role: "MEMBER", staffRoleId: null },
+    });
+
+    // An administrator removed for cause could otherwise have mailed
+    // themselves (or an accomplice) an invitation minutes earlier and
+    // accepted it after losing access. Any invite they issued that is still
+    // outstanding is burned in the same stroke.
+    const revoked = await prisma.staffInvite.updateMany({
+      where: { invitedById: userId, acceptedAt: null, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
 
     await sendMail({
@@ -314,7 +381,11 @@ export async function revokeStaffAccess(userId: string) {
     });
 
     await describeAudit({
-      summary: `Removed ${target.email}'s admin access`,
+      summary:
+        `Removed ${target.email}'s admin access` +
+        (revoked.count > 0
+          ? ` and revoked ${revoked.count} pending invitation${revoked.count === 1 ? "" : "s"} they had sent`
+          : ""),
       entity: "User",
       entityId: target.id,
     });

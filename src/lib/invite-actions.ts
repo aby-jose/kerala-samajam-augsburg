@@ -21,15 +21,27 @@ const GENERIC_INVITE_ERROR =
 export async function getInviteForToken(
   token: string
 ): Promise<{ email: string; roleName: string } | null> {
-  const invite = await prisma.staffInvite.findUnique({
-    where: { tokenHash: hashInviteToken(token) },
-    include: { role: { select: { name: true } } },
-  });
+  try {
+    const invite = await prisma.staffInvite.findUnique({
+      where: { tokenHash: hashInviteToken(token) },
+      include: { role: { select: { name: true } } },
+    });
 
-  const check = isInviteUsable(invite, new Date());
-  if (!check.usable || !invite) return null;
+    const check = isInviteUsable(invite, new Date());
+    if (!check.usable || !invite) return null;
 
-  return { email: invite.email, roleName: invite.role.name };
+    return { email: invite.email, roleName: invite.role.name };
+  } catch (error) {
+    // `role` is a required relation: if the role behind this invite was ever
+    // deleted (it shouldn't be reachable now that `deleteRole` refuses a role
+    // with pending invites, but this page is unauthenticated and must not
+    // depend on that holding for every row that predates the guard), Prisma
+    // throws rather than returning a null relation. Whoever is looking at
+    // this link cannot tell that apart from any other bad token, so it
+    // collapses into the same generic answer instead of a 500.
+    console.error("getInviteForToken failed", error);
+    return null;
+  }
 }
 
 export async function acceptInvite(token: string, password: string) {
@@ -49,26 +61,45 @@ export async function acceptInvite(token: string, password: string) {
 
   // `passwordChangedAt` is what evicts anything already signed in as this
   // person — the jwt callback rejects tokens issued before it. An existing
-  // member account is upserted, not duplicated: they keep their account and
-  // gain admin access on top of it.
-  const user = await prisma.user.upsert({
-    where: { email: invite.email },
-    create: {
-      email: invite.email,
-      password: hashed,
-      passwordChangedAt: now,
-      emailVerified: now,
-      role: "ADMIN",
-      staffRoleId: invite.roleId,
-    },
-    update: {
-      password: hashed,
-      passwordChangedAt: now,
-      emailVerified: now,
-      role: "ADMIN",
-      staffRoleId: invite.roleId,
-    },
+  // member account is updated in place, not duplicated: they keep their
+  // account and gain admin access on top of it.
+  //
+  // The match is case-insensitive on purpose, and deliberately not a plain
+  // `upsert` keyed on `invite.email`. `registerUser` stores addresses exactly
+  // as typed, MongoDB's unique index on `email` is case-sensitive, and
+  // `inviteStaff` normalises to lower case before storing the invite — so an
+  // invite to "Foo@Example.com" and an existing "foo@example.com" account are
+  // the same person but two different index entries. An `upsert` keyed on the
+  // lower-cased address would miss that account and create a second one,
+  // orphaning the first one's history and falsifying the invite email's
+  // promise that the new password "works for both". Finding the account
+  // first and updating it by id avoids that regardless of which casing it was
+  // originally created with.
+  const existingAccount = await prisma.user.findFirst({
+    where: { email: { equals: invite.email, mode: "insensitive" } },
   });
+
+  const user = existingAccount
+    ? await prisma.user.update({
+        where: { id: existingAccount.id },
+        data: {
+          password: hashed,
+          passwordChangedAt: now,
+          emailVerified: now,
+          role: "ADMIN",
+          staffRoleId: invite.roleId,
+        },
+      })
+    : await prisma.user.create({
+        data: {
+          email: invite.email,
+          password: hashed,
+          passwordChangedAt: now,
+          emailVerified: now,
+          role: "ADMIN",
+          staffRoleId: invite.roleId,
+        },
+      });
 
   // Single use. Burn every other outstanding invite for this address too, so
   // an older link cannot be replayed afterwards.
