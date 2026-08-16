@@ -5,30 +5,13 @@ import { motion, Variants } from "framer-motion";
 import { EventsBand } from "@/components/layout/events-band";
 import { LeadershipRow } from "@/components/layout/leadership-row";
 import {
-  Accent,
   Eyebrow,
   PageHeader,
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { ABOUT_ICON_MAP } from "@/lib/about-icons";
 import type { AboutContentT } from "@/lib/about-schema";
-
-/** Splits `text` on the first occurrence of `accent` and wraps that slice in
- * <Accent>. Falls back to plain text if `accent` is empty or not found, so
- * admin-entered copy never crashes the page. */
-function withAccent(text: string, accent?: string) {
-  if (!accent) return text;
-  const index = text.indexOf(accent);
-  if (index === -1) return text;
-
-  return (
-    <>
-      {text.slice(0, index)}
-      <Accent>{accent}</Accent>
-      {text.slice(index + accent.length)}
-    </>
-  );
-}
+import { withAccent } from "@/components/layout/with-accent";
 
 export function AboutPageClient({ content }: { content: AboutContentT }) {
   const revealVariants: Variants = {

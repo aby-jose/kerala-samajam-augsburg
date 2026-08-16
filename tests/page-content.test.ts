@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/registry";
 import { parseInlineLinks } from "@/lib/page-content/section";
 import { contactContentSchema, DEFAULT_CONTACT } from "@/lib/page-content/contact";
+import { splitOnAccent } from "@/lib/accent";
 
 describe("page content registry", () => {
   it("recognises its own slugs and nothing else", () => {
@@ -160,5 +161,36 @@ describe("contact content", () => {
 
       expect(title, name).toContain(accentWord);
     }
+  });
+});
+
+describe("splitOnAccent", () => {
+  it("splits a title around the accent word", () => {
+    expect(splitOnAccent("A home for Kerala in Augsburg", "Kerala")).toEqual({
+      before: "A home for ",
+      match: "Kerala",
+      after: " in Augsburg",
+    });
+  });
+
+  it("returns the whole title when the accent is blank", () => {
+    expect(splitOnAccent("Upcoming Events", "")).toEqual({
+      before: "Upcoming Events",
+      match: "",
+      after: "",
+    });
+  });
+
+  it("returns the whole title when the accent is absent or differs in case", () => {
+    expect(splitOnAccent("Upcoming Events", "Missing").match).toBe("");
+    expect(splitOnAccent("Upcoming Events", "events").match).toBe("");
+  });
+
+  it("splits on the first occurrence only", () => {
+    expect(splitOnAccent("Events after Events", "Events")).toEqual({
+      before: "",
+      match: "Events",
+      after: " after Events",
+    });
   });
 });
