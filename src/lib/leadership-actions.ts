@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 
 const leadershipMemberSchema = z.object({
   id: z.string().optional(),
@@ -23,7 +23,7 @@ export async function getLeadershipMembers() {
 }
 
 export async function upsertLeadershipMember(data: LeadershipMemberValues) {
-  await requireAdmin();
+  await requirePermission("content.leadership.edit");
 
   const validated = leadershipMemberSchema.parse(data);
   const { id, ...memberData } = validated;
@@ -45,7 +45,7 @@ export async function upsertLeadershipMember(data: LeadershipMemberValues) {
 }
 
 export async function deleteLeadershipMember(id: string) {
-  await requireAdmin();
+  await requirePermission("content.leadership.edit");
 
   await prisma.leadershipMember.delete({
     where: { id },
@@ -57,7 +57,7 @@ export async function deleteLeadershipMember(id: string) {
 }
 
 export async function updateLeadershipOrder(items: { id: string; order: number }[]) {
-  await requireAdmin();
+  await requirePermission("content.leadership.edit");
 
   const updates = items.map((item) =>
     prisma.leadershipMember.update({

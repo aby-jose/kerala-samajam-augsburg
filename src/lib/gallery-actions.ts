@@ -6,30 +6,21 @@ import { enforceRateLimit } from "./rate-limit";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
-import { requireAdmin, requireAnyUser, requireUser } from "./guards";
+import { can, requireAnyUser, requirePermission, requireUser } from "./guards";
+import { resolveUploadFolder } from "./rbac/upload-folder";
 import { validateUpload } from "./upload-validation";
 import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail } from "./admin-contact";
 
-/**
- * Where a non-admin is allowed to put files.
- *
- * The folder arrives from the client, so without this a member could upload
- * into `branding/` and replace the site logo, or into `student-ids/` and
- * pollute the verification queue.
- */
-const CONTRIBUTION_FOLDER_PREFIX = "kerala-samajam/contributions/";
-
 export async function uploadImageAction(formData: FormData, folder?: string) {
-  const user = await requireAnyUser();
+  await requireAnyUser();
 
-  const requested = folder || "kerala-samajam/gallery";
-  const target = user.isAdmin
-    ? requested
-    : requested.startsWith(CONTRIBUTION_FOLDER_PREFIX)
-      ? requested
-      : `${CONTRIBUTION_FOLDER_PREFIX}misc`;
+  // Publishing rights, not staff status — see resolveUploadFolder.
+  const target = resolveUploadFolder({
+    mayPublish: await can("gallery.media.upload"),
+    requested: folder,
+  });
 
   try {
     const file = formData.get("file") as File;
@@ -131,7 +122,7 @@ export async function createAlbum(data: {
   coverImage?: string;
   isPublished?: boolean;
 }) {
-  await requireAdmin();
+  await requirePermission("gallery.albums.edit");
 
   const album = await prisma.galleryAlbum.create({
     data: {
@@ -151,7 +142,7 @@ export async function updateAlbum(id: string, data: {
   coverImage?: string;
   isPublished?: boolean;
 }) {
-  await requireAdmin();
+  await requirePermission("gallery.albums.edit");
 
   const album = await prisma.galleryAlbum.update({
     where: { id },
@@ -176,7 +167,7 @@ export async function updateAlbum(id: string, data: {
  * retried. The other order would strand them permanently.
  */
 export async function deleteAlbum(id: string) {
-  await requireAdmin();
+  await requirePermission("gallery.albums.delete");
 
   const media = await prisma.galleryMedia.findMany({
     where: { albumId: id },
@@ -235,7 +226,7 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
     boundingBox: any;
   }[];
 }[]) {
-  await requireAdmin();
+  await requirePermission("gallery.media.upload");
 
   try {
     for (const item of mediaItems) {
@@ -263,7 +254,7 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
 }
 
 export async function deleteMedia(id: string, publicId: string) {
-  await requireAdmin();
+  await requirePermission("gallery.media.delete");
 
   await deleteImage(publicId);
   await prisma.galleryMedia.delete({
@@ -275,7 +266,7 @@ export async function deleteMedia(id: string, publicId: string) {
 }
 
 export async function bulkDeleteMedia(mediaItems: { id: string; publicId: string }[], albumId: string) {
-  await requireAdmin();
+  await requirePermission("gallery.media.delete");
 
   try {
     // 1. Delete from Cloudinary in parallel
@@ -451,7 +442,7 @@ export async function submitBulkMediaContributions(albumId: string, items: {
 }
 
 export async function getPendingContributions() {
-  await requireAdmin();
+  await requirePermission("gallery.contributions.view");
 
   return await prisma.mediaContribution.findMany({
     where: { status: "PENDING" },
@@ -464,7 +455,7 @@ export async function getPendingContributions() {
 }
 
 export async function moderateContribution(id: string, status: "APPROVED" | "REJECTED", reason?: string) {
-  await requireAdmin();
+  await requirePermission("gallery.contributions.moderate");
 
   const contribution = await prisma.mediaContribution.findUnique({
     where: { id },
@@ -542,7 +533,7 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
 }
 
 export async function bulkModerateContributions(ids: string[], status: "APPROVED" | "REJECTED", reason?: string) {
-  await requireAdmin();
+  await requirePermission("gallery.contributions.moderate");
 
   // Process sequentially to handle side effects (Cloudinary/Email) properly for each
   const results = [];

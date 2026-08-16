@@ -3,7 +3,7 @@
 import { prisma } from "./prisma";
 import { revalidatePath } from "next/cache";
 import { SiteConfig } from "./config-schema";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 
 import { getConfig } from "./config-utils";
 
@@ -12,7 +12,7 @@ export async function fetchConfigAction() {
 }
 
 export async function saveConfig(config: SiteConfig) {
-  await requireAdmin();
+  await requirePermission("settings.edit");
 
   try {
     await prisma.config.upsert({

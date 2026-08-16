@@ -1,7 +1,7 @@
 "use server";
 
 import { uploadToCloudinary } from "./cloudinary";
-import { getAdminUser, getCurrentUser } from "./guards";
+import { getCurrentUser, requirePermission } from "./guards";
 import { validateUpload } from "./upload-validation";
 
 export async function uploadProfileImage(formData: FormData) {
@@ -26,7 +26,9 @@ export async function uploadProfileImage(formData: FormData) {
 }
 
 export async function uploadLogo(formData: FormData) {
-  if (!(await getAdminUser())) {
+  try {
+    await requirePermission("settings.edit");
+  } catch {
     return { error: "Unauthorized" };
   }
 

@@ -5,7 +5,7 @@ import { prisma } from "./prisma";
 import { sendMail, templates } from "./email";
 import { verifyCaptcha, generateCaptcha } from "./captcha";
 import { headers } from "next/headers";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { adminEmail } from "./admin-contact";
 import { recordAnonymousConsent } from "./consent-recorder";
 
@@ -118,7 +118,7 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
 }
 
 export async function getContactMessages() {
-  await requireAdmin();
+  await requirePermission("inquiries.view");
 
   return await prisma.contactMessage.findMany({
     orderBy: { createdAt: "desc" },
@@ -126,7 +126,7 @@ export async function getContactMessages() {
 }
 
 export async function updateMessageStatus(id: string, status: "READ" | "UNREAD" | "ARCHIVED") {
-  await requireAdmin();
+  await requirePermission("inquiries.manage");
 
   await prisma.contactMessage.update({
     where: { id },
@@ -137,7 +137,7 @@ export async function updateMessageStatus(id: string, status: "READ" | "UNREAD" 
 }
 
 export async function deleteMessage(id: string) {
-  await requireAdmin();
+  await requirePermission("inquiries.delete");
 
   await prisma.contactMessage.delete({
     where: { id },

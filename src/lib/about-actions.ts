@@ -4,7 +4,7 @@ import { cache } from "react";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "./prisma";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { aboutContentSchema, DEFAULT_ABOUT_CONTENT, type AboutContentT } from "./about-schema";
 
 /**
@@ -32,7 +32,7 @@ export const getAboutContent = cache(async (): Promise<AboutContentT> => {
 });
 
 export async function saveAboutContent(data: AboutContentT) {
-  await requireAdmin();
+  await requirePermission("content.about.edit");
 
   const validated = aboutContentSchema.parse(data);
 
