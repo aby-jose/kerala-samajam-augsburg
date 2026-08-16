@@ -9,6 +9,7 @@ import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { can, requirePermission, requireUser } from "./guards";
+import { assertFeature } from "./feature-gate";
 import { describeAudit } from "./rbac/audit";
 import { assertAssignable, LockoutError } from "./rbac/lockout";
 import { superAdminCount } from "./rbac/staff-queries";
@@ -198,6 +199,8 @@ export async function createMembershipSubscription(data: {
   paymentMethod?: PaymentMethod;
   details?: any;
 }) {
+  await assertFeature("enableMembership");
+
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) throw new Error("Authentication required");
 
