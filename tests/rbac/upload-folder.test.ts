@@ -23,10 +23,14 @@ describe("resolveUploadFolder", () => {
     expect(resolveUploadFolder({ mayPublish: true })).toBe("kerala-samajam/gallery");
   });
 
-  it("sandboxes staff who lack gallery.media.upload", () => {
-    // A Content Editor: staff, but never granted gallery publishing.
-    expect(
-      resolveUploadFolder({ mayPublish: false, requested: "kerala-samajam/gallery" })
-    ).toBe(`${CONTRIBUTION_FOLDER_PREFIX}misc`);
+  it("normalises a .. escape out of the contribution sandbox before checking the prefix", () => {
+    // A bare startsWith on the unnormalised string would pass — it IS text
+    // that starts with the contribution prefix — while actually resolving to
+    // "branding/x", outside the sandbox entirely (the two ".." segments walk
+    // back past "contributions" *and* "kerala-samajam").
+    const escaping = `${CONTRIBUTION_FOLDER_PREFIX}../../branding/x`;
+    expect(resolveUploadFolder({ mayPublish: false, requested: escaping })).toBe(
+      `${CONTRIBUTION_FOLDER_PREFIX}misc`
+    );
   });
 });

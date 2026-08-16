@@ -1,6 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { ROLE_PRESETS } from "@/lib/rbac/presets";
-import { ALL_PERMISSIONS, PERMISSIONS, isPermission } from "@/lib/permissions";
+import { isPermission } from "@/lib/permissions";
+
+/**
+ * Every non-mutating key in the catalogue, written out by hand rather than
+ * re-derived with `ALL_PERMISSIONS.filter((k) => !PERMISSIONS[k].mutates)`.
+ *
+ * `presets.ts` builds Viewer's permission list with exactly that filter, so
+ * asserting the preset against the same expression only proves the
+ * expression equals itself — it cannot fail no matter what any individual
+ * key's `mutates` flag says. A permission wrongly marked `mutates: false`
+ * would both skip the audit floor `requirePermission()` builds on that flag
+ * *and* silently widen what Viewer can see, and this recomputation would
+ * still pass. An explicit, independently-typed list catches both: add or
+ * remove a `.view`-style key, or flip a `mutates` flag, and this test moves
+ * out of step with `presets.ts` until someone updates it deliberately.
+ */
+const EXPECTED_READ_ONLY = [
+  "analytics.view",
+  "audit.view",
+  "dashboard.view",
+  "email.view",
+  "events.view",
+  "gallery.contributions.view",
+  "gallery.view",
+  "inquiries.view",
+  "legal.consents.view",
+  "legal.view",
+  "members.view",
+  "membership.applications.view",
+  "membership.plans.view",
+  "payments.view",
+  "registrations.view",
+  "roles.view",
+  "staff.view",
+].sort();
 
 describe("role presets", () => {
   it("ships six roles with unique names", () => {
@@ -24,8 +58,7 @@ describe("role presets", () => {
 
   it("gives Viewer every read permission and nothing that mutates", () => {
     const viewer = ROLE_PRESETS.find((r) => r.name === "Viewer")!;
-    const reads = ALL_PERMISSIONS.filter((k) => !PERMISSIONS[k].mutates);
-    expect([...viewer.permissions].sort()).toEqual([...reads].sort());
+    expect([...viewer.permissions].sort()).toEqual(EXPECTED_READ_ONLY);
   });
 
   it("lets Gallery Moderator moderate but not touch money", () => {

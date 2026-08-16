@@ -1,3 +1,5 @@
+import path from "path";
+
 export const CONTRIBUTION_FOLDER_PREFIX = "kerala-samajam/contributions/";
 
 const DEFAULT_FOLDER = "kerala-samajam/gallery";
@@ -20,7 +22,15 @@ export function resolveUploadFolder(opts: {
   mayPublish: boolean;
   requested?: string;
 }): string {
-  const requested = opts.requested || DEFAULT_FOLDER;
+  const raw = opts.requested || DEFAULT_FOLDER;
+  // Collapse `.`/`..` segments before the sandbox check below reasons about
+  // this as a path. Without this, `kerala-samajam/contributions/../../branding/x`
+  // satisfies a bare `startsWith` on the contribution prefix — it IS a
+  // string starting with that prefix — while actually resolving outside the
+  // sandbox this function exists to enforce. `path.posix` because folder
+  // paths use `/` regardless of the host OS.
+  const requested = path.posix.normalize(raw);
+
   if (opts.mayPublish) return requested;
   return requested.startsWith(CONTRIBUTION_FOLDER_PREFIX)
     ? requested
