@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/registry";
+import { parseInlineLinks } from "@/lib/page-content/section";
 
 describe("page content registry", () => {
   it("recognises its own slugs and nothing else", () => {
@@ -69,5 +70,56 @@ describe("mergePageContent", () => {
     const merged = mergePageContent(slug, { [firstKey]: { title: "Edited title" } });
 
     expect(() => PAGE_CONTENT[slug].schema.parse(merged)).not.toThrow();
+  });
+});
+
+describe("parseInlineLinks", () => {
+  it("returns one plain node when there is no link", () => {
+    expect(parseInlineLinks("Just a sentence.")).toEqual([{ text: "Just a sentence." }]);
+  });
+
+  it("splits a sentence around a link", () => {
+    expect(
+      parseInlineLinks("Apply through the [membership page](/membership). The committee confirms it.")
+    ).toEqual([
+      { text: "Apply through the " },
+      { text: "membership page", href: "/membership" },
+      { text: ". The committee confirms it." },
+    ]);
+  });
+
+  it("handles a link at the very start and the very end", () => {
+    expect(parseInlineLinks("[Events](/events) are open.")).toEqual([
+      { text: "Events", href: "/events" },
+      { text: " are open." },
+    ]);
+
+    expect(parseInlineLinks("See the [events page](/events)")).toEqual([
+      { text: "See the " },
+      { text: "events page", href: "/events" },
+    ]);
+  });
+
+  it("handles several links in one answer", () => {
+    const nodes = parseInlineLinks("[One](/a) then [two](/b).");
+
+    expect(nodes.filter((n) => n.href)).toEqual([
+      { text: "One", href: "/a" },
+      { text: "two", href: "/b" },
+    ]);
+  });
+
+  it("leaves malformed syntax as literal text rather than dropping it", () => {
+    // An admin typing a bracket must never make their sentence vanish.
+    expect(parseInlineLinks("A [bracket without a link.")).toEqual([
+      { text: "A [bracket without a link." },
+    ]);
+    expect(parseInlineLinks("Empty () parens.")).toEqual([{ text: "Empty () parens." }]);
+  });
+
+  it("never returns an empty node", () => {
+    for (const node of parseInlineLinks("[Events](/events)")) {
+      expect(node.text.length).toBeGreaterThan(0);
+    }
   });
 });
