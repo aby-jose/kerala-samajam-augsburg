@@ -14,6 +14,13 @@ model Config {
   updatedAt    DateTime @updatedAt
 }
 
+model AboutContent {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique @default("current")
+  value     Json     // Stores AboutContentT — see lib/about-schema.ts
+  updatedAt DateTime @updatedAt
+}
+
 /// A live, admin-editable legal document (Impressum, Datenschutz, AGB, …).
 /// `de` is the legally binding version; `en` is the courtesy translation for
 /// the membership. Both hold a LegalContent JSON blob — see lib/legal-schema.ts.
@@ -102,10 +109,28 @@ model Event {
   isPublished    Boolean        @default(false)
   requiresLogin  Boolean        @default(false)
   maxAttendees   Int?
+
+  /// Whether the event is still going ahead.
+  ///
+  /// There was previously no way to say "this is off" — an event could only be
+  /// deleted, which threw away the registrations along with the ability to tell
+  /// anybody. Cancelling keeps the row and its registrations so the notice can
+  /// be sent and the record survives.
+  status             EventStatus @default(SCHEDULED)
+  /// Shown verbatim to registrants in the cancellation notice.
+  cancellationReason String?
+  cancelledAt        DateTime?
+
   registrations  Registration[]
   galleryAlbum   GalleryAlbum?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
+}
+
+enum EventStatus {
+  SCHEDULED
+  POSTPONED
+  CANCELLED
 }
 
 
@@ -248,6 +273,60 @@ model User {
   /// than purging the rows — see `anonymizedAt`.
   deletionRequestedAt DateTime?
   anonymizedAt        DateTime?
+
+  // --- Email preferences ---
+  /// Opt-outs for *optional* mail only. Transactional mail — tickets, receipts,
+  /// password resets, cancellation notices, anything the member needs in order
+  /// to act — ignores these entirely and is never suppressible. Defaults are on
+  /// because a member who joined an association expects to hear about it.
+  emailEventAnnouncements Boolean @default(true)
+  emailEventReminders     Boolean @default(true)
+  emailNewsletter         Boolean @default(true)
+  /// Token embedded in one-click unsubscribe links. Minted on first use so
+  /// existing rows do not all need backfilling.
+  ///
+  /// Indexed but *not* unique. MongoDB treats a missing field as null for
+  /// index purposes, so a unique index here fails to build against any
+  /// existing collection — every member who has never been sent optional mail
+  /// collides with every other. Uniqueness is not load-bearing anyway: the
+  /// value is a 32-character nanoid, and lookups use `findFirst`.
+  unsubscribeToken        String?
+
+  @@index([unsubscribeToken])
+}
+
+/// Every send attempt, successful or not.
+///
+/// The system previously had no record that an email had been attempted: a
+/// failure inside `sendEmail` was caught, logged to a console nobody reads, and
+/// discarded, so a member who never got their ticket looked exactly like one
+/// who did. This is the audit trail, the admin-visible failure list, and the
+/// idempotency guard the scheduled jobs key on.
+model EmailLog {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  /// Template identifier, e.g. `event.ticket`, `membership.expiring-30`.
+  template   String
+  to         String
+  subject    String
+  /// QUEUED | SENT | FAILED | SUPPRESSED
+  status     String   @default("QUEUED")
+  provider   String? // resend | smtp
+  providerId String? // Resend message id, for cross-referencing their dashboard
+  error      String?
+  attempts   Int      @default(0)
+  /// The row this email is *about* — a registration, subscription, user or
+  /// event id. Scheduled jobs check `(template, entityId)` before sending, so
+  /// a cron that fires twice does not mail everyone twice.
+  entityId   String?
+  /// Rendered HTML, kept so an administrator can resend or inspect exactly
+  /// what went out. Cleared by the retention job after 90 days.
+  html       String?  @db.String
+  createdAt  DateTime @default(now())
+  sentAt     DateTime?
+
+  @@index([template, entityId])
+  @@index([status, createdAt])
+  @@index([to])
 }
 
 model UserFaceProfile {

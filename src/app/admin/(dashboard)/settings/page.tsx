@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -28,7 +29,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { saveConfig, fetchConfigAction } from "@/lib/config-actions";
+import { sendTestEmail } from "@/lib/email-admin-actions";
 import { useToast } from "@/components/ui/toast";
+import Link from "next/link";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { Skeleton } from "@/components/admin/ui/skeleton";
 import { cardSurface, panelHeader, chipTone } from "@/components/admin/ui/surface";
@@ -54,6 +57,27 @@ const settingsSchema = z.object({
   email: z.object({
     fromName: z.string().min(2),
     fromEmail: z.string().email(),
+    automated: z.object({
+      eventReminders: z.boolean(),
+      postEventThankYou: z.boolean(),
+      membershipLifecycle: z.boolean(),
+      paymentReminders: z.boolean(),
+      adminDigest: z.boolean(),
+    }),
+    notifications: z.object({
+      eventTicket: z.boolean(),
+      eventRegistrationChanges: z.boolean(),
+      eventCancelledBroadcast: z.boolean(),
+      eventRescheduled: z.boolean(),
+      eventFull: z.boolean(),
+      eventAnnouncement: z.boolean(),
+      eventPaymentUpdates: z.boolean(),
+      membershipApplicationReceived: z.boolean(),
+      membershipApplicationDecision: z.boolean(),
+      membershipActivation: z.boolean(),
+      galleryContributions: z.boolean(),
+      contactForm: z.boolean(),
+    }),
   }),
   features: z.object({
     enableRegistration: z.boolean(),
@@ -108,11 +132,19 @@ const tabs = [
   { id: "socials", label: "Social", icon: Share2, description: "Links to social media platforms" },
 ];
 
-export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("general");
+const TAB_IDS = tabs.map((t) => t.id);
+
+function SettingsPageContent() {
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState(
+    requestedTab && TAB_IDS.includes(requestedTab) ? requestedTab : "general"
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
   const { success, error: toastError } = useToast();
 
   const {
@@ -164,7 +196,6 @@ export default function SettingsPage() {
   }
 
   const primaryColor = watch("branding.primaryColor");
-  const siteName = watch("siteName");
 
   return (
     <div className="space-y-6">
@@ -269,22 +300,6 @@ export default function SettingsPage() {
                         <Label htmlFor="contactPhone" className="text-sm font-medium">Contact phone</Label>
                         <Input id="contactPhone" {...register("contactPhone")} className="h-9 rounded-lg" />
                       </div>
-                    </div>
-
-                    {/*
-                      The footer line is derived from the site name and the
-                      current year rather than typed, so it can never go stale
-                      the way a hand-written "© 2024 …" does. Shown read-only
-                      so admins can still see what the site renders.
-                    */}
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Footer copyright</Label>
-                      <p className="flex h-9 items-center rounded-lg border border-dashed border-input bg-muted/40 px-3 text-sm text-muted-foreground">
-                        © {new Date().getFullYear()} {siteName || "Your organisation"}. All rights reserved.
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Generated automatically from the site name and the current year.
-                      </p>
                     </div>
                   </div>
                 </section>
@@ -636,7 +651,7 @@ export default function SettingsPage() {
                     <div className="divide-y divide-border">
                       <div className="flex items-center justify-between gap-4 py-4 first:pt-0">
                         <div className="space-y-0.5">
-                          <h4 className="text-sm font-medium text-foreground">Event registration</h4>
+                          <h4 className="font-sans text-sm font-medium text-foreground">Event registration</h4>
                           <p className="text-xs text-muted-foreground">Allow public users to sign up and pay for events.</p>
                         </div>
                         <Switch
@@ -647,7 +662,7 @@ export default function SettingsPage() {
 
                       <div className="flex items-center justify-between gap-4 py-4">
                         <div className="space-y-0.5">
-                          <h4 className="text-sm font-medium text-foreground">Member portal</h4>
+                          <h4 className="font-sans text-sm font-medium text-foreground">Member portal</h4>
                           <p className="text-xs text-muted-foreground">Enable paid membership plans and recurring benefits.</p>
                         </div>
                         <Switch
@@ -658,7 +673,7 @@ export default function SettingsPage() {
 
                       <div className="flex items-center justify-between gap-4 py-4">
                         <div className="space-y-0.5">
-                          <h4 className="text-sm font-medium text-foreground">Community gallery</h4>
+                          <h4 className="font-sans text-sm font-medium text-foreground">Community gallery</h4>
                           <p className="text-xs text-muted-foreground">Showcase photos and allow members to contribute media.</p>
                         </div>
                         <Switch
@@ -672,7 +687,7 @@ export default function SettingsPage() {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1.5">
                           <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                          <h4 className="text-sm font-medium text-red-600 dark:text-red-400">Maintenance mode</h4>
+                          <h4 className="font-sans text-sm font-medium text-red-600 dark:text-red-400">Maintenance mode</h4>
                         </div>
                         <p className="max-w-md text-xs text-muted-foreground">
                           Lock the entire public site with a maintenance screen. Only admins can access the portal during this time.
@@ -710,19 +725,226 @@ export default function SettingsPage() {
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Sender email</Label>
                         <Input {...register("email.fromEmail")} className="h-9 rounded-lg" />
+                        {/* The address has to belong to a domain verified with
+                            the sending provider, so the deployment's
+                            EMAIL_FROM wins where both are set. Saying so here
+                            stops this field looking broken when it is
+                            deliberately being overridden. */}
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">
+                          Must belong to a domain verified with the email provider. Overridden by the
+                          EMAIL_FROM environment variable where one is set — the sender name above
+                          always applies.
+                        </p>
                       </div>
+                    </div>
+
+                    <div className="border-t border-border pt-4">
+                      <h3 className="font-sans text-sm font-semibold text-foreground">Scheduled sending</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Which scheduled notices (
+                        <Link href="/admin/emails" className="font-medium underline">
+                          run daily by /api/cron
+                        </Link>
+                        ) are allowed to send. Turning one off never changes what it records —
+                        a membership past its end date still moves to expired — it only
+                        silences the email.
+                      </p>
+                      <div className="mt-3 divide-y divide-border">
+                        <div className="flex items-center justify-between gap-4 py-3.5 first:pt-0">
+                          <div className="space-y-0.5">
+                            <h4 className="font-sans text-sm font-medium text-foreground">Event reminders</h4>
+                            <p className="text-xs text-muted-foreground">Two days before and on the morning of an event.</p>
+                          </div>
+                          <Switch
+                            checked={watch("email.automated.eventReminders")}
+                            onCheckedChange={(val) => setValue("email.automated.eventReminders", val, { shouldDirty: true })}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 py-3.5">
+                          <div className="space-y-0.5">
+                            <h4 className="font-sans text-sm font-medium text-foreground">Post-event thank-you</h4>
+                            <p className="text-xs text-muted-foreground">Sent the day after, with a link to the gallery once it is up.</p>
+                          </div>
+                          <Switch
+                            checked={watch("email.automated.postEventThankYou")}
+                            onCheckedChange={(val) => setValue("email.automated.postEventThankYou", val, { shouldDirty: true })}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 py-3.5">
+                          <div className="space-y-0.5">
+                            <h4 className="font-sans text-sm font-medium text-foreground">Membership renewal notices</h4>
+                            <p className="text-xs text-muted-foreground">Expiry warnings at 30 and 7 days out, and the notice a term has ended.</p>
+                          </div>
+                          <Switch
+                            checked={watch("email.automated.membershipLifecycle")}
+                            onCheckedChange={(val) => setValue("email.automated.membershipLifecycle", val, { shouldDirty: true })}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 py-3.5">
+                          <div className="space-y-0.5">
+                            <h4 className="font-sans text-sm font-medium text-foreground">Overdue payment reminders</h4>
+                            <p className="text-xs text-muted-foreground">Sent when a membership fee is overdue, and again a fortnight later.</p>
+                          </div>
+                          <Switch
+                            checked={watch("email.automated.paymentReminders")}
+                            onCheckedChange={(val) => setValue("email.automated.paymentReminders", val, { shouldDirty: true })}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between gap-4 py-3.5 last:pb-0">
+                          <div className="space-y-0.5">
+                            <h4 className="font-sans text-sm font-medium text-foreground">Weekly committee digest</h4>
+                            <p className="text-xs text-muted-foreground">Payments recorded and outstanding, sent to the admin address.</p>
+                          </div>
+                          <Switch
+                            checked={watch("email.automated.adminDigest")}
+                            onCheckedChange={(val) => setValue("email.automated.adminDigest", val, { shouldDirty: true })}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border pt-4">
+                      <h3 className="font-sans text-sm font-semibold text-foreground">Notification emails</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Mail fired by something a member or admin does, rather than by the daily cron.
+                        Turning one off never changes what it records — a payment marked paid is still
+                        paid — it only silences the email. Security mail (verification, password reset,
+                        sign-in and email-change alerts) and GDPR notices (export, deletion) are not
+                        listed here: those always send.
+                      </p>
+
+                      <NotificationGroup title="Events">
+                        <NotificationToggle
+                          label="Registration confirmed"
+                          hint="The ticket, sent the moment someone registers."
+                          checked={watch("email.notifications.eventTicket")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventTicket", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Registration cancelled or removed"
+                          hint="A member cancels their own place, or an admin removes one."
+                          checked={watch("email.notifications.eventRegistrationChanges")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventRegistrationChanges", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Event cancelled or reinstated"
+                          hint="Broadcast to every registrant when an event is called off or back on."
+                          checked={watch("email.notifications.eventCancelledBroadcast")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventCancelledBroadcast", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Event rescheduled"
+                          hint="Broadcast when the date or venue changes."
+                          checked={watch("email.notifications.eventRescheduled")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventRescheduled", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Event full"
+                          hint="Sent to someone turned away because the event reached capacity."
+                          checked={watch("email.notifications.eventFull")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventFull", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="New event announced"
+                          hint="Sent to members who opted in, once an event is published and announced."
+                          checked={watch("email.notifications.eventAnnouncement")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventAnnouncement", val, { shouldDirty: true })}
+                          last
+                        />
+                      </NotificationGroup>
+
+                      <NotificationGroup title="Payments">
+                        <NotificationToggle
+                          label="Event fee recorded or reversed"
+                          hint="Sent when an admin marks an event payment received, or undoes that."
+                          checked={watch("email.notifications.eventPaymentUpdates")}
+                          onCheckedChange={(val) => setValue("email.notifications.eventPaymentUpdates", val, { shouldDirty: true })}
+                          last
+                        />
+                      </NotificationGroup>
+
+                      <NotificationGroup title="Membership">
+                        <NotificationToggle
+                          label="Application received"
+                          hint="Acknowledgement to the applicant, and the notice to the committee."
+                          checked={watch("email.notifications.membershipApplicationReceived")}
+                          onCheckedChange={(val) => setValue("email.notifications.membershipApplicationReceived", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Application verified or rejected"
+                          hint="A student application is confirmed or turned down."
+                          checked={watch("email.notifications.membershipApplicationDecision")}
+                          onCheckedChange={(val) => setValue("email.notifications.membershipApplicationDecision", val, { shouldDirty: true })}
+                        />
+                        <NotificationToggle
+                          label="Membership activated or renewed"
+                          hint="Sent once a membership payment is recorded."
+                          checked={watch("email.notifications.membershipActivation")}
+                          onCheckedChange={(val) => setValue("email.notifications.membershipActivation", val, { shouldDirty: true })}
+                          last
+                        />
+                      </NotificationGroup>
+
+                      <NotificationGroup title="Gallery">
+                        <NotificationToggle
+                          label="Contribution submitted, approved or rejected"
+                          hint="The admin notice for a new upload, and the member's approval/rejection notice."
+                          checked={watch("email.notifications.galleryContributions")}
+                          onCheckedChange={(val) => setValue("email.notifications.galleryContributions", val, { shouldDirty: true })}
+                          last
+                        />
+                      </NotificationGroup>
+
+                      <NotificationGroup title="Contact form" noBorder>
+                        <NotificationToggle
+                          label="Contact form submitted"
+                          hint="The admin notice, and the acknowledgement sent back to the sender."
+                          checked={watch("email.notifications.contactForm")}
+                          onCheckedChange={(val) => setValue("email.notifications.contactForm", val, { shouldDirty: true })}
+                          last
+                        />
+                      </NotificationGroup>
                     </div>
 
                     <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="space-y-0.5">
-                        <h4 className="text-sm font-medium text-foreground">Email service provider</h4>
+                        <h4 className="font-sans text-sm font-medium text-foreground">Check it works</h4>
                         <p className="text-xs text-muted-foreground">
-                          Outgoing email is sent via Resend.
+                          Sends a real message down the real path. Delivery problems show up in{" "}
+                          <Link href="/admin/emails" className="font-medium underline">
+                            the email log
+                          </Link>
+                          .
                         </p>
                       </div>
-                      <Button variant="outline" type="button" className="h-9 shrink-0 rounded-lg">
-                        Send test email
-                      </Button>
+                      <div className="flex shrink-0 gap-2">
+                        <Input
+                          type="email"
+                          placeholder="you@example.org"
+                          value={testEmailAddress}
+                          onChange={(e) => setTestEmailAddress(e.target.value)}
+                          className="h-9 w-44 rounded-lg"
+                        />
+                        <Button
+                          variant="outline"
+                          type="button"
+                          className="h-9 shrink-0 rounded-lg"
+                          disabled={sendingTest || !testEmailAddress.trim()}
+                          onClick={async () => {
+                            setSendingTest(true);
+                            try {
+                              await sendTestEmail(testEmailAddress.trim());
+                              success(`Test sent — check ${testEmailAddress}`);
+                            } catch (e: any) {
+                              toastError(`Test failed: ${e.message}`);
+                            } finally {
+                              setSendingTest(false);
+                            }
+                          }}
+                        >
+                          {sendingTest ? "Sending…" : "Send test"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </section>
@@ -771,6 +993,14 @@ export default function SettingsPage() {
   );
 }
 
+export default function SettingsPage() {
+  return (
+    <React.Suspense fallback={<SettingsSkeleton />}>
+      <SettingsPageContent />
+    </React.Suspense>
+  );
+}
+
 /** Titled block inside the Organisation tab, so the form reads as sections. */
 function FieldGroup({
   title,
@@ -788,6 +1018,49 @@ function FieldGroup({
         {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
       </div>
       {children}
+    </div>
+  );
+}
+
+/** Sub-heading inside the Email tab's "Notification emails" block, grouping toggles by area. */
+function NotificationGroup({
+  title,
+  noBorder,
+  children,
+}: {
+  title: string;
+  noBorder?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("mt-4", !noBorder && "")}>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">{title}</p>
+      <div className="mt-2 divide-y divide-border">{children}</div>
+    </div>
+  );
+}
+
+/** One switch inside a `NotificationGroup`. */
+function NotificationToggle({
+  label,
+  hint,
+  checked,
+  onCheckedChange,
+  last,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onCheckedChange: (val: boolean) => void;
+  last?: boolean;
+}) {
+  return (
+    <div className={cn("flex items-center justify-between gap-4 py-3", last && "pb-0")}>
+      <div className="space-y-0.5">
+        <h4 className="font-sans text-sm font-medium text-foreground">{label}</h4>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   );
 }

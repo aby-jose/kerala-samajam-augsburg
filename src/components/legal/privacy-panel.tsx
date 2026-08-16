@@ -29,6 +29,7 @@ import {
   requestAccountDeletion,
   withdrawBiometricConsent,
 } from "@/lib/privacy-actions";
+import { EmailPreferencesPanel } from "@/components/legal/email-preferences";
 import { LEGAL_DOCS, isLegalSlug } from "@/lib/legal-schema";
 import { OPEN_COOKIE_SETTINGS_EVENT } from "@/components/legal/cookie-consent";
 import { cn, getErrorMessage } from "@/lib/utils";
@@ -236,6 +237,11 @@ export function PrivacyPanel() {
           </ul>
         )}
       </Card>
+
+      {/* Communication preferences. Art. 7(3): withdrawing has to be as easy
+          as consenting, and a switch in the profile is easier than a link at
+          the bottom of an email the member may have deleted. */}
+      <EmailPreferencesPanel />
 
       {/* Art. 9 biometric opt-in */}
       <Card

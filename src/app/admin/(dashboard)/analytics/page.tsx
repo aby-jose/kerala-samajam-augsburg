@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { getAnalyticsData } from "@/lib/analytics-actions";
 import { format } from "date-fns";
 import { cn, exportToCSV } from "@/lib/utils";
+import { formatDelta } from "@/lib/format-stats";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { StatCard } from "@/components/admin/ui/stat-card";
 import { Skeleton } from "@/components/admin/ui/skeleton";
@@ -45,20 +46,6 @@ const tooltipStyle = {
 };
 
 const axisTick = { fontSize: 12, fill: "hsl(var(--muted-foreground))" };
-
-/**
- * Render a month-on-month change, or nothing when there is no baseline.
- *
- * `null` means the metric was zero a month ago — a first month, or the first
- * paid registration. Showing "+100%" or "+0.0%" there would present the
- * absence of a comparison as a measurement.
- */
-function formatDelta(change: number | null | undefined): string | undefined {
-  if (change == null || !Number.isFinite(change)) return undefined;
-  const rounded = Math.round(change * 10) / 10;
-  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
-  return `${sign}${Math.abs(rounded).toFixed(1)}%`;
-}
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<any>(null);

@@ -116,7 +116,7 @@ export default function QRScannerPage() {
       });
     } catch (err) {
       console.error("Verification failed:", err);
-      setError("Failed to verify ticket. Please try again.");
+      setError(err instanceof Error ? err.message : "Failed to verify ticket. Please try again.");
     } finally {
       setIsLoading(false);
     }

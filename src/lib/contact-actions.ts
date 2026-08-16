@@ -2,13 +2,10 @@
 
 import { z } from "zod";
 import { prisma } from "./prisma";
-import { sendEmail } from "./email";
+import { sendMail, templates } from "./email";
 import { verifyCaptcha, generateCaptcha } from "./captcha";
 import { headers } from "next/headers";
-import { getContactAdminNotificationEmail, getContactUserConfirmationEmail } from "./email-templates";
-import { getServerSession } from "next-auth";
 import { requireAdmin } from "./guards";
-import { getConfig } from "./config-utils";
 import { adminEmail } from "./admin-contact";
 import { recordAnonymousConsent } from "./consent-recorder";
 
@@ -94,27 +91,23 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
       console.error("Failed to record contact consent:", consentError);
     }
 
-    // 4. Send Notification Email to Admin
-    const config = await getConfig();
-    await sendEmail({
+    // 4. Notify the committee, and acknowledge to the sender.
+    //
+    // Neither is allowed to fail the request: the message is already saved, so
+    // a mail outage should not tell a visitor their enquiry was lost. Failures
+    // are recorded in the email log instead of thrown.
+    await sendMail({
+      template: "contact.admin-notice",
       to: adminEmail(),
-      subject: `New Contact Message: ${subject} - ${config.siteName}`,
-      html: getContactAdminNotificationEmail(name, email, subject, message, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      }),
+      entityId: savedMessage.id,
+      build: (ctx) => templates.contact.contactAdminNotice(ctx, { name, email, subject, message }),
     });
 
-    // 5. Send Confirmation Email to User
-    await sendEmail({
+    await sendMail({
+      template: "contact.acknowledgement",
       to: email,
-      subject: `We've received your message - ${config.siteName}`,
-      html: getContactUserConfirmationEmail(name, subject, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      }),
+      entityId: savedMessage.id,
+      build: (ctx) => templates.contact.contactAcknowledgement(ctx, { name, subject }),
     });
 
     return { success: true };

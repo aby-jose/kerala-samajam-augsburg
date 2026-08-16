@@ -20,7 +20,9 @@ import {
   Mail,
   Scale,
   FileCheck,
+  FileText,
   Menu,
+  Send,
   PanelLeftClose,
   PanelLeft,
   ChevronRight,
@@ -83,6 +85,7 @@ const NAV_GROUPS: {
       },
       { href: "/admin/inquiries", label: "Inquiries", icon: Mail, isActive: (p) => p.startsWith("/admin/inquiries") },
       { href: "/admin/leadership", label: "Leadership", icon: ShieldCheck, isActive: (p) => p.startsWith("/admin/leadership") },
+      { href: "/admin/about", label: "About Page", icon: FileText, isActive: (p) => p.startsWith("/admin/about") },
     ],
   },
   {
@@ -123,6 +126,7 @@ const NAV_GROUPS: {
     label: "System",
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3, isActive: (p) => p === "/admin/analytics" },
+      { href: "/admin/emails", label: "Email", icon: Send, isActive: (p) => p.startsWith("/admin/emails") },
       { href: "/admin/settings", label: "Settings", icon: Settings, isActive: (p) => p === "/admin/settings" },
     ],
   },
@@ -147,6 +151,8 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   gallery: "Gallery",
   contributions: "Contributions",
   analytics: "Analytics",
+  emails: "Email",
+  preview: "Template gallery",
   settings: "Settings",
   "check-in": "Check-in",
   legal: "Legal",
@@ -287,7 +293,7 @@ function AdminContent({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className={cn("flex h-screen overflow-hidden", CANVAS_BG)}>
+    <div className={cn("admin-shell flex h-screen overflow-hidden", CANVAS_BG)}>
       {/* Desktop sidebar */}
       <aside
         className={cn(

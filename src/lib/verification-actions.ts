@@ -3,10 +3,8 @@
 import { randomInt } from "crypto";
 
 import { prisma } from "./prisma";
-import { getOTPEmail } from "./email-templates";
 import { v2 as cloudinary } from "cloudinary";
-import { sendEmail } from "./email";
-import { getConfig } from "./config-utils";
+import { sendMail, templates } from "./email";
 import { requireUser } from "./guards";
 import { validateUpload } from "./upload-validation";
 
@@ -30,8 +28,6 @@ export async function sendVerificationOTP() {
   const email = user.email;
   if (!email) throw new Error("Your account has no email address");
 
-  const config = await getConfig();
-
   const code = randomInt(100000, 1000000).toString();
   const expires = new Date(Date.now() + 10 * 60 * 1000);
 
@@ -46,15 +42,19 @@ export async function sendVerificationOTP() {
       data: { identifier: email, token: code, expires }
     });
 
-    await sendEmail({
+    // The result is checked rather than discarded: a member staring at a code
+    // entry box with no code in their inbox needs to be told to try again, not
+    // left to guess whether it is slow or broken.
+    const sent = await sendMail({
+      template: "account.otp",
       to: email,
-      subject: `Verification Code: ${config.siteName} Membership`,
-      html: getOTPEmail(code, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      })
+      entityId: user.id,
+      build: (ctx) => templates.account.otpCode(ctx, { code }),
     });
+
+    if (!sent.ok) {
+      throw new Error("We could not send your code. Please try again in a moment.");
+    }
 
     return { success: true };
   } catch (error: any) {

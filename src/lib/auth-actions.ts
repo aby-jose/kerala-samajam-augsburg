@@ -3,12 +3,10 @@
 import { z } from "zod";
 
 import { verifyCaptcha, generateCaptcha } from "./captcha";
-import { getPasswordResetEmail, getVerificationEmail } from "@/lib/email-templates";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcrypt";
 import { nanoid } from "nanoid";
-import { sendEmail } from "@/lib/email";
-import { getConfig } from "@/lib/config-utils";
+import { absoluteUrl, sendMail, templates } from "@/lib/email";
 import { recordDocumentConsents } from "@/lib/consent-recorder";
 import { persistentRateLimit } from "@/lib/rate-limit";
 
@@ -109,17 +107,26 @@ export async function registerUser(formData: any) {
     });
 
     // 5. Send Verification Email
-    const config = await getConfig();
-    const verifyLink = `${process.env.NEXT_PUBLIC_APP_URL || process.env.SITE_URL}/verify-email?token=${token}`;
-    await sendEmail({
+    const sent = await sendMail({
+      template: "account.verify-email",
       to: email,
-      subject: `Verify Your Email - ${config.siteName}`,
-      html: getVerificationEmail(verifyLink, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      }),
+      entityId: user.id,
+      build: (ctx) =>
+        templates.account.verifyEmail(ctx, {
+          verifyLink: absoluteUrl(`/verify-email?token=${token}`),
+        }),
     });
+
+    if (!sent.ok) {
+      // The account exists and the token is valid, so this is recoverable —
+      // but telling somebody to "check your email" when we know nothing was
+      // delivered is how an account gets abandoned at the first step.
+      return {
+        success: true,
+        message:
+          "Account created, but we could not send the verification email. Use the 'resend verification' link, or contact us if it keeps failing.",
+      };
+    }
 
     return { success: true, message: "Account created! Please check your email to verify your account." };
   } catch (error) {
@@ -140,7 +147,7 @@ export async function verifyEmail(token: string) {
       return { error: "Invalid or expired verification link" };
     }
 
-    await prisma.user.update({
+    const user = await prisma.user.update({
       where: { email: verificationToken.identifier },
       data: { emailVerified: new Date() },
     });
@@ -148,6 +155,18 @@ export async function verifyEmail(token: string) {
     await prisma.verificationToken.delete({
       where: { token },
     });
+
+    // Welcome them properly. `once` guards it: the verification link can be
+    // clicked twice, and a second welcome reads as a system with a stutter.
+    if (user.email) {
+      await sendMail({
+        template: "account.welcome",
+        to: user.email,
+        entityId: user.id,
+        once: true,
+        build: (ctx) => templates.account.welcome(ctx, { name: user.name || "there" }),
+      });
+    }
 
     return { success: true };
   } catch (error) {
@@ -193,20 +212,17 @@ export async function requestPasswordReset(email: string) {
     });
 
     // Send email
-    const config = await getConfig();
-    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL || process.env.SITE_URL}/reset-password?token=${token}`;
-    
-    const emailResult = await sendEmail({
+    const emailResult = await sendMail({
+      template: "account.password-reset",
       to: email,
-      subject: `Reset Your Password - ${config.siteName}`,
-      html: getPasswordResetEmail(resetLink, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      }),
+      entityId: user.id,
+      build: (ctx) =>
+        templates.account.passwordReset(ctx, {
+          resetLink: absoluteUrl(`/reset-password?token=${token}`),
+        }),
     });
 
-    if (!emailResult.success) {
+    if (!emailResult.ok) {
       return { error: "Failed to send reset email. Please try again later." };
     }
 
@@ -241,15 +257,30 @@ export async function resetPassword(token: string, password: string) {
     // 3. Update user. `passwordChangedAt` is what evicts sessions that were
     // already signed in — a reset that leaves an attacker's session live is
     // not a recovery.
-    await prisma.user.update({
+    const changedAt = new Date();
+    const user = await prisma.user.update({
       where: { email: resetToken.email },
-      data: { password: hashedPassword, passwordChangedAt: new Date() },
+      data: { password: hashedPassword, passwordChangedAt: changedAt },
     });
 
     // 4. Burn every outstanding token for this address, not just the one used,
     // so older reset emails cannot be replayed afterwards.
     await prisma.passwordResetToken.deleteMany({
       where: { email: resetToken.email },
+    });
+
+    // 5. Tell the owner.
+    //
+    // The reset link arrives by email, so an attacker who reaches this point
+    // already reads the member's inbox — which is precisely why the notice is
+    // worth sending. It is the moment the real owner finds out, and without it
+    // the first sign of a takeover is being unable to sign in.
+    await sendMail({
+      template: "account.password-changed",
+      to: resetToken.email,
+      entityId: user.id,
+      build: (ctx) =>
+        templates.account.passwordChanged(ctx, { name: user.name || "there", changedAt }),
     });
 
     return { success: true };

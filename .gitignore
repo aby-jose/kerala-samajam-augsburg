@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# …except the template, which carries no secrets and is the only place the
+# email configuration is explained. Ignored, it is invisible to anyone setting
+# the project up, which is how EMAIL_FROM and SITE_URL end up wrong.
+!.env.example
 
 # vercel
 .vercel

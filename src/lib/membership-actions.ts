@@ -9,13 +9,7 @@ import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { requireAdmin, requireUser } from "./guards";
-import { sendEmail } from "./email";
-import {
-  getMembershipApplicationEmail,
-  getAdminNotificationEmail,
-  getApprovalEmail,
-  getRejectionEmail,
-} from "./email-templates";
+import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail, adminEmailOrNull } from "./admin-contact";
 import { recordDocumentConsents } from "./consent-recorder";
@@ -266,30 +260,57 @@ export async function createMembershipSubscription(data: {
     }
   });
 
-  const config = await getConfig();
-  const branding = {
-    logoUrl: config.branding.logoUrl,
-    siteName: config.siteName,
-    primaryColor: config.branding.primaryColor,
-  };
+  const memberName = session.user.name || user.name || "there";
+  // Read out of the session once. Inside a closure TypeScript loses the
+  // narrowing on `session.user`, and reaching back through the optional chain
+  // in every template callback obscures what is actually being sent.
+  const memberEmail = session.user.email || user.email || "";
 
   if (isStudentPlan) {
     // No payment instructions yet — they would be premature while the ID is
     // still unverified and the application may be refused.
-    if (session.user.email) {
-      await sendEmail({
-        to: session.user.email,
-        subject: `We've received your student membership application - ${config.siteName}`,
-        html: getMembershipApplicationEmail(plan.name, branding),
+    if (memberEmail) {
+      await sendMail({
+        template: "membership.student-application-received",
+        to: memberEmail,
+        entityId: subscription.id,
+        build: (ctx) =>
+          templates.membership.studentApplicationReceived(ctx, {
+            name: memberName,
+            planName: plan.name,
+          }),
       });
     }
 
-    await sendEmail({
+    await sendMail({
+      template: "membership.application-admin-notice",
       to: adminEmail(),
-      subject: `New Student Verification Request - ${config.siteName}`,
-      html: getAdminNotificationEmail(session.user.name || "A member", plan.name, branding),
+      entityId: subscription.id,
+      build: (ctx) =>
+        templates.membership.applicationAdminNotice(ctx, {
+          memberName,
+          memberEmail: memberEmail || "unknown",
+          planName: plan.name,
+        }),
     });
   } else {
+    // Acknowledge the application before demanding money for it. A standard
+    // applicant previously went straight from the form to an invoice, so the
+    // first thing the association ever said to a new member was a bill.
+    if (memberEmail) {
+      await sendMail({
+        template: "membership.application-received",
+        to: memberEmail,
+        entityId: subscription.id,
+        build: (ctx) =>
+          templates.membership.applicationReceived(ctx, {
+            name: memberName,
+            planName: plan.name,
+            amount: plan.price,
+          }),
+      });
+    }
+
     // Email failure must not lose the application, which is already written.
     try {
       await sendMembershipPaymentRequest(subscription.id);
@@ -337,16 +358,16 @@ export async function approveMembership(subscriptionId: string) {
   });
 
   if (sub.user.email) {
-     const config = await getConfig();
-     await sendEmail({
-        to: sub.user.email,
-        subject: `Your student status has been verified - ${config.siteName}`,
-        html: getApprovalEmail(sub.plan.name, {
-          logoUrl: config.branding.logoUrl,
-          siteName: config.siteName,
-          primaryColor: config.branding.primaryColor
-        })
-     });
+    await sendMail({
+      template: "membership.student-verified",
+      to: sub.user.email,
+      entityId: sub.id,
+      build: (ctx) =>
+        templates.membership.studentVerified(ctx, {
+          name: sub.user.name || "there",
+          planName: sub.plan.name,
+        }),
+    });
   }
 
   try {
@@ -423,10 +444,48 @@ export async function recordSubscriptionPayment(
     },
   });
 
+  // Two emails, because they do different jobs. The receipt is a financial
+  // record with the invoice PDF attached; the welcome is the one that tells a
+  // new member what they have actually joined. A renewal gets a shorter note
+  // instead — someone in their third year does not need onboarding again.
   try {
     await sendSubscriptionReceipt(subscriptionId);
   } catch (mailError) {
     console.error("Failed to send membership receipt:", mailError);
+  }
+
+  if (sub.user.email) {
+    const previousTerms = await prisma.subscription.count({
+      where: {
+        userId: sub.userId,
+        id: { not: sub.id },
+        paymentStatus: "PAID",
+      },
+    });
+
+    const endDate = termEnd(receivedOn, sub.plan.duration);
+
+    await sendMail({
+      template: previousTerms > 0 ? "membership.renewed" : "membership.active",
+      to: sub.user.email,
+      entityId: sub.id,
+      once: true,
+      build: (ctx) =>
+        previousTerms > 0
+          ? templates.membership.membershipRenewed(ctx, {
+              name: sub.user.name || "there",
+              planName: sub.plan.name,
+              startDate: receivedOn,
+              endDate,
+            })
+          : templates.membership.membershipActive(ctx, {
+              name: sub.user.name || "there",
+              planName: sub.plan.name,
+              startDate: receivedOn,
+              endDate,
+              features: sub.plan.features,
+            }),
+    });
   }
 
   revalidatePath("/admin/payments");
@@ -523,16 +582,17 @@ export async function rejectMembership(subscriptionId: string, reason?: string) 
 
   // Notify Member BEFORE updating, so we don't lose the record if email fails
   if (sub.user.email) {
-     const config = await getConfig();
-     await sendEmail({
-        to: sub.user.email,
-        subject: `Update regarding your membership application - ${config.siteName}`,
-        html: getRejectionEmail(sub.plan.name, reason, { 
-          logoUrl: config.branding.logoUrl, 
-          siteName: config.siteName,
-          primaryColor: config.branding.primaryColor
-        })
-     });
+    await sendMail({
+      template: "membership.application-rejected",
+      to: sub.user.email,
+      entityId: sub.id,
+      build: (ctx) =>
+        templates.membership.applicationRejected(ctx, {
+          name: sub.user.name || "there",
+          planName: sub.plan.name,
+          reason: reason?.trim() || undefined,
+        }),
+    });
   }
 
   // Update status and store reason in details

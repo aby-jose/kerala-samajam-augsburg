@@ -5,6 +5,8 @@ import { prisma } from "./prisma";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { revalidatePath } from "next/cache";
+import { absoluteUrl, sendMail, templates } from "./email";
+import { nanoid } from "nanoid";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -34,9 +36,12 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
 
   const { name, email, phone, address, city, zip, dob, occupation, bio, image } = validatedFields.data;
 
+  const userId = (session.user as any).id as string;
+  const previousEmail = session.user.email || "";
+
   try {
     // Check if email is already taken by another user
-    const isEmailChange = email.trim().toLowerCase() !== session.user.email?.toLowerCase();
+    const isEmailChange = email.trim().toLowerCase() !== previousEmail.toLowerCase();
 
     if (isEmailChange) {
       const existingUser = await prisma.user.findUnique({
@@ -49,7 +54,7 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
     }
 
     await prisma.user.update({
-      where: { id: (session.user as any).id as string },
+      where: { id: userId },
       data: {
         name,
         email,
@@ -72,6 +77,48 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
         image,
       },
     });
+
+    // A changed sign-in address is a security event, so it is announced to the
+    // address that is losing control as well as the one gaining it. Notifying
+    // only the new address would let someone who has taken over a session move
+    // the account somewhere else without the owner ever hearing about it — the
+    // old inbox is the owner's last channel, and this is the last message we
+    // can send down it.
+    if (isEmailChange && previousEmail) {
+      for (const [audience, recipient] of [
+        ["old", previousEmail],
+        ["new", email],
+      ] as const) {
+        await sendMail({
+          template: `account.email-changed.${audience}`,
+          to: recipient,
+          entityId: userId,
+          build: (ctx) =>
+            templates.account.emailChanged(ctx, {
+              name,
+              oldEmail: previousEmail,
+              newEmail: email,
+              audience,
+            }),
+        });
+      }
+
+      // The address is unverified again (see above), so re-issue the link
+      // rather than leaving the member to hunt for a "resend" button.
+      const token = nanoid(32);
+      await prisma.verificationToken.create({
+        data: { identifier: email, token, expires: new Date(Date.now() + 24 * 3600000) },
+      });
+      await sendMail({
+        template: "account.verify-email",
+        to: email,
+        entityId: userId,
+        build: (ctx) =>
+          templates.account.verifyEmail(ctx, {
+            verifyLink: absoluteUrl(`/verify-email?token=${token}`),
+          }),
+      });
+    }
 
     revalidatePath("/profile");
     return { success: true };

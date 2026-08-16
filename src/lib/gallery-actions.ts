@@ -8,12 +8,7 @@ import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { requireAdmin, requireAnyUser, requireUser } from "./guards";
 import { validateUpload } from "./upload-validation";
-import { sendEmail } from "./email";
-import { 
-  getContributionNotificationEmail, 
-  getContributionApprovalEmail, 
-  getContributionRejectionEmail 
-} from "./email-templates";
+import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail } from "./admin-contact";
 
@@ -397,16 +392,17 @@ export async function submitMediaContribution(data: {
 
   // Notify Admin
   if (!skipEmail) {
-    const config = await getConfig();
-    const notifyAddress = adminEmail();
-    await sendEmail({
-      to: notifyAddress,
-      subject: `New Media Contribution Request - ${config.siteName}`,
-      html: getContributionNotificationEmail(session.user.name || "A member", album.title, { 
-        logoUrl: config.branding.logoUrl, 
-        siteName: config.siteName,
-        primaryColor: config.branding.primaryColor
-      })
+    // Read out here: the closure loses TypeScript's narrowing on `session.user`.
+    const uploaderName = session.user.name || "A member";
+    await sendMail({
+      template: "gallery.contribution-admin-notice",
+      to: adminEmail(),
+      entityId: contribution.id,
+      build: (ctx) =>
+        templates.gallery.contributionAdminNotice(ctx, {
+          uploaderName,
+          albumTitle: album.title,
+        }),
     });
   }
 
@@ -438,16 +434,17 @@ export async function submitBulkMediaContributions(albumId: string, items: {
   });
 
   // Notify Admin ONCE
-  const config = await getConfig();
-  const notifyAddress = adminEmail();
-  await sendEmail({
-    to: notifyAddress,
-    subject: `New Media Contributions (${items.length} items) - ${config.siteName}`,
-    html: getContributionNotificationEmail(session.user.name || "A member", album.title, { 
-      logoUrl: config.branding.logoUrl, 
-      siteName: config.siteName,
-      primaryColor: config.branding.primaryColor
-    })
+  const uploaderName = session.user.name || "A member";
+  await sendMail({
+    template: "gallery.contribution-admin-notice",
+    to: adminEmail(),
+    entityId: albumId,
+    build: (ctx) =>
+      templates.gallery.contributionAdminNotice(ctx, {
+        uploaderName,
+        albumTitle: album.title,
+        count: items.length,
+      }),
   });
 
   return { success: true, count: items.length };
@@ -498,15 +495,15 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
 
     // 3. Notify User
     if (contribution.user.email) {
-      const config = await getConfig();
-      await sendEmail({
+      await sendMail({
+        template: "gallery.contribution-approved",
         to: contribution.user.email,
-        subject: `Your media contribution was approved! - ${config.siteName}`,
-        html: getContributionApprovalEmail(contribution.album.title, { 
-          logoUrl: config.branding.logoUrl, 
-          siteName: config.siteName,
-          primaryColor: config.branding.primaryColor
-        })
+        entityId: contribution.id,
+        build: (ctx) =>
+          templates.gallery.contributionApproved(ctx, {
+            name: contribution.user.name || "there",
+            albumTitle: contribution.album.title,
+          }),
       });
     }
   } else {
@@ -524,15 +521,16 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
 
     // 3. Notify User
     if (contribution.user.email) {
-      const config = await getConfig();
-      await sendEmail({
+      await sendMail({
+        template: "gallery.contribution-rejected",
         to: contribution.user.email,
-        subject: `Update regarding your media contribution - ${config.siteName}`,
-        html: getContributionRejectionEmail(contribution.album.title, reason, { 
-          logoUrl: config.branding.logoUrl, 
-          siteName: config.siteName,
-          primaryColor: config.branding.primaryColor
-        })
+        entityId: contribution.id,
+        build: (ctx) =>
+          templates.gallery.contributionRejected(ctx, {
+            name: contribution.user.name || "there",
+            albumTitle: contribution.album.title,
+            reason: reason?.trim() || undefined,
+          }),
       });
     }
   }

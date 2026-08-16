@@ -11,7 +11,23 @@ import { requireAdmin } from "./guards";
 import { generateCaptcha, verifyCaptcha } from "./captcha";
 import { enforceRateLimit } from "./rate-limit";
 import { generateTicketId } from "./ticket";
-import { PAYMENT_METHODS, SUBSCRIPTION_STATUS, isPaymentMethod, type PaymentMethod } from "./membership-term";
+import { PAYMENT_METHODS, SUBSCRIPTION_STATUS, PENDING_STATUSES, isPaymentMethod, type PaymentMethod } from "./membership-term";
+import { sendMail, sendMailBatch, templates } from "./email";
+import { adminEmailOrNull } from "./admin-contact";
+import { getCollectedRevenue } from "./revenue";
+import { percentChange } from "./format-stats";
+import type { Event, Registration } from "@prisma/client";
+
+/** Shape the event templates need. Kept here so every broadcast agrees. */
+const eventSummary = (event: Event) => ({
+  slug: event.slug,
+  title: event.title,
+  date: event.date,
+  startTime: event.startTime,
+  endTime: event.endTime,
+  location: event.location,
+  address: event.address,
+});
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -110,15 +126,43 @@ export async function upsertEvent(data: EventFormValues) {
     maxAttendees: validated.maxAttendees || null,
   };
 
+  // The state before the edit, so a moved date or venue can be recognised as
+  // such. Someone who has already booked their Saturday around an event needs
+  // telling when it moves; nobody needs telling that the description was
+  // reworded, so only these two fields are compared.
+  const before = id ? await prisma.event.findUnique({ where: { id } }) : null;
+
+  let event: Event;
   if (id) {
-    await prisma.event.update({
+    event = await prisma.event.update({
       where: { id },
       data: prismaData,
     });
   } else {
-    await prisma.event.create({
+    event = await prisma.event.create({
       data: prismaData,
     });
+  }
+
+  let notified = 0;
+  if (before) {
+    const dateMoved = before.date.getTime() !== event.date.getTime();
+    const venueMoved = before.location !== event.location;
+
+    if ((dateMoved || venueMoved) && event.status !== "CANCELLED") {
+      const result = await notifyRegistrants(event.id, (registration) => ({
+        to: registration.email,
+        entityId: registration.id,
+        build: (ctx: any) =>
+          templates.events.eventRescheduled(ctx, {
+            name: registration.name,
+            event: eventSummary(event),
+            previousDate: dateMoved ? before.date : null,
+            previousLocation: venueMoved ? before.location : null,
+          }),
+      }), "event.rescheduled");
+      notified = result.sent;
+    }
   }
 
   revalidatePath("/admin/events");
@@ -126,31 +170,208 @@ export async function upsertEvent(data: EventFormValues) {
   if (validated.slug) {
     revalidatePath(`/events/${validated.slug}`);
   }
-  
-  return { success: true };
+
+  return { success: true, notified };
+}
+
+/**
+ * Fan a template out to everyone holding a registration for an event.
+ *
+ * Extracted because four different callers need it and each one getting the
+ * batching, the ordering and the failure handling right on its own is four
+ * chances to get it wrong.
+ */
+async function notifyRegistrants(
+  eventId: string,
+  build: (registration: Registration) => {
+    to: string;
+    entityId: string;
+    build: (ctx: any) => any;
+  },
+  template: string
+) {
+  const registrations = await prisma.registration.findMany({ where: { eventId } });
+  if (!registrations.length) return { sent: 0, skipped: 0, failed: 0, errors: [] };
+
+  return sendMailBatch(registrations.map(build), { template });
+}
+
+/**
+ * Call the event off, and tell everyone who was coming.
+ *
+ * Cancelling and deleting used to be the same operation, which meant the only
+ * way to stop an event also destroyed the list of people who needed to hear
+ * about it. The row and its registrations stay; the status changes.
+ */
+export async function cancelEvent(id: string, reason?: string) {
+  await requireAdmin();
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new Error("Event not found");
+  if (event.status === "CANCELLED") throw new Error("This event is already cancelled.");
+
+  const cancelled = await prisma.event.update({
+    where: { id },
+    data: {
+      status: "CANCELLED",
+      cancellationReason: reason?.trim() || null,
+      cancelledAt: new Date(),
+    },
+  });
+
+  const outcome = await notifyRegistrants(
+    id,
+    (registration) => ({
+      to: registration.email,
+      entityId: registration.id,
+      build: (ctx: any) =>
+        templates.events.eventCancelled(ctx, {
+          name: registration.name,
+          event: eventSummary(cancelled),
+          reason: reason?.trim() || undefined,
+          hadPaid: registration.paymentStatus === "PAID",
+        }),
+    }),
+    "event.cancelled"
+  );
+
+  revalidatePath("/admin/events");
+  revalidatePath("/events");
+  revalidatePath(`/events/${event.slug}`);
+
+  return { success: true, notified: outcome.sent, failed: outcome.failed };
+}
+
+/** Undo a cancellation. Registrants are told it is back on. */
+export async function reinstateEvent(id: string) {
+  await requireAdmin();
+
+  const event = await prisma.event.update({
+    where: { id },
+    data: { status: "SCHEDULED", cancellationReason: null, cancelledAt: null },
+  });
+
+  const outcome = await notifyRegistrants(
+    id,
+    (registration) => ({
+      to: registration.email,
+      entityId: registration.id,
+      build: (ctx: any) =>
+        templates.events.eventRescheduled(ctx, {
+          name: registration.name,
+          event: eventSummary(event),
+          reason: "This event was cancelled and is now going ahead after all. Your original ticket is valid.",
+        }),
+    }),
+    "event.reinstated"
+  );
+
+  revalidatePath("/admin/events");
+  revalidatePath("/events");
+  revalidatePath(`/events/${event.slug}`);
+
+  return { success: true, notified: outcome.sent };
 }
 
 export async function deleteEvent(id: string) {
   await requireAdmin();
 
-  await prisma.event.delete({
+  const event = await prisma.event.findUnique({
     where: { id },
+    include: { _count: { select: { registrations: true } } },
   });
-  
+  if (!event) throw new Error("Event not found");
+
+  // Deleting an event that people have booked *is* a cancellation as far as
+  // they are concerned — and once the row is gone there is no list left to
+  // mail. So the notice goes out first, and only then the row.
+  let notified = 0;
+  if (event._count.registrations > 0 && event.status !== "CANCELLED") {
+    const outcome = await notifyRegistrants(
+      id,
+      (registration) => ({
+        to: registration.email,
+        entityId: registration.id,
+        build: (ctx: any) =>
+          templates.events.eventCancelled(ctx, {
+            name: registration.name,
+            event: eventSummary(event),
+            hadPaid: registration.paymentStatus === "PAID",
+          }),
+      }),
+      "event.cancelled"
+    );
+    notified = outcome.sent;
+  }
+
+  await prisma.registration.deleteMany({ where: { eventId: id } });
+  await prisma.event.delete({ where: { id } });
+
   revalidatePath("/admin/events");
-  return { success: true };
+  revalidatePath("/events");
+  return { success: true, notified };
 }
 
 export async function toggleEventPublish(id: string, isPublished: boolean) {
   await requireAdmin();
 
-  await prisma.event.update({
+  const event = await prisma.event.update({
     where: { id },
     data: { isPublished },
   });
-  
+
   revalidatePath("/admin/events");
-  return { success: true };
+  revalidatePath("/events");
+  return { success: true, event };
+}
+
+/**
+ * Announce a published event to members who want to hear about them.
+ *
+ * Kept as a separate, explicitly-invoked action rather than a side effect of
+ * publishing: publishing is toggled during editing, and an announcement that
+ * fires on every toggle would mail the membership several times for one event.
+ * `once` makes a second press harmless anyway.
+ */
+export async function announceEvent(id: string) {
+  await requireAdmin();
+
+  const event = await prisma.event.findUnique({ where: { id } });
+  if (!event) throw new Error("Event not found");
+  if (!event.isPublished) throw new Error("Publish the event before announcing it.");
+  if (event.status === "CANCELLED") throw new Error("This event is cancelled.");
+
+  // Members with a running subscription, plus anyone verified who has asked to
+  // hear about events. `sendMail` re-checks the preference per recipient, so
+  // this query only has to be roughly right.
+  const recipients = await prisma.user.findMany({
+    where: {
+      email: { not: null },
+      emailVerified: { not: null },
+      status: "ACTIVE",
+      anonymizedAt: null,
+      emailEventAnnouncements: true,
+    },
+    select: { id: true, name: true, email: true },
+  });
+
+  const outcome = await sendMailBatch(
+    recipients.map((user) => ({
+      to: user.email!,
+      entityId: `${event.id}:${user.id}`,
+      build: (ctx: any) =>
+        templates.events.eventAnnouncement(ctx, {
+          name: user.name || "there",
+          event: eventSummary(event),
+          description: event.description,
+          memberPrice: event.memberPrice,
+          nonMemberPrice: event.nonMemberPrice,
+        }),
+    })),
+    { template: "event.announcement", category: "announcement", once: true }
+  );
+
+  return { success: true, ...outcome };
 }
 
 /**
@@ -377,22 +598,27 @@ export async function registerForEvent(data: {
   // 3. Check Event Requirements
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { 
-      id: true, 
-      requiresLogin: true, 
-      title: true, 
-      maxAttendees: true, 
-      memberPrice: true,
-      nonMemberPrice: true,
-      price: true,
-      _count: { select: { registrations: true } } 
-    }
+    include: { _count: { select: { registrations: true } } },
   });
 
   if (!event) throw new Error("Event not found");
 
+  if (event.status === "CANCELLED") {
+    throw new Error("This event has been cancelled and is no longer taking registrations.");
+  }
+
   // Check Capacity
   if (event.maxAttendees && event._count.registrations + attendees > event.maxAttendees) {
+    // Somebody filled in a form and got a red error message. Sending them the
+    // details anyway means they can watch the page for a returned place
+    // instead of assuming the whole thing failed.
+    await sendMail({
+      template: "event.full",
+      to: email,
+      entityId: event.id,
+      build: (ctx) =>
+        templates.events.eventFull(ctx, { name: name || "there", event: eventSummary(event) }),
+    });
     throw new Error("Sorry, this event has reached its maximum capacity.");
   }
 
@@ -515,9 +741,41 @@ export async function cancelRegistration(registrationId: string) {
     where: { id: registrationId },
   });
 
+  // Confirm it to the member, and tell the committee — a released place that
+  // nobody knows about is a place that stays empty, and a released place that
+  // was paid for is a refund somebody has to remember to make.
+  await sendMail({
+    template: "event.registration-cancelled",
+    to: registration.email,
+    entityId: registration.id,
+    build: (ctx) =>
+      templates.events.registrationCancelled(ctx, {
+        name: registration.name,
+        event: eventSummary(registration.event),
+        ticketId: registration.ticketId,
+      }),
+  });
+
+  const committee = adminEmailOrNull();
+  if (committee) {
+    await sendMail({
+      template: "event.registration-cancelled.admin",
+      to: committee,
+      entityId: registration.id,
+      build: (ctx) =>
+        templates.events.registrationCancelledAdminNotice(ctx, {
+          name: registration.name,
+          email: registration.email,
+          event: eventSummary(registration.event),
+          attendees: registration.attendees,
+          hadPaid: registration.paymentStatus === "PAID",
+        }),
+    });
+  }
+
   revalidatePath(`/events/${registration.event.slug}`);
   revalidatePath("/admin/registrations");
-  
+
   return { success: true };
 }
 
@@ -550,8 +808,41 @@ export async function updateRegistrationAmount(id: string, amount: number) {
   return { success: true };
 }
 
+/**
+ * Event dates are stored as UTC midnight of the calendar day picked in the
+ * admin form (`new Date("YYYY-MM-DD")`), so "today" must be compared by UTC
+ * date parts rather than elapsed time — a local-timezone comparison would
+ * shift the allowed window by hours in either direction.
+ */
+function isSameUTCDay(a: Date, b: Date) {
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
+
 export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean) {
   await requireAdmin();
+
+  if (isCheckedIn) {
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { event: { select: { date: true } } },
+    });
+
+    if (!registration) throw new Error("Registration not found");
+
+    if (!isSameUTCDay(registration.event.date, new Date())) {
+      const eventDate = registration.event.date.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+      throw new Error(`Check-in is only allowed on the day of the event (${eventDate}).`);
+    }
+  }
 
   await prisma.registration.update({
     where: { id: registrationId },
@@ -565,14 +856,38 @@ export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean
   return { success: true };
 }
 
-export async function deleteRegistration(id: string) {
+/**
+ * An administrator removes somebody's registration.
+ *
+ * The person losing their place is told. Previously they were not, which meant
+ * they turned up at the door holding a ticket that had been void for a week.
+ */
+export async function deleteRegistration(id: string, reason?: string) {
   await requireAdmin();
 
-  await prisma.registration.delete({
+  const registration = await prisma.registration.findUnique({
     where: { id },
+    include: { event: true },
+  });
+  if (!registration) throw new Error("Registration not found");
+
+  await prisma.registration.delete({ where: { id } });
+
+  await sendMail({
+    template: "event.registration-removed",
+    to: registration.email,
+    entityId: registration.id,
+    build: (ctx) =>
+      templates.events.registrationRemovedByAdmin(ctx, {
+        name: registration.name,
+        event: eventSummary(registration.event),
+        ticketId: registration.ticketId,
+        reason: reason?.trim() || undefined,
+      }),
   });
 
   revalidatePath("/admin/registrations");
+  revalidatePath(`/events/${registration.event.slug}`);
   return { success: true };
 }
 
@@ -580,66 +895,94 @@ export async function getAdminDashboardStats() {
   await requireAdmin();
 
   const now = new Date();
-  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-  const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+  const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
   const [
-    totalRegistrations, 
-    lastMonthRegistrations,
-    upcomingEvents, 
-    totalRevenueData, 
-    lastMonthRevenueData,
+    totalRegistrations,
+    priorRegistrations,
+    upcomingEventsCount,
+    totalRevenue,
+    priorRevenue,
     recentRegistrations,
-    checkedInCount
+    checkedInCount,
+    pendingPayments,
+    pendingMembership,
+    unreadInquiries,
+    pendingContributions,
+    upcomingEvents,
   ] = await Promise.all([
     prisma.registration.count(),
-    prisma.registration.count({ where: { createdAt: { gte: lastMonth } } }),
-    prisma.event.count({ where: { date: { gte: now }, isPublished: true } }),
-    prisma.registration.findMany({ select: { pricePaid: true } }),
-    prisma.registration.findMany({ 
-      where: { createdAt: { gte: lastMonth } },
-      select: { pricePaid: true } 
-    }),
+    prisma.registration.count({ where: { createdAt: { lt: monthAgo } } }),
+    prisma.event.count({ where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } } }),
+    getCollectedRevenue(),
+    getCollectedRevenue(monthAgo),
     prisma.registration.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: { event: { select: { title: true } } }
     }),
-    prisma.registration.count({ where: { isCheckedIn: true } })
+    prisma.registration.count({ where: { isCheckedIn: true } }),
+    prisma.registration.count({ where: { paymentStatus: "PENDING" } }),
+    prisma.subscription.count({ where: { status: { in: PENDING_STATUSES } } }),
+    prisma.contactMessage.count({ where: { status: "UNREAD" } }),
+    prisma.mediaContribution.count({ where: { status: "PENDING" } }),
+    prisma.event.findMany({
+      take: 4,
+      where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } },
+      include: { _count: { select: { registrations: true } } },
+      orderBy: { date: 'asc' }
+    }),
   ]);
-
-  const totalRevenue = totalRevenueData.reduce((acc, reg) => acc + (reg.pricePaid || 0), 0);
-  const lastMonthRevenue = lastMonthRevenueData.reduce((acc, reg) => acc + (reg.pricePaid || 0), 0);
-
-  // Simple trend calculation
-  const regTrend = totalRegistrations > 0 
-    ? Math.round((lastMonthRegistrations / (totalRegistrations || 1)) * 100) 
-    : 0;
-    
-  const revTrend = totalRevenue > 0 
-    ? Math.round((lastMonthRevenue / (totalRevenue || 1)) * 100) 
-    : 0;
-
-  const eventStatus = await prisma.event.findMany({
-    take: 3,
-    where: { isPublished: true },
-    include: { _count: { select: { registrations: true } } },
-    orderBy: { date: 'asc' }
-  });
 
   return {
     totalRegistrations,
-    regTrend: `+${regTrend}%`,
-    upcomingEvents,
+    regTrend: percentChange(totalRegistrations, priorRegistrations),
+    upcomingEvents: upcomingEventsCount,
     totalRevenue,
-    revTrend: `+${revTrend}%`,
+    revTrend: percentChange(totalRevenue, priorRevenue),
     recentRegistrations,
     checkedInCount,
-    eventStatus: eventStatus.map(e => ({
+    checkInRate: totalRegistrations > 0 ? Math.round((checkedInCount / totalRegistrations) * 100) : null,
+    // Items that need an admin to actually do something, surfaced up front
+    // instead of only discoverable by visiting each section in turn.
+    attention: [
+      {
+        key: "payments",
+        label: "Payments awaiting confirmation",
+        count: pendingPayments,
+        href: "/admin/payments",
+        tone: "amber" as const,
+      },
+      {
+        key: "membership",
+        label: "Membership applications pending",
+        count: pendingMembership,
+        href: "/admin/membership/applications",
+        tone: "violet" as const,
+      },
+      {
+        key: "inquiries",
+        label: "Unread inquiries",
+        count: unreadInquiries,
+        href: "/admin/inquiries",
+        tone: "blue" as const,
+      },
+      {
+        key: "contributions",
+        label: "Gallery photos awaiting review",
+        count: pendingContributions,
+        href: "/admin/gallery/contributions",
+        tone: "emerald" as const,
+      },
+    ],
+    upcomingEventsList: upcomingEvents.map(e => ({
+      id: e.id,
       title: e.title,
-      status: e.date > now ? "Upcoming" : "Past",
-      progress: Math.min(Math.round((e._count.registrations / (e.maxAttendees || 100)) * 100), 100)
-    }))
+      date: e.date,
+      location: e.location,
+      registrations: e._count.registrations,
+      maxAttendees: e.maxAttendees,
+    })),
   };
 }
 

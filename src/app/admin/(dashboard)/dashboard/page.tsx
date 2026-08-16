@@ -5,17 +5,37 @@ import {
   Users,
   Calendar,
   CheckCircle2,
-  TrendingUp,
+  Wallet,
   ArrowRight,
+  ChevronRight,
+  CreditCard,
+  UserCheck,
+  Mail,
+  Image as ImageIcon,
+  MapPin,
+  PartyPopper,
 } from "lucide-react";
 import { getAdminDashboardStats } from "@/lib/event-actions";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, differenceInCalendarDays } from "date-fns";
+import { formatDelta } from "@/lib/format-stats";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { StatCard } from "@/components/admin/ui/stat-card";
 import { EmptyState } from "@/components/admin/ui/empty-state";
 import { Skeleton } from "@/components/admin/ui/skeleton";
-import { cardSurface, panelHeader } from "@/components/admin/ui/surface";
+import { cardSurface, panelHeader, chipTone, type ChipTone } from "@/components/admin/ui/surface";
 import { cn } from "@/lib/utils";
+
+const ATTENTION_ICON: Record<string, React.ElementType> = {
+  payments: CreditCard,
+  membership: UserCheck,
+  inquiries: Mail,
+  contributions: ImageIcon,
+};
+
+const PAYMENT_STATUS_TONE: Record<string, ChipTone> = {
+  PAID: "emerald",
+  PENDING: "amber",
+};
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<any>(null);
@@ -39,14 +59,26 @@ export default function AdminDashboardPage() {
     return <DashboardSkeleton />;
   }
 
+  const totalAttention = stats.attention.reduce((acc: number, item: any) => acc + item.count, 0);
+
   const statCards = [
     {
       label: "Total registrations",
       value: stats.totalRegistrations.toString(),
       icon: Users,
       tone: "primary" as const,
-      delta: stats.regTrend,
-      hint: "vs. last month",
+      delta: formatDelta(stats.regTrend),
+      deltaDirection: stats.regTrend != null && stats.regTrend < 0 ? "down" as const : "up" as const,
+      hint: stats.regTrend == null ? "no prior month to compare" : "vs. last month",
+    },
+    {
+      label: "Revenue collected",
+      value: `€${stats.totalRevenue.toLocaleString()}`,
+      icon: Wallet,
+      tone: "amber" as const,
+      delta: formatDelta(stats.revTrend),
+      deltaDirection: stats.revTrend != null && stats.revTrend < 0 ? "down" as const : "up" as const,
+      hint: stats.revTrend == null ? "no prior month to compare" : "vs. last month",
     },
     {
       label: "Upcoming events",
@@ -60,15 +92,7 @@ export default function AdminDashboardPage() {
       value: stats.checkedInCount.toString(),
       icon: CheckCircle2,
       tone: "emerald" as const,
-      hint: "updated in real time",
-    },
-    {
-      label: "Estimated revenue",
-      value: `€${stats.totalRevenue.toLocaleString()}`,
-      icon: TrendingUp,
-      tone: "amber" as const,
-      delta: stats.revTrend,
-      hint: "vs. last month",
+      hint: stats.checkInRate == null ? "no registrations yet" : `${stats.checkInRate}% of registrations`,
     },
   ];
 
@@ -76,7 +100,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        description="Overview of registrations, events and revenue."
+        description="Overview of registrations, events and what needs your attention."
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -88,21 +112,77 @@ export default function AdminDashboardPage() {
             icon={stat.icon}
             tone={stat.tone}
             delta={stat.delta}
+            deltaDirection={stat.deltaDirection}
             hint={stat.hint}
           />
         ))}
       </div>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Recent registrations */}
+        {/* Needs attention */}
         <section className={cardSurface}>
           <header className={panelHeader}>
             <div>
-              <h2 className="font-sans text-sm font-semibold text-foreground">Recent registrations</h2>
-              <p className="text-xs text-muted-foreground">Latest sign-ups across all events</p>
+              <h2 className="font-sans text-sm font-semibold text-foreground">Needs attention</h2>
+              <p className="text-xs text-muted-foreground">Items waiting on an admin action</p>
+            </div>
+            {totalAttention > 0 && (
+              <span className="shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
+                {totalAttention}
+              </span>
+            )}
+          </header>
+          {totalAttention === 0 ? (
+            <EmptyState
+              icon={PartyPopper}
+              title="All caught up"
+              description="Nothing needs your attention right now."
+              tone="emerald"
+              className="py-10"
+            />
+          ) : (
+            <div className="divide-y divide-border">
+              {stats.attention.map((item: any) => {
+                const Icon = ATTENTION_ICON[item.key] ?? Users;
+                return (
+                  <Link
+                    key={item.key}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-5 py-3.5 transition-colors sm:px-6",
+                      item.count > 0 ? "hover:bg-black/[0.03] dark:hover:bg-white/[0.04]" : "opacity-60"
+                    )}
+                  >
+                    <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", chipTone(item.count > 0 ? item.tone : "neutral"))}>
+                      <Icon className="h-[18px] w-[18px]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
+                    </div>
+                    {item.count > 0 ? (
+                      <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums", chipTone(item.tone))}>
+                        {item.count}
+                      </span>
+                    ) : (
+                      <span className="shrink-0 text-xs text-muted-foreground">None</span>
+                    )}
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Upcoming events */}
+        <section className={cardSurface}>
+          <header className={panelHeader}>
+            <div>
+              <h2 className="font-sans text-sm font-semibold text-foreground">Upcoming events</h2>
+              <p className="text-xs text-muted-foreground">Next on the calendar, with registrations against capacity</p>
             </div>
             <Link
-              href="/admin/registrations"
+              href="/admin/events"
               className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
             >
               View all
@@ -110,68 +190,111 @@ export default function AdminDashboardPage() {
             </Link>
           </header>
           <div className="divide-y divide-border">
-            {stats.recentRegistrations.map((reg: any, idx: number) => (
-              <div key={idx} className="flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/5 text-xs font-semibold text-primary">
-                    {reg.name.substring(0, 2).toUpperCase()}
+            {stats.upcomingEventsList.map((event: any) => {
+              const daysUntil = differenceInCalendarDays(new Date(event.date), new Date());
+              const progress = event.maxAttendees
+                ? Math.min(Math.round((event.registrations / event.maxAttendees) * 100), 100)
+                : null;
+              return (
+                <Link
+                  key={event.id}
+                  href={`/admin/registrations?event=${event.id}`}
+                  className="block px-5 py-3.5 transition-colors hover:bg-black/[0.03] sm:px-6 dark:hover:bg-white/[0.04]"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                      <span className="text-[10px] font-semibold uppercase leading-none">{format(new Date(event.date), "MMM")}</span>
+                      <span className="text-sm font-bold leading-tight tabular-nums">{format(new Date(event.date), "d")}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-sm font-medium text-foreground">{event.title}</p>
+                        <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                          {daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `In ${daysUntil} days`}
+                        </span>
+                      </div>
+                      {event.location && (
+                        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {event.location}
+                        </p>
+                      )}
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-all duration-500"
+                            style={{ width: `${progress ?? 0}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          {event.registrations}{event.maxAttendees ? `/${event.maxAttendees}` : ""}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{reg.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{reg.event?.title}</p>
-                  </div>
-                </div>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(reg.createdAt), { addSuffix: true })}
-                </span>
-              </div>
-            ))}
-            {stats.recentRegistrations.length === 0 && (
+                </Link>
+              );
+            })}
+            {stats.upcomingEventsList.length === 0 && (
               <EmptyState
-                icon={Users}
-                title="No registrations yet"
-                description="New event sign-ups will appear here."
+                icon={Calendar}
+                title="No upcoming events"
+                description="Create an event to start tracking registrations."
+                tone="violet"
                 className="py-10"
               />
             )}
           </div>
         </section>
+      </div>
 
-        {/* Event engagement */}
-        <section className={cardSurface}>
-          <header className={panelHeader}>
-            <div>
-              <h2 className="font-sans text-sm font-semibold text-foreground">Event capacity</h2>
-              <p className="text-xs text-muted-foreground">Registrations against capacity per event</p>
-            </div>
-          </header>
-          <div className="space-y-5 px-5 py-5 sm:px-6">
-            {stats.eventStatus.map((event: any, idx: number) => (
-              <div key={idx} className="space-y-1.5">
-                <div className="flex items-center justify-between gap-4 text-sm">
-                  <span className="truncate font-medium text-foreground">{event.title}</span>
-                  <span className="shrink-0 text-xs font-medium text-muted-foreground tabular-nums">{event.status}</span>
+      {/* Recent registrations */}
+      <section className={cardSurface}>
+        <header className={panelHeader}>
+          <div>
+            <h2 className="font-sans text-sm font-semibold text-foreground">Recent registrations</h2>
+            <p className="text-xs text-muted-foreground">Latest sign-ups across all events</p>
+          </div>
+          <Link
+            href="/admin/registrations"
+            className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            View all
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </header>
+        <div className="divide-y divide-border">
+          {stats.recentRegistrations.map((reg: any, idx: number) => (
+            <div key={idx} className="flex items-center justify-between gap-4 px-5 py-3.5 sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 to-primary/5 text-xs font-semibold text-primary">
+                  {reg.name.substring(0, 2).toUpperCase()}
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-all duration-500"
-                    style={{ width: `${event.progress}%` }}
-                  />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{reg.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{reg.event?.title}</p>
                 </div>
               </div>
-            ))}
-            {stats.eventStatus.length === 0 && (
-              <EmptyState
-                icon={Calendar}
-                title="No active events"
-                description="Create an event to start tracking engagement."
-                tone="violet"
-                className="py-6"
-              />
-            )}
-          </div>
-        </section>
-      </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", chipTone(PAYMENT_STATUS_TONE[reg.paymentStatus] ?? "neutral"))}>
+                  {reg.paymentStatus === "PAID" ? "Paid" : "Pending"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(reg.createdAt), { addSuffix: true })}
+                </span>
+              </div>
+            </div>
+          ))}
+          {stats.recentRegistrations.length === 0 && (
+            <EmptyState
+              icon={Users}
+              title="No registrations yet"
+              description="New event sign-ups will appear here."
+              className="py-10"
+            />
+          )}
+        </div>
+      </section>
     </div>
   );
 }
@@ -203,6 +326,14 @@ function DashboardSkeleton() {
             </div>
           </div>
         ))}
+      </div>
+      <div className={cn(cardSurface, "p-5")}>
+        <Skeleton className="h-4 w-40" />
+        <div className="mt-4 space-y-3">
+          {Array.from({ length: 4 }).map((_, j) => (
+            <Skeleton key={j} className="h-10 w-full" />
+          ))}
+        </div>
       </div>
     </div>
   );

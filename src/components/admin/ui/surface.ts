@@ -40,7 +40,7 @@ export const toolbarChip =
  * Colored icon chip. Tint rotates by semantic meaning so sections read as
  * distinct at a glance instead of every icon sitting in the same gray box.
  */
-export type ChipTone = "primary" | "blue" | "emerald" | "amber" | "violet" | "neutral";
+export type ChipTone = "primary" | "blue" | "emerald" | "amber" | "violet" | "red" | "neutral";
 
 const chipToneClasses: Record<ChipTone, string> = {
   primary: "bg-primary/10 text-primary",
@@ -48,6 +48,7 @@ const chipToneClasses: Record<ChipTone, string> = {
   emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  red: "bg-red-500/10 text-red-600 dark:text-red-400",
   neutral: "bg-black/[0.05] text-muted-foreground dark:bg-white/[0.08]",
 };
 

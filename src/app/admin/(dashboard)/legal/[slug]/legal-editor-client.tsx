@@ -62,6 +62,83 @@ const LOCALES: { code: LegalLocale; label: string; note: string }[] = [
 const textareaClass =
   "w-full rounded-lg border border-input bg-background px-3 py-2.5 font-mono text-[13px] leading-relaxed text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20";
 
+/**
+ * Friendly names for the `{{legal.*}}` / `{{site.*}}` tokens, grouped for the
+ * "Insert a detail…" menu. Kept in the editor rather than legal-render.ts
+ * because these labels are UI copy, not part of placeholder resolution.
+ */
+const PLACEHOLDER_GROUPS: { label: string; options: { token: string; label: string }[] }[] = [
+  {
+    label: "Address & organisation",
+    options: [
+      { token: "legal.entityName", label: "Club name" },
+      { token: "legal.legalForm", label: "Legal form (e.g. e.V.)" },
+      { token: "legal.street", label: "Street" },
+      { token: "legal.postalCode", label: "Postal code" },
+      { token: "legal.city", label: "City" },
+      { token: "legal.country", label: "Country" },
+      { token: "legal.address", label: "Full address (one line)" },
+      { token: "legal.addressLines", label: "Full address (with name, multi-line)" },
+    ],
+  },
+  {
+    label: "Register & board",
+    options: [
+      { token: "legal.registerCourt", label: "Register court" },
+      { token: "legal.registerNumber", label: "Register number" },
+      { token: "legal.register", label: "Register court + number" },
+      { token: "legal.boardMembers", label: "Board members" },
+      { token: "legal.vatId", label: "VAT ID" },
+    ],
+  },
+  {
+    label: "Responsible & data protection",
+    options: [
+      { token: "legal.responsiblePerson", label: "Person responsible for content" },
+      { token: "legal.responsiblePersonAddress", label: "Their address" },
+      { token: "legal.dpoName", label: "Data protection officer name" },
+      { token: "legal.dpoEmail", label: "Data protection officer email" },
+      { token: "legal.supervisoryAuthority", label: "Data protection authority" },
+      { token: "legal.hostingProvider", label: "Hosting provider" },
+      { token: "legal.bankName", label: "Bank name" },
+      { token: "legal.iban", label: "IBAN" },
+    ],
+  },
+  {
+    label: "Contact & website",
+    options: [
+      { token: "site.name", label: "Site name" },
+      { token: "site.email", label: "Contact email" },
+      { token: "site.phone", label: "Contact phone" },
+      { token: "site.address", label: "Site address" },
+      { token: "site.url", label: "Website URL" },
+    ],
+  },
+];
+
+const TOKEN_PATTERN = /\{\{([^}]+)\}\}/g;
+
+/**
+ * `{{...}}` markers that don't match any key `buildPlaceholderMap` knows
+ * about — a typo, or text typed to merely look like a placeholder. These are
+ * worse than a known-but-empty field: filling in Settings can never fix
+ * them, because there is nothing on the other end to fill in.
+ */
+function findInvalidTokens(content: LegalContent, knownKeys: Set<string>): string[] {
+  const texts = [
+    content.title,
+    content.lead,
+    ...content.sections.flatMap((s) => [s.heading, s.body]),
+  ];
+  const found = new Set<string>();
+  for (const text of texts) {
+    for (const match of text.matchAll(TOKEN_PATTERN)) {
+      if (!knownKeys.has(match[1].trim())) found.add(match[0]);
+    }
+  }
+  return [...found];
+}
+
 export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
   const { success, error: toastError } = useToast();
   const confirm = useConfirm();
@@ -89,6 +166,11 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
   >(null);
   const [changeNote, setChangeNote] = React.useState("");
   const [requireReconsent, setRequireReconsent] = React.useState(meta.requiresConsent);
+  // Anchors and raw {{token}} syntax are developer plumbing — collapsed by
+  // default so the everyday editing view reads as a form, not as code.
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [formatHelpOpen, setFormatHelpOpen] = React.useState(false);
+  const bodyRefs = React.useRef<Record<number, HTMLTextAreaElement | null>>({});
 
   React.useEffect(() => {
     Promise.all([adminGetLegalDocument(slug), fetchConfigAction(), adminListRevisions(slug)])
@@ -114,6 +196,10 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
     () => (config ? buildPlaceholderMap(config) : {}),
     [config]
   );
+  const knownPlaceholderKeys = React.useMemo(
+    () => new Set(Object.keys(placeholderMap)),
+    [placeholderMap]
+  );
 
   // Details only the committee knows. Publishing is blocked while any remain,
   // because a legally mandatory page with a gap in it is worse than useless.
@@ -126,6 +212,19 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
       ])
     );
   }, [content, config, placeholderMap]);
+
+  // {{...}} that don't match any real field — a typo or made-up text, not a
+  // gap Settings can fill. Blocks saving outright: unlike `unresolved`, no
+  // amount of filling in Settings will ever make these valid.
+  const invalidTokens = React.useMemo(() => {
+    if (!content || !config) return [];
+    return Array.from(
+      new Set([
+        ...findInvalidTokens(content.de, knownPlaceholderKeys),
+        ...findInvalidTokens(content.en, knownPlaceholderKeys),
+      ])
+    );
+  }, [content, config, knownPlaceholderKeys]);
 
   const current = content?.[locale];
 
@@ -144,6 +243,32 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
         i === index ? { ...section, ...patch } : section
       ),
     }));
+
+  /**
+   * Drop a `{{token}}` into a section's body at the cursor, so nobody has to
+   * type curly braces by hand. Falls back to appending at the end if the
+   * textarea isn't mounted yet.
+   */
+  const insertPlaceholder = (index: number, token: string) => {
+    const el = bodyRefs.current[index];
+    const marker = `{{${token}}}`;
+
+    if (!el) {
+      updateSection(index, { body: `${current?.sections[index]?.body ?? ""}${marker}` });
+      return;
+    }
+
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    const nextValue = el.value.slice(0, start) + marker + el.value.slice(end);
+    updateSection(index, { body: nextValue });
+
+    requestAnimationFrame(() => {
+      el.focus();
+      const cursor = start + marker.length;
+      el.setSelectionRange(cursor, cursor);
+    });
+  };
 
   const moveSection = (index: number, direction: -1 | 1) =>
     update((draft) => {
@@ -181,6 +306,20 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
 
   const handleSaveDraft = async () => {
     if (!content) return;
+
+    // A made-up {{token}} is never allowed to reach storage, not even as a
+    // draft — the button is disabled for this already, but a made-up token
+    // can be typed and this submit reachable via Enter, so it is enforced
+    // here too, not only in the button's `disabled`.
+    if (invalidTokens.length > 0) {
+      toastError(
+        invalidTokens.length === 1
+          ? `${invalidTokens[0]} isn't a real field — fix or remove it before saving.`
+          : `${invalidTokens.join(", ")} aren't real fields — fix or remove them before saving.`
+      );
+      return;
+    }
+
     setIsSaving(true);
     try {
       await adminSaveDraft(slug, content);
@@ -320,7 +459,12 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
         <Button
           variant="outline"
           onClick={handleSaveDraft}
-          disabled={isSaving || !isDirty}
+          disabled={isSaving || !isDirty || invalidTokens.length > 0}
+          title={
+            invalidTokens.length > 0
+              ? `Fix or remove ${invalidTokens.join(", ")} before saving`
+              : undefined
+          }
           className="h-9 rounded-lg"
         >
           {isSaving ? (
@@ -424,6 +568,63 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
       <div className={cn("grid grid-cols-1 gap-6", showPreview && "xl:grid-cols-2")}>
         {/* Editor */}
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              Edit the plain sentences below. Use “+ Insert a detail” to add facts like the
+              address or register number — they stay in sync with Settings automatically.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="shrink-0 text-xs font-medium text-primary underline underline-offset-4"
+            >
+              {showAdvanced ? "Hide advanced fields" : "Show advanced fields"}
+            </button>
+          </div>
+
+          <section className={cn(cardSurface, "p-4")}>
+            <button
+              type="button"
+              onClick={() => setFormatHelpOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <span className="text-sm font-medium text-foreground">How to format the text</span>
+              {formatHelpOpen ? (
+                <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+            </button>
+            {formatHelpOpen && (
+              <div className="mt-3 space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                <p>Leave a blank line between paragraphs to start a new one.</p>
+                <p>
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono">## </code> at the
+                  start of a line makes a sub-heading.
+                </p>
+                <p>
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono">- </code> at the
+                  start of a line makes a bullet point.
+                </p>
+                <p>
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono">**text**</code> makes
+                  text bold.
+                </p>
+                <p>
+                  <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                    [link text](https://example.com)
+                  </code>{" "}
+                  makes a link.
+                </p>
+                <p>
+                  For a fact like the club&apos;s address or register number, use the{" "}
+                  <strong className="text-foreground">+ Insert a detail</strong> menu above the
+                  text box instead of typing curly braces by hand.
+                </p>
+              </div>
+            )}
+          </section>
+
           <section className={cardSurface}>
             <header className={panelHeader}>
               <h2 className="font-sans text-sm font-semibold text-foreground">
@@ -454,7 +655,15 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
             </div>
           </section>
 
-          {current.sections.map((section, index) => (
+          {current.sections.map((section, index) => {
+            const sectionInvalid = config
+              ? findInvalidTokens(
+                  { title: "", lead: "", sections: [section] },
+                  knownPlaceholderKeys
+                )
+              : [];
+
+            return (
             <section key={index} className={cardSurface}>
               <header className={panelHeader}>
                 <div className="flex min-w-0 items-center gap-2.5">
@@ -492,8 +701,8 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
               </header>
 
               <div className="space-y-4 p-5">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  <div className="space-y-2 sm:col-span-2">
+                <div className={cn("grid grid-cols-1 gap-4", showAdvanced && "sm:grid-cols-3")}>
+                  <div className={cn("space-y-2", showAdvanced && "sm:col-span-2")}>
                     <Label className="text-sm font-medium">Heading</Label>
                     <Input
                       value={section.heading}
@@ -510,34 +719,77 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                       className="h-9 rounded-lg"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Anchor</Label>
-                    <Input
-                      value={section.id}
-                      onChange={(e) => updateSection(index, { id: e.target.value })}
-                      className="h-9 rounded-lg font-mono text-xs"
-                    />
-                  </div>
+                  {showAdvanced && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Anchor</Label>
+                      <Input
+                        value={section.id}
+                        onChange={(e) => updateSection(index, { id: e.target.value })}
+                        className="h-9 rounded-lg font-mono text-xs"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium">Body</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-sm font-medium">Body</Label>
+                    <select
+                      defaultValue=""
+                      onChange={(e) => {
+                        const token = e.target.value;
+                        if (token) insertPlaceholder(index, token);
+                        e.target.value = "";
+                      }}
+                      className="h-8 max-w-[13rem] rounded-md border border-input bg-background px-2 text-xs text-muted-foreground outline-none focus-visible:border-ring"
+                    >
+                      <option value="">+ Insert a detail…</option>
+                      {PLACEHOLDER_GROUPS.map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.options.map((opt) => (
+                            <option key={opt.token} value={opt.token}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  </div>
                   <textarea
+                    ref={(el) => {
+                      bodyRefs.current[index] = el;
+                    }}
                     value={section.body}
                     onChange={(e) => updateSection(index, { body: e.target.value })}
                     rows={10}
                     className={textareaClass}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Blank line = new paragraph · <code>## </code> sub-heading ·{" "}
-                    <code>- </code> bullet · <code>**bold**</code> ·{" "}
-                    <code>[text](url)</code> · <code>{"{{legal.registerNumber}}"}</code>{" "}
-                    pulls from Settings.
-                  </p>
+                  {sectionInvalid.length > 0 && (
+                    <p className="flex items-start gap-1.5 rounded-lg bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        {sectionInvalid.length === 1
+                          ? "This isn't a recognised detail: "
+                          : "These aren't recognised details: "}
+                        <code className="font-mono">{sectionInvalid.join(", ")}</code> — it will
+                        show up exactly like that on the page. Use “+ Insert a detail” above
+                        instead.
+                      </span>
+                    </p>
+                  )}
+                  {showAdvanced && (
+                    <p className="text-xs text-muted-foreground">
+                      Blank line = new paragraph · <code>## </code> sub-heading ·{" "}
+                      <code>- </code> bullet · <code>**bold**</code> ·{" "}
+                      <code>[text](url)</code> · <code>{"{{legal.registerNumber}}"}</code>{" "}
+                      raw syntax, same as the insert menu above.
+                    </p>
+                  )}
                 </div>
               </div>
             </section>
-          ))}
+            );
+          })}
 
           <Button
             variant="outline"

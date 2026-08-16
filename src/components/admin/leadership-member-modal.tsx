@@ -104,7 +104,7 @@ export default function LeadershipMemberModal({ isOpen, onClose, initialData }: 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className={cn(heroSurface, "relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden")}
+        className={cn(heroSurface, "relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden md:max-h-[50vh] md:max-w-[50vw]")}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">

@@ -20,6 +20,22 @@ export interface SiteConfig {
   email: {
     fromName: string;
     fromEmail: string;
+    /**
+     * Which of the scheduled email jobs (`/api/cron`) are allowed to send.
+     *
+     * Off means the job still runs on schedule and does its bookkeeping (a
+     * membership past its end date is still marked EXPIRED) — it just skips
+     * the `sendMail` call. That is deliberate: turning a notice off should
+     * never leave the underlying record wrong, only silence the email.
+     */
+    automated: AutomatedEmailConfig;
+    /**
+     * Which action-triggered notifications are allowed to send — the mail
+     * fired by something a member or admin does, as opposed to `automated`'s
+     * cron jobs. Same rule as `automated`: off silences the email only, the
+     * record it would have announced is written either way.
+     */
+    notifications: NotificationEmailConfig;
   };
   features: {
     enableRegistration: boolean;
@@ -38,6 +54,86 @@ export interface SiteConfig {
    */
   legal: LegalEntityConfig;
 }
+
+/**
+ * One switch per scheduled email job in `/api/cron`. Keyed to match
+ * `email-jobs.ts`, not to the underlying database records — `paymentReminders`
+ * covers the overdue notice even though the job also runs `getConfig()` for
+ * the payment terms, for example.
+ */
+export interface AutomatedEmailConfig {
+  /** Event reminders at T-2 days and on the morning of. */
+  eventReminders: boolean;
+  /** Thank-you note the day after an event, with a link to the gallery. */
+  postEventThankYou: boolean;
+  /** Renewal notices at T-30 and T-7, and the notice a term has ended. */
+  membershipLifecycle: boolean;
+  /** Notices for membership fees whose due date has passed. */
+  paymentReminders: boolean;
+  /** Weekly summary of payments recorded and outstanding, to the committee. */
+  adminDigest: boolean;
+}
+
+export const defaultAutomatedEmailConfig: AutomatedEmailConfig = {
+  eventReminders: true,
+  postEventThankYou: true,
+  membershipLifecycle: true,
+  paymentReminders: true,
+  adminDigest: true,
+};
+
+/**
+ * One switch per action-triggered notification, grouped the way the settings
+ * screen shows them. Keyed to the `template` id passed to `sendMail` — see
+ * `NOTIFICATION_TOGGLE` in `src/lib/email/send.ts`, which is the only other
+ * place these keys need to be kept in sync.
+ *
+ * Security mail (verification, password reset, sign-in/email-change alerts)
+ * and GDPR-mandated notices (export ready, deletion requested/cancelled/
+ * completed) are deliberately not here — turning those off breaks a login
+ * flow or leaves a legal notice obligation unmet, so they always send.
+ */
+export interface NotificationEmailConfig {
+  /** Registration confirmation, with the ticket PDF attached. */
+  eventTicket: boolean;
+  /** A member cancels their own registration, or an admin removes one. */
+  eventRegistrationChanges: boolean;
+  /** An event is cancelled or reinstated — broadcast to every registrant. */
+  eventCancelledBroadcast: boolean;
+  /** An event's date or venue changes — broadcast to every registrant. */
+  eventRescheduled: boolean;
+  /** A registration is turned away because the event is full. */
+  eventFull: boolean;
+  /** A newly published event, announced to members who opted in. */
+  eventAnnouncement: boolean;
+  /** An event fee is recorded as paid, or that record is reversed. */
+  eventPaymentUpdates: boolean;
+  /** A membership application is received — member acknowledgement + admin notice. */
+  membershipApplicationReceived: boolean;
+  /** A student application is verified or rejected. */
+  membershipApplicationDecision: boolean;
+  /** A membership goes active or renews. */
+  membershipActivation: boolean;
+  /** A gallery contribution is submitted, approved, or rejected. */
+  galleryContributions: boolean;
+  /** The contact form's admin notice and sender acknowledgement. */
+  contactForm: boolean;
+}
+
+export const defaultNotificationEmailConfig: NotificationEmailConfig = {
+  eventTicket: true,
+  eventRegistrationChanges: true,
+  eventCancelledBroadcast: true,
+  eventRescheduled: true,
+  eventFull: true,
+  eventAnnouncement: true,
+  eventPaymentUpdates: true,
+  membershipApplicationReceived: true,
+  membershipApplicationDecision: true,
+  membershipActivation: true,
+  galleryContributions: true,
+  contactForm: true,
+};
 
 export interface LegalEntityConfig {
   /** Full registered name, e.g. "Kerala Samajam Augsburg e.V." */
@@ -121,6 +217,8 @@ export const defaultConfig: SiteConfig = {
   email: {
     fromName: "Kerala Samajam Augsburg",
     fromEmail: "no-reply@ksaugsburg.de",
+    automated: defaultAutomatedEmailConfig,
+    notifications: defaultNotificationEmailConfig,
   },
   features: {
     enableRegistration: true,

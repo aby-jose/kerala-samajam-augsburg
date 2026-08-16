@@ -1,6 +1,22 @@
-# Email System — Diagnosis & Rebuild Plan
+# Email System — Diagnosis & Rebuild
 
-Status: proposal. Nothing here has been implemented yet.
+**Status: implemented.** Verified end to end on 12 Aug 2026 — a message sent through the real path
+(`sendMail` → Resend → `EmailLog`) came back `delivered`, with the display name from site settings,
+`reply_to` set from `config.contactEmail`, a preheader, a plain-text alternative and absolute links.
+
+Part 1 records the original diagnosis. Parts 2–4 describe what was built; the phase numbering is kept
+so the two halves line up.
+
+**Still to do (deployment, not code):**
+
+1. Set `CRON_SECRET` in the environment, or `/api/cron` refuses to run and no scheduled email is sent.
+2. Set `NEXT_PUBLIC_APP_URL` / `SITE_URL` to the real host in production. The renderer now *throws*
+   rather than sending localhost links, so this is fail-loud rather than fail-silent — but it means
+   every email fails until it is set.
+3. Decide the sending domain. Mail currently goes out as `noreply@kudukka.app`, which is verified and
+   works; `keralasamajam.de` would need adding to Resend with SPF/DKIM/DMARC.
+4. Fill in `config.legal` — street, postcode, register number, board members. The footer omits
+   `{{PLACEHOLDER}}` values rather than printing them, so the Impressum block is currently partial.
 
 ---
 
@@ -249,75 +265,155 @@ Gated behind `NODE_ENV !== "production"` and an admin session.
 
 ---
 
-## Part 4 — Implementation phases
+## Part 4 — What was built
 
-### Phase 0 — Make it work and make it visible (½ day)
+### Phase 0 — Transport and observability
 
-Nothing else matters until failures are observable.
+**`src/lib/email/transport.ts`** — the provider layer, rewritten.
 
-1. Rewrite `sendEmail`:
-   - Read from-address from `config.email` with `EMAIL_FROM` as fallback, so the settings page stops lying.
-   - Set `reply_to` from `config.contactEmail`.
-   - Drop the SMTP fallback, or gate it behind `if (process.env.SMTP_HOST)` so it stops masking the real error.
-   - Preserve and return the actual provider error.
-   - Retry 5xx and rate limits with backoff; never retry a 4xx validation error.
-   - Keep `contentType` on attachments.
-2. Add an `EmailLog` model — recipient, template key, subject, status, provider id, error, related entity id, `createdAt`. Every send writes a row.
-3. Add an admin screen at `/admin/emails`: recent sends, failures highlighted, resend button.
-4. Fix env: set `SITE_URL` / `NEXT_PUBLIC_APP_URL` to the real host in production; confirm `ADMIN_EMAIL` is set (it throws if missing).
-5. Add `keralasamajam.de` (or `ksaugsburg.de`) to Resend, verify SPF/DKIM/DMARC, and move `EMAIL_FROM` onto it.
-6. Remove `@sendgrid/mail`.
+- The SMTP fallback is built lazily and only when `SMTP_HOST` is actually set. It no longer exists as
+  a loaded gun reporting `ESOCKET` for every failure in the system.
+- The real provider error always survives. When SMTP does run and also fails, its error is *appended*
+  rather than substituted, because the Resend error is the one worth reading.
+- Retries 429 and 5xx with backoff (0.4s, 1.2s); never retries a 4xx validation error, which would
+  fail identically forever.
+- `contentType` is kept on attachments.
 
-### Phase 1 — Design system (1½ days)
+**`src/lib/email/send.ts`** — the policy layer every send now goes through.
 
-7. Build `src/lib/email/` — `layout.ts`, `components.ts`, `tokens.ts`, `templates/`.
-8. Port the 13 existing templates onto it. Behaviour-preserving; only the markup changes.
-9. Render `previewText` as a real preheader on all of them.
-10. Escape the four unescaped interpolations.
-11. Build the preview harness and check the P0 set through Litmus or Email on Acid — Gmail web, Gmail Android, Apple Mail, iOS Mail, Outlook 365 desktop, Outlook.com.
+- `buildFrom` takes the display name from `config.email.fromName`, so the settings field is live for
+  the first time. The address still prefers `EMAIL_FROM`, because it must belong to a verified domain
+  — that is a deployment fact, not something an admin should be able to break by typing in a form.
+  The settings screen now says so, and the address falls back to `config.email.fromEmail` when no
+  environment value is set.
+- `reply_to` is set from `config.contactEmail`. Nothing set one before, while the ticket email asked
+  people to reply.
+- Generates a `text/plain` alternative from the HTML.
+- `once: true` gives idempotency, keyed on `(template, entityId)` against the log.
+- Non-transactional mail checks the recipient's preferences, and carries `List-Unsubscribe` /
+  `List-Unsubscribe-Post` headers.
+- `sendMailBatch` paces broadcasts at ~2/second to stay inside the provider rate limit.
 
-### Phase 2 — P0 emails (1½ days)
+**`EmailLog` model** — every attempt writes a row: template, recipient, subject, status, provider id,
+error, attempt count, entity id, and the rendered HTML. This is the audit trail, the failure list and
+the idempotency guard.
 
-12. Rebuild the event ticket on the design system (E1).
-13. Registration cancelled — member and admin (E2, E3, E4).
-14. Event cancelled / rescheduled, with the `EventStatus` schema change and a broadcast action (E5, E6).
-15. Event payment recorded (P1).
-16. Password changed, email changed (A2, A3).
-17. GDPR deletion flow — request, admin notice, completion (G2, G3, G5).
+**`/admin/emails`** — delivery log with counts, status filters, search, per-row preview (sandboxed
+iframe) and resend. It leads with a **configuration warnings** panel that names the faults which make
+every send fail at once: no provider, no sender, `SITE_URL` on localhost, missing `ADMIN_EMAIL`, and
+an `EMAIL_FROM` that disagrees with Settings. Reading those off a wall of identical errors is how the
+original problem stayed invisible.
 
-### Phase 3 — P1 emails (1 day)
+**Send test** — on `/admin/emails` and in Settings, where the button previously had no handler at
+all. It goes down the real path so a mistake shows up in seconds rather than on the next registration.
 
-18. Membership welcome, non-student acknowledgement, renewal (M1, M2, M3).
-19. Account welcome after verification (A1).
-20. Data export ready, deletion cancelled, legal revision notice (G1, G4, G7).
+`@sendgrid/mail` removed. `.env.example` written and un-ignored.
 
-### Phase 4 — Scheduled emails (1 day)
+### Phase 1 — Design system
 
-Needs a scheduler — Vercel Cron if you are on Vercel, otherwise a `node-cron` worker or an external ping. All routes authenticated with `CRON_SECRET`.
+`src/lib/email/` — `tokens.ts`, `components.ts`, `layout.ts`, `templates/`.
 
-21. `/api/cron/event-reminders` — daily, T-48h and morning-of (E7, E8)
-22. `/api/cron/membership-lifecycle` — daily, T-30 / T-7 / expired (P5, P6, P7)
-23. `/api/cron/payment-reminders` — daily, overdue and second notice (P3, P4)
-24. `/api/cron/post-event` — daily, day-after thank-you (E9)
-25. `/api/cron/admin-digest` — weekly (P8)
+- **Tables and inline styles.** The old template was divs and CSS classes, which Outlook's Word engine
+  largely ignores.
+- **Bulletproof buttons** with a VML fallback, so a call to action does not collapse to a bare link.
+- **Preheader** — `previewText` was accepted and thrown away; it is now a hidden, padded div.
+- **Palette derived from `config.branding.primaryColor`,** not hardcoded. `onPrimary` and the link
+  colour are chosen by measured WCAG contrast, so an unusual brand colour cannot produce an
+  unreadable button. The live config turns out to be green, `#14801a`, not the rose default — exactly
+  the drift the hardcoded `#e11d48` in the old ticket email was hiding.
+- **Serif headlines** (Newsreader → Georgia). The one element that stops these reading as generic SaaS.
+- **`siteOrigin()` throws** in production on a localhost value rather than mailing dead links.
+- **Impressum footer** from `config.legal` — entity, address, Registergericht, § 26 BGB board.
+  `{{PLACEHOLDER}}` values are omitted rather than printed.
+- Dark-mode blocks, `color-scheme` meta, 600px, mobile media queries.
+- All four unescaped interpolations fixed; `escUrl` drops non-http(s) schemes.
+- **`/admin/emails/preview`** renders all 45 templates against fixtures, desktop and mobile.
 
-Each of these needs an idempotency guard — a `sentAt` marker or an `EmailLog` lookup keyed on `(template, entityId)` — or a cron that runs twice mails everyone twice.
+`src/lib/email.ts` and `src/lib/email-templates.ts` are deleted; all 11 call sites import from
+`src/lib/email`.
 
-### Phase 5 — Preferences & polish (1 day)
+### Phases 2–3 — The emails themselves
 
-26. `EmailPreference` model: event announcements, reminders, newsletter — transactional mail is never opt-out.
-27. Preference centre on the profile page + one-click unsubscribe endpoint.
-28. `List-Unsubscribe` headers on bulk mail.
-29. Remaining P2/P3 emails.
+Schema: `Event.status` (`SCHEDULED | POSTPONED | CANCELLED`), `cancellationReason`, `cancelledAt`.
 
-**Total: 6–7 days.** Phase 0 alone will likely resolve the reported symptom, or at minimum tell you exactly what it is.
+| Trigger | Template | Where |
+|---|---|---|
+| Registration confirmed | `event.ticket` — rebuilt on the design system | `ticket-actions.ts` |
+| Member cancels | `event.registration-cancelled` + admin copy | `cancelRegistration` |
+| Admin removes a registration | `event.registration-removed` | `deleteRegistration` |
+| Event cancelled | `event.cancelled`, broadcast | new `cancelEvent` action |
+| Event reinstated | broadcast | new `reinstateEvent` |
+| Date/venue changed | `event.rescheduled`, broadcast, diff-triggered | `upsertEvent` |
+| Event full | `event.full` | `registerForEvent` capacity branch |
+| New event announced | `event.announcement` | new `announceEvent` |
+| Event fee recorded | `payment.event-recorded` | `recordRegistrationPayment` |
+| Event fee reversed | `payment.event-reverted` | `revertRegistrationPayment` |
+| Password changed | `account.password-changed` | `resetPassword` |
+| Email address changed | `account.email-changed`, to **both** addresses + re-verification | `updateProfile` |
+| Email verified | `account.welcome` | `verifyEmail` |
+| Standard application | `membership.application-received` | `createMembershipSubscription` |
+| Membership activated | `membership.active` / `membership.renewed` | `recordSubscriptionPayment` |
+| Data export | `privacy.data-export-ready` | `exportMyData` |
+| Erasure requested | `privacy.deletion-requested` + admin notice | `requestAccountDeletion` |
+| Erasure withdrawn | `privacy.deletion-cancelled` | `cancelDeletionRequest` |
+| Erasure carried out | `privacy.deletion-completed` | new `completeAccountDeletion` |
+
+`completeAccountDeletion` is new machinery, not just an email: the request side existed and the
+execution side did not, so a member could ask for erasure and nothing in the system could complete it.
+It anonymises the profile, the sessions, the accounts and the email-keyed event registrations, keeps
+the financial skeleton under § 147 AO / § 257 HGB, and sends the notice *before* clearing the address.
+
+Deleting an event now notifies its registrants first, then removes the rows — previously the list of
+people who needed to hear about it was destroyed along with the event.
+
+### Phase 4 — Scheduled email
+
+`src/lib/email-jobs.ts` plus `GET|POST /api/cron`, authenticated with a `CRON_SECRET` bearer token.
+Unset, the endpoint **refuses to run** — an open URL that mails the whole membership is not a safe
+default. `vercel.json` schedules it daily at 08:00.
+
+One route, not five: every job is a daily sweep over a handful of rows, and five secrets and five
+schedules is five chances for one to be silently forgotten. `?job=<name>` runs one by hand.
+
+| Job | Does |
+|---|---|
+| `event-reminders` | T-2 days and morning-of. Optional — respects the reminder preference. |
+| `post-event` | Day-after thank-you with the gallery link. Checked-in attendees, or all registrants if nobody worked the door. |
+| `membership-lifecycle` | T-30, T-7, and expiry — which also corrects the status, so the member list stops disagreeing with the ledger. |
+| `payment-reminders` | Overdue at the payment term and once more at +14 days. Two notices, never a daily nag. |
+| `admin-digest` | Weekly committee summary. Silent in a week with nothing in it. |
+| `log-retention` | Clears stored HTML after 90 days, so the log does not become a second copy of the membership database. |
+
+Every job is idempotent via `once`, with the occasion in the key (`${subscriptionId}:30`) so next
+year's notice is a different key from this year's.
+
+### Phase 5 — Preferences
+
+Three switches on `User` — announcements, reminders, newsletter. Transactional mail is deliberately
+absent: offering to switch off a ticket or a receipt would be offering something we cannot honour.
+
+- Preference panel in the profile's Privacy tab.
+- `/unsubscribe?token=…&c=…` acts on page load rather than behind a button, because
+  `List-Unsubscribe-Post` means Gmail fetches the URL with no browser attached. An **undo** is what
+  makes that safe.
+- The token column is indexed but **not unique** — MongoDB treats a missing field as `null`, so a
+  unique index cannot build against an existing collection.
 
 ---
 
-## Part 5 — Decisions needed before starting
+## Part 5 — Decisions taken
 
-1. **Sending domain.** Keep `kudukka.app`, or verify `keralasamajam.de` / `ksaugsburg.de`? This affects trust and deliverability more than anything else in the plan. `config.contactEmail` currently says `info@ksaugsburg.de`.
-2. **Scheduler.** Is this on Vercel (Cron available on Pro), or self-hosted?
-3. **Bilingual?** The membership base is German-resident. English-only, or DE/EN with a `locale` on `User`? This roughly doubles Phase 1–3 template work, so it is much cheaper to decide now than to retrofit.
-4. **Broadcast scope for E5/E6.** All registrants including cancelled ones, or active only?
-5. **Attachment policy.** Ticket PDFs on cancellation/change emails too, or link-only?
+Answered with defaults so implementation could proceed. Any of these can change.
+
+1. **Sending domain — kept `kudukka.app`.** It is verified and delivering. The address is a single
+   env var, so moving to `keralasamajam.de` is a DNS job plus one variable, no code.
+2. **Scheduler — `vercel.json` cron.** The endpoint takes a plain bearer token, so any external
+   pinger works equally well if you are not on Vercel.
+3. **Bilingual — English only for now.** The existing templates were English, and doubling the work
+   mid-rebuild would have been the wrong order. `EmailContext` is the seam a `locale` would thread
+   through when you want it.
+4. **Broadcast scope — all current registrants.** A cancelled registration is a deleted row, so there
+   is nobody else to include.
+5. **Attachments — confirmations only.** Ticket and invoice PDFs ride the confirmation and the
+   receipt; cancellation and change notices link instead. A resend from the admin log re-sends the
+   stored HTML without attachments, so a lost ticket is re-issued from its own screen.

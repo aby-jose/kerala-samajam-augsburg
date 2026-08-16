@@ -3,9 +3,19 @@
 import { revalidatePath } from "next/cache";
 
 import { NOT_REVOKED, prisma } from "./prisma";
-import { requireUser } from "./guards";
+import { requireAdmin, requireUser } from "./guards";
 import { recordConsent } from "./consent-recorder";
 import { LegalSlug } from "./legal-schema";
+import { sendMail, templates } from "./email";
+import { adminEmailOrNull } from "./admin-contact";
+import { SUBSCRIPTION_STATUS } from "./membership-term";
+
+/**
+ * Art. 12(3) GDPR gives the controller one month to act on a data-subject
+ * request. Naming the date in the acknowledgement is both a courtesy to the
+ * member and the committee's own clock.
+ */
+const RESPONSE_DEADLINE_DAYS = 30;
 
 /**
  * Data-subject rights a member can exercise themselves.
@@ -161,6 +171,25 @@ export async function exportMyData() {
   const profile = { ...user, password: undefined };
   delete (profile as { password?: unknown }).password;
 
+  // Confirm the request in writing. Art. 15 is a request the member is
+  // entitled to have answered, and an answer that exists only as a file the
+  // browser downloaded leaves the association with no record it responded.
+  //
+  // The export itself is deliberately not attached: a complete copy of
+  // somebody's personal data does not belong in an unencrypted mailbox.
+  if (user.email) {
+    await sendMail({
+      template: "privacy.data-export-ready",
+      to: user.email,
+      entityId: user.id,
+      build: (ctx) =>
+        templates.privacy.dataExportReady(ctx, {
+          name: user.name || "there",
+          requestedAt: new Date(),
+        }),
+    });
+  }
+
   return {
     exportedAt: new Date().toISOString(),
     notice:
@@ -204,13 +233,17 @@ export async function getDeletionRequestStatus() {
  * immediately: the biometric template, which rests purely on consent.
  */
 export async function requestAccountDeletion() {
-  const userId = await requireUserId();
+  const user = await requireUser();
+  const userId = user.id;
 
   await prisma.userFaceProfile.deleteMany({ where: { userId } });
 
+  const requestedAt = new Date();
+  const deadline = new Date(requestedAt.getTime() + RESPONSE_DEADLINE_DAYS * 86400000);
+
   await prisma.user.update({
     where: { id: userId },
-    data: { deletionRequestedAt: new Date() },
+    data: { deletionRequestedAt: requestedAt },
   });
 
   await recordConsent({
@@ -220,18 +253,168 @@ export async function requestAccountDeletion() {
     granted: false,
   });
 
+  // Acknowledge it, and put it in front of somebody who can act.
+  //
+  // Neither happened before: the request set a flag on a row and nothing else
+  // in the system knew. A member had no confirmation their request had landed,
+  // and the committee had no way to learn of it short of noticing the column —
+  // which is not a defence when the month runs out.
+  if (user.email) {
+    await sendMail({
+      template: "privacy.deletion-requested",
+      to: user.email,
+      entityId: userId,
+      build: (ctx) =>
+        templates.privacy.deletionRequested(ctx, {
+          name: user.name || "there",
+          requestedAt,
+          deadline,
+        }),
+    });
+  }
+
+  const committee = adminEmailOrNull();
+  if (committee) {
+    const activeMembership = await prisma.subscription.findFirst({
+      where: { userId, status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { gte: new Date() } },
+      select: { id: true },
+    });
+
+    await sendMail({
+      template: "privacy.deletion-admin-notice",
+      to: committee,
+      entityId: userId,
+      build: (ctx) =>
+        templates.privacy.deletionAdminNotice(ctx, {
+          memberName: user.name || "A member",
+          memberEmail: user.email || "unknown",
+          requestedAt,
+          deadline,
+          hasActiveMembership: !!activeMembership,
+        }),
+    });
+  }
+
   revalidatePath("/profile");
   return { success: true };
 }
 
 export async function cancelDeletionRequest() {
-  const userId = await requireUserId();
+  const user = await requireUser();
 
   await prisma.user.update({
-    where: { id: userId },
+    where: { id: user.id },
     data: { deletionRequestedAt: null },
   });
 
+  if (user.email) {
+    await sendMail({
+      template: "privacy.deletion-cancelled",
+      to: user.email,
+      entityId: user.id,
+      build: (ctx) => templates.privacy.deletionCancelled(ctx, { name: user.name || "there" }),
+    });
+  }
+
   revalidatePath("/profile");
+  return { success: true };
+}
+
+// --- Art. 17: carrying the erasure out -----------------------------------
+
+/**
+ * Actually erase a member, and tell them it is done.
+ *
+ * The request side of this existed and the execution side did not: a member
+ * could ask, a column was set, and nothing in the system could complete it.
+ * The right is not "the ability to submit a request", so this is the other
+ * half.
+ *
+ * Anonymisation rather than deletion, because payment and invoice rows carry a
+ * ten-year statutory retention under § 147 AO and § 257 HGB which Art. 17(3)(b)
+ * preserves. Everything that points at a person is removed; the financial
+ * skeleton stays and no longer identifies anyone.
+ */
+export async function completeAccountDeletion(userId: string) {
+  const admin = await requireAdmin();
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("Account not found");
+  if (user.anonymizedAt) throw new Error("This account has already been anonymised.");
+  if (!user.deletionRequestedAt) {
+    throw new Error("This member has not requested erasure. Do not anonymise an account on a whim.");
+  }
+
+  const completedAt = new Date();
+  const originalEmail = user.email;
+  const originalName = user.name;
+
+  // Sent *before* the address is cleared — afterwards there is nowhere left to
+  // send it, and a member is entitled to be told the thing they asked for was
+  // done. This is the last message this person will ever receive from us.
+  if (originalEmail) {
+    await sendMail({
+      template: "privacy.deletion-completed",
+      to: originalEmail,
+      entityId: userId,
+      build: (ctx) =>
+        templates.privacy.deletionCompleted(ctx, {
+          name: originalName || "there",
+          completedAt,
+        }),
+    });
+  }
+
+  // Event registrations are keyed by email string rather than user id, so they
+  // would otherwise survive the erasure carrying the member's name, address
+  // and phone number.
+  if (originalEmail) {
+    const registrations = await prisma.registration.findMany({
+      where: { email: originalEmail },
+      select: { id: true },
+    });
+    for (const registration of registrations) {
+      await prisma.registration.update({
+        where: { id: registration.id },
+        data: {
+          name: "Erased",
+          email: `erased+${registration.id}@invalid.local`,
+          phone: null,
+        },
+      });
+    }
+  }
+
+  await prisma.userFaceProfile.deleteMany({ where: { userId } });
+  await prisma.session.deleteMany({ where: { userId } });
+  await prisma.account.deleteMany({ where: { userId } });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      name: "Erased member",
+      // Unique index, so it cannot simply be nulled for every erased account.
+      email: `erased+${userId}@invalid.local`,
+      password: null,
+      phone: null,
+      address: null,
+      city: null,
+      zip: null,
+      dob: null,
+      occupation: null,
+      bio: null,
+      image: null,
+      emailVerified: null,
+      status: "DEACTIVATED",
+      anonymizedAt: completedAt,
+      unsubscribeToken: null,
+    },
+  });
+
+  console.info(
+    `[gdpr] Account ${userId} anonymised by ${admin.email || admin.id} at ${completedAt.toISOString()}`
+  );
+
+  revalidatePath("/admin/members");
   return { success: true };
 }

@@ -16,6 +16,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -40,8 +42,12 @@ export default function GalleryClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"ALL" | "Events" | "Community" | "Culture">("ALL");
+  const [sortOrder, setSortOrder] = useState<"recent" | "oldest" | "title">("recent");
   const confirm = useConfirm();
   const router = useRouter();
+
+  const SORT_LABELS = { recent: "Recent", oldest: "Oldest", title: "Title (A–Z)" } as const;
 
   const handleCreateNew = () => {
     setSelectedAlbum(null);
@@ -74,10 +80,17 @@ export default function GalleryClient({
     }
   };
 
-  const filteredAlbums = initialAlbums.filter(album =>
-    album.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    album.event?.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAlbums = initialAlbums
+    .filter(album =>
+      album.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      album.event?.title.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .filter(album => categoryFilter === "ALL" || album.category === categoryFilter)
+    .sort((a, b) => {
+      if (sortOrder === "title") return a.title.localeCompare(b.title);
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortOrder === "recent" ? -diff : diff;
+    });
 
   return (
     <div className="space-y-6">
@@ -99,14 +112,40 @@ export default function GalleryClient({
           className="w-full sm:w-72"
         />
         <div className="flex items-center gap-2">
-          <Button variant="outline" className={cn("h-9 rounded-lg", toolbarChip)}>
-            <Filter className="mr-2 h-4 w-4" />
-            Filter
-          </Button>
-          <Button variant="outline" className={cn("h-9 rounded-lg", toolbarChip)}>
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-            Recent
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className={cn("h-9 rounded-lg", toolbarChip)}>
+                <Filter className="mr-2 h-4 w-4" />
+                {categoryFilter === "ALL" ? "Filter" : categoryFilter}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 rounded-lg">
+              <DropdownMenuRadioGroup value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as typeof categoryFilter)}>
+                {(["ALL", "Events", "Community", "Culture"] as const).map((c) => (
+                  <DropdownMenuRadioItem key={c} value={c} className="rounded-md text-sm">
+                    {c === "ALL" ? "All categories" : c}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className={cn("h-9 rounded-lg", toolbarChip)}>
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                {SORT_LABELS[sortOrder]}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 rounded-lg">
+              <DropdownMenuRadioGroup value={sortOrder} onValueChange={(v) => setSortOrder(v as typeof sortOrder)}>
+                {(["recent", "oldest", "title"] as const).map((s) => (
+                  <DropdownMenuRadioItem key={s} value={s} className="rounded-md text-sm">
+                    {SORT_LABELS[s]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -114,14 +153,14 @@ export default function GalleryClient({
         <div className={cardSurface}>
           <EmptyState
             icon={ImageIcon}
-            title={searchQuery ? "No results found" : "No albums yet"}
+            title={searchQuery || categoryFilter !== "ALL" ? "No results found" : "No albums yet"}
             description={
-              searchQuery
-                ? "Try a different search term."
+              searchQuery || categoryFilter !== "ALL"
+                ? "Try a different search term or filter."
                 : "Create an album to start collecting photos and videos."
             }
             action={
-              !searchQuery ? (
+              !searchQuery && categoryFilter === "ALL" ? (
                 <Button onClick={handleCreateNew} className="h-9 rounded-lg">
                   <Plus className="mr-2 h-4 w-4" />
                   Create album

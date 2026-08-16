@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { generateInvoicePDF, type InvoiceStatus } from "./invoice-generator";
-import { sendEmail } from "./email";
-import { getPaymentRequestEmail, getPaymentReceivedEmail } from "./email-templates";
+import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { paymentDueDate, paymentReferenceFor, termLabel } from "./membership-term";
 
@@ -77,29 +76,11 @@ export async function sendMembershipPaymentRequest(subscriptionId: string) {
     }
 
     const { sub, config, pdf, shortId, reference } = built;
-    const branding = {
-      logoUrl: config.branding.logoUrl,
-      siteName: config.siteName,
-      primaryColor: config.branding.primaryColor,
-    };
 
-    await sendEmail({
+    const result = await sendMail({
+      template: "payment.membership-request",
       to: sub.user.email!,
-      subject: `Membership payment details - ${sub.plan.name} - ${config.siteName}`,
-      html: getPaymentRequestEmail(
-        sub.user.name || "Member",
-        {
-          planName: sub.plan.name,
-          amount: sub.plan.price,
-          reference,
-          dueDate: paymentDueDate(sub.createdAt, config.legal.paymentTermsDays),
-          accountHolder: config.legal.accountHolder,
-          bankName: config.legal.bankName,
-          iban: config.legal.iban,
-          bic: config.legal.bic,
-        },
-        branding
-      ),
+      entityId: sub.id,
       attachments: [
         {
           filename: `KSA_Invoice_${shortId}.pdf`,
@@ -107,8 +88,24 @@ export async function sendMembershipPaymentRequest(subscriptionId: string) {
           contentType: "application/pdf",
         },
       ],
+      build: (ctx) =>
+        templates.payments.membershipPaymentRequest(ctx, {
+          name: sub.user.name || "Member",
+          planName: sub.plan.name,
+          amount: sub.plan.price,
+          reference,
+          dueDate: paymentDueDate(sub.createdAt, config.legal.paymentTermsDays),
+          method: sub.paymentMethod,
+          bank: {
+            accountHolder: config.legal.accountHolder,
+            bankName: config.legal.bankName,
+            iban: config.legal.iban,
+            bic: config.legal.bic,
+          },
+        }),
     });
 
+    if (!result.ok) return { error: result.error };
     return { success: true };
   } catch (error: any) {
     console.error("Error sending membership payment request:", error);
@@ -125,26 +122,12 @@ export async function sendSubscriptionReceipt(subscriptionId: string) {
       return { error: "Subscription not found" };
     }
 
-    const { sub, config, pdf, shortId } = built;
+    const { sub, pdf, shortId, reference } = built;
 
-    await sendEmail({
+    const result = await sendMail({
+      template: "payment.membership-received",
       to: sub.user.email!,
-      subject: `Payment received — your membership is active - ${config.siteName}`,
-      html: getPaymentReceivedEmail(
-        sub.user.name || "Member",
-        {
-          planName: sub.plan.name,
-          amount: sub.plan.price,
-          startDate: sub.startDate,
-          endDate: sub.endDate,
-          term: termLabel(sub.plan.duration),
-        },
-        {
-          logoUrl: config.branding.logoUrl,
-          siteName: config.siteName,
-          primaryColor: config.branding.primaryColor,
-        }
-      ),
+      entityId: sub.id,
       attachments: [
         {
           filename: `KSA_Receipt_${shortId}.pdf`,
@@ -152,8 +135,19 @@ export async function sendSubscriptionReceipt(subscriptionId: string) {
           contentType: "application/pdf",
         },
       ],
+      build: (ctx) =>
+        templates.payments.membershipPaymentReceived(ctx, {
+          name: sub.user.name || "Member",
+          planName: sub.plan.name,
+          amount: sub.plan.price,
+          startDate: sub.startDate,
+          endDate: sub.endDate,
+          term: termLabel(sub.plan.duration),
+          reference,
+        }),
     });
 
+    if (!result.ok) return { error: result.error };
     return { success: true };
   } catch (error: any) {
     console.error("Error sending subscription receipt:", error);

@@ -281,10 +281,32 @@ export const adminAuthOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        captchaId: { label: "Captcha ID", type: "text" },
+        captchaCode: { label: "Captcha Code", type: "text" },
+        // Honeypot. Real visitors never see or fill this field (it's hidden
+        // off-screen in the form); a script that fills every input it finds
+        // does. Treated as a bot and rejected before it ever touches the
+        // password check or the rate limiter — no point spending either on it.
+        website: { label: "Website", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error(GENERIC_CREDENTIALS_ERROR);
+        }
+
+        if (credentials.website) {
+          throw new Error(GENERIC_CREDENTIALS_ERROR);
+        }
+
+        // The admin portal is the higher-value target, so it gets the same
+        // captcha gate the public sign-in already has — credential-stuffing
+        // scripts can otherwise burn through the whole internet's leaked
+        // password lists without ever rendering a page.
+        if (credentials.captchaId && credentials.captchaCode) {
+          const isValid = await verifyCaptcha(credentials.captchaId, credentials.captchaCode);
+          if (!isValid) throw new Error("Invalid security code. Please try again.");
+        } else {
+          throw new Error("Security verification required.");
         }
 
         return authorizeCredentials(credentials.email, credentials.password, {

@@ -20,7 +20,15 @@ export const getConfig = cache(async (): Promise<SiteConfig> => {
       ...storedConfig,
       socials: { ...defaultConfig.socials, ...storedConfig.socials },
       branding: { ...defaultConfig.branding, ...storedConfig.branding },
-      email: { ...defaultConfig.email, ...storedConfig.email },
+      email: {
+        ...defaultConfig.email,
+        ...storedConfig.email,
+        // A shallow merge alone would drop any automated-email switch added
+        // after a config was last saved — it replaces the whole `automated`
+        // object rather than filling in the missing key.
+        automated: { ...defaultConfig.email.automated, ...storedConfig.email?.automated },
+        notifications: { ...defaultConfig.email.notifications, ...storedConfig.email?.notifications },
+      },
       features: { ...defaultConfig.features, ...storedConfig.features },
       legal: { ...defaultConfig.legal, ...storedConfig.legal },
     };

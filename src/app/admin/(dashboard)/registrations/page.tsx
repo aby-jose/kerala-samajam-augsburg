@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getRegistrationsByEvent, toggleCheckIn, deleteRegistration, updateRegistrationAmount } from "@/lib/event-actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { StatusBadge } from "@/components/admin/ui/status-badge";
 import { SearchInput } from "@/components/admin/ui/search-input";
@@ -58,6 +59,7 @@ const ITEMS_PER_PAGE = 10;
 
 function AdminRegistrationsContent() {
   const confirm = useConfirm();
+  const { error: showError } = useToast();
   const searchParams = useSearchParams();
   const eventFilter = searchParams.get("event");
 
@@ -85,8 +87,12 @@ function AdminRegistrationsContent() {
   }, [eventFilter]);
 
   const handleToggleCheckIn = async (id: string, currentStatus: boolean) => {
-    await toggleCheckIn(id, !currentStatus);
-    fetchRegistrations();
+    try {
+      await toggleCheckIn(id, !currentStatus);
+      fetchRegistrations();
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Failed to update check-in status.");
+    }
   };
 
   const handleDelete = async (id: string) => {

@@ -6,7 +6,10 @@ import {
   Plus,
   Filter,
   ArrowUpDown,
+  CalendarX,
   Edit,
+  Megaphone,
+  RotateCcw,
   Users,
   Trash2,
   Calendar,
@@ -15,8 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn, formatDate } from "@/lib/utils";
 import EventFormModal from "@/components/admin/event-form-modal";
-import { deleteEvent, getAdminEvents, toggleEventPublish } from "@/lib/event-actions";
+import {
+  announceEvent,
+  cancelEvent,
+  deleteEvent,
+  getAdminEvents,
+  reinstateEvent,
+  toggleEventPublish,
+} from "@/lib/event-actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { StatusBadge } from "@/components/admin/ui/status-badge";
 import { SearchInput } from "@/components/admin/ui/search-input";
@@ -47,6 +58,8 @@ const ITEMS_PER_PAGE = 10;
 
 export default function AdminEventsPage() {
   const confirm = useConfirm();
+  const { success, error } = useToast();
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
@@ -82,17 +95,97 @@ export default function AdminEventsPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (event: any) => {
+    const registrations = event._count?.registrations || 0;
     const isConfirmed = await confirm({
       title: "Delete Event",
-      message: "Are you sure you want to delete this event? This action cannot be undone and will remove all associated registrations.",
+      message: registrations
+        ? `This event has ${registrations} registration${registrations === 1 ? "" : "s"}. Deleting it removes them permanently, and every registrant will be emailed a cancellation notice. If you only want to call the event off, cancel it instead — that keeps the record.`
+        : "Are you sure you want to delete this event? This action cannot be undone.",
       confirmText: "Delete",
-      variant: "danger"
+      variant: "danger",
     });
 
     if (isConfirmed) {
-      await deleteEvent(id);
+      const result = await deleteEvent(event.id);
+      if (result.notified) {
+        success(`Deleted — ${result.notified} registrant${result.notified === 1 ? "" : "s"} notified`);
+      }
       fetchEvents();
+    }
+  };
+
+  /**
+   * Calling an event off, as distinct from deleting it.
+   *
+   * These used to be the same thing, so the only way to stop an event also
+   * destroyed the list of people who needed to hear about it.
+   */
+  const handleCancel = async (event: any) => {
+    const registrations = event._count?.registrations || 0;
+    const isConfirmed = await confirm({
+      title: `Cancel "${event.title}"?`,
+      message: registrations
+        ? `${registrations} registrant${registrations === 1 ? "" : "s"} will be emailed straight away. Anyone recorded as having paid is told a refund is coming — you will need to make those yourself.`
+        : "The event will be marked as cancelled. Nobody has registered, so no emails will go out.",
+      confirmText: "Cancel event",
+      variant: "danger",
+    });
+    if (!isConfirmed) return;
+
+    setBusyId(event.id);
+    try {
+      const result = await cancelEvent(event.id);
+      success(
+        result.notified
+          ? `Cancelled — ${result.notified} registrant${result.notified === 1 ? "" : "s"} notified`
+          : "Event cancelled"
+      );
+      fetchEvents();
+    } catch (e: any) {
+      error(`Could not cancel the event: ${e.message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReinstate = async (event: any) => {
+    setBusyId(event.id);
+    try {
+      const result = await reinstateEvent(event.id);
+      success(result.notified ? `Back on — ${result.notified} notified` : "Event reinstated");
+      fetchEvents();
+    } catch (e: any) {
+      error(`Could not reinstate the event: ${e.message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  /** Publishing is a draft toggle; announcing is a broadcast. Kept apart so
+   *  editing an event does not mail the membership every time it is toggled. */
+  const handleAnnounce = async (event: any) => {
+    const isConfirmed = await confirm({
+      title: `Announce "${event.title}"?`,
+      message:
+        "Emails every member who has asked to hear about new events. Members who have already been sent this announcement are skipped, so pressing it twice is safe.",
+      confirmText: "Send announcement",
+    });
+    if (!isConfirmed) return;
+
+    setBusyId(event.id);
+    try {
+      const result = await announceEvent(event.id);
+      success(
+        result.skipped
+          ? `${result.sent} sent · ${result.skipped} skipped (already sent, or opted out)`
+          : `${result.sent} sent`
+      );
+      fetchEvents();
+    } catch (e: any) {
+      error(`Could not send the announcement: ${e.message}`);
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -164,18 +257,24 @@ export default function AdminEventsPage() {
       key: "status",
       header: "Status",
       width: "w-[14%]",
-      render: (event) => (
-        <button
-          type="button"
-          onClick={() => handleTogglePublish(event.id, event.isPublished)}
-          title={event.isPublished ? "Unpublish" : "Publish"}
-          className="cursor-pointer"
-        >
-          <StatusBadge tone={event.isPublished ? "success" : "neutral"}>
-            {event.isPublished ? "Published" : "Draft"}
-          </StatusBadge>
-        </button>
-      ),
+      render: (event) =>
+        // A cancelled event is not a draft and not published — it is off, and
+        // the badge has to say so or the table lies about what registrants
+        // have already been told.
+        event.status === "CANCELLED" ? (
+          <StatusBadge tone="destructive">Cancelled</StatusBadge>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleTogglePublish(event.id, event.isPublished)}
+            title={event.isPublished ? "Unpublish" : "Publish"}
+            className="cursor-pointer"
+          >
+            <StatusBadge tone={event.isPublished ? "success" : "neutral"}>
+              {event.isPublished ? "Published" : "Draft"}
+            </StatusBadge>
+          </button>
+        ),
     },
     {
       key: "registrations",
@@ -195,6 +294,41 @@ export default function AdminEventsPage() {
       align: "right",
       render: (event) => (
         <div className="flex items-center justify-end gap-1">
+          {event.status === "CANCELLED" ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => handleReinstate(event)}
+              disabled={busyId === event.id}
+              className="h-8 w-8 rounded-md text-muted-foreground hover:text-emerald-600"
+              title="Reinstate — the event is back on"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleAnnounce(event)}
+                disabled={busyId === event.id || !event.isPublished}
+                className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground"
+                title={event.isPublished ? "Email members about this event" : "Publish it first"}
+              >
+                <Megaphone className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleCancel(event)}
+                disabled={busyId === event.id}
+                className="h-8 w-8 rounded-md text-muted-foreground hover:text-amber-600"
+                title="Cancel the event and notify registrants"
+              >
+                <CalendarX className="h-4 w-4" />
+              </Button>
+            </>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -227,7 +361,7 @@ export default function AdminEventsPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => handleDelete(event.id)}
+            onClick={() => handleDelete(event)}
             className="h-8 w-8 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
             title="Delete event"
           >

@@ -1,29 +1,22 @@
-"use client";
-
-import Image from "next/image";
-
 export default function LoginLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative flex h-screen w-full flex-col items-center justify-center overflow-hidden bg-zinc-950">
-      {/* Kerala nature background */}
-      <div className="absolute inset-0 z-0 select-none">
-        <Image
-          src="/images/nature-bg.png"
-          alt=""
-          fill
-          className="object-cover opacity-60"
-          priority
-        />
-        {/* Darkening overlay for card legibility */}
-        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/30 to-black/70" />
-      </div>
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-zinc-50 p-6">
+      {/* Faint dot grid rather than a photograph — an admin console reads as
+          a tool, not a marketing page, so the backdrop stays quiet. */}
+      <div
+        className="absolute inset-0 z-0 opacity-[0.6]"
+        style={{
+          backgroundImage: "radial-gradient(circle, rgb(0 0 0 / 0.06) 1px, transparent 1px)",
+          backgroundSize: "24px 24px",
+        }}
+      />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(255,255,255,0.9),transparent)]" />
 
-      {/* Centered content */}
-      <main className="relative z-10 flex w-full items-center justify-center p-6">
+      <main className="relative z-10 flex w-full items-center justify-center">
         {children}
       </main>
     </div>

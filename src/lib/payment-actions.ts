@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "./guards";
 import { displayStatus, isPaymentMethod, type PaymentMethod } from "./membership-term";
+import { sendMail, templates } from "./email";
 
 /**
  * The admin payments ledger.
@@ -127,7 +128,10 @@ export async function recordRegistrationPayment(
 ) {
   const admin = await requireAdmin();
 
-  const registration = await prisma.registration.findUnique({ where: { id: registrationId } });
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { event: true },
+  });
   if (!registration) throw new Error("Registration not found");
   if (registration.paymentStatus === "PAID") throw new Error("This payment has already been recorded.");
 
@@ -135,16 +139,42 @@ export async function recordRegistrationPayment(
   if (Number.isNaN(receivedOn.getTime())) throw new Error("Invalid payment date");
   if (receivedOn.getTime() > Date.now()) throw new Error("The payment date cannot be in the future.");
 
+  const method = isPaymentMethod(input.method) ? input.method : registration.paymentMethod;
+  const reference = input.reference?.trim() || null;
+
   await prisma.registration.update({
     where: { id: registrationId },
     data: {
       paymentStatus: "PAID",
-      paymentMethod: isPaymentMethod(input.method) ? input.method : registration.paymentMethod,
+      paymentMethod: method,
       paidAt: receivedOn,
-      paymentReference: input.reference?.trim() || null,
+      paymentReference: reference,
       recordedById: admin.id,
       recordedAt: new Date(),
     },
+  });
+
+  // Tell them.
+  //
+  // This was the sharpest silence in the system: an administrator matched a
+  // bank transfer, the row flipped to PAID, and the member was never told. They
+  // went on holding a ticket that said "amount due at the door", with no
+  // receipt and no way to know their transfer had been recognised.
+  await sendMail({
+    template: "payment.event-recorded",
+    to: registration.email,
+    entityId: registration.id,
+    build: (ctx) =>
+      templates.payments.eventPaymentRecorded(ctx, {
+        name: registration.name,
+        eventTitle: registration.event.title,
+        eventSlug: registration.event.slug,
+        ticketId: registration.ticketId,
+        amount: registration.pricePaid || 0,
+        method,
+        paidAt: receivedOn,
+        reference,
+      }),
   });
 
   revalidatePath("/admin/payments");
@@ -155,7 +185,10 @@ export async function recordRegistrationPayment(
 export async function revertRegistrationPayment(registrationId: string) {
   await requireAdmin();
 
-  const registration = await prisma.registration.findUnique({ where: { id: registrationId } });
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: { event: true },
+  });
   if (!registration) throw new Error("Registration not found");
   if (registration.paymentStatus !== "PAID") throw new Error("No recorded payment to undo.");
 
@@ -168,6 +201,23 @@ export async function revertRegistrationPayment(registrationId: string) {
       recordedById: null,
       recordedAt: null,
     },
+  });
+
+  // The member was told their payment had arrived. Reversing that quietly
+  // means the desk asks them for money they believe they have already paid,
+  // holding an email from us that says so.
+  await sendMail({
+    template: "payment.event-reverted",
+    to: registration.email,
+    entityId: registration.id,
+    build: (ctx) =>
+      templates.payments.eventPaymentReverted(ctx, {
+        name: registration.name,
+        eventTitle: registration.event.title,
+        eventSlug: registration.event.slug,
+        ticketId: registration.ticketId,
+        amount: registration.pricePaid || 0,
+      }),
   });
 
   revalidatePath("/admin/payments");

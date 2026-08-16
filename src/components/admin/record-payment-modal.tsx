@@ -102,9 +102,9 @@ export default function RecordPaymentModal({
         initial={{ opacity: 0, scale: 0.97, y: 8 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 8 }}
-        className={cn(heroSurface, "relative w-full max-w-md overflow-hidden")}
+        className={cn(heroSurface, "relative flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden md:max-h-[50vh] md:max-w-[50vw]")}
       >
-        <div className="flex items-start justify-between border-b border-border px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between border-b border-border px-6 py-4">
           <div className="min-w-0">
             <h3 className="font-sans text-base font-semibold text-foreground">Record payment</h3>
             <p className="truncate text-xs text-muted-foreground">
@@ -120,7 +120,7 @@ export default function RecordPaymentModal({
           </button>
         </div>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="custom-scrollbar flex-1 space-y-5 overflow-y-auto px-6 py-5">
           <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
             <span className="text-xs font-medium text-muted-foreground">Amount received</span>
             <span className="text-lg font-semibold tabular-nums text-foreground">
@@ -210,7 +210,7 @@ export default function RecordPaymentModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="flex shrink-0 justify-end gap-2 border-t border-border px-6 py-4">
           <Button variant="outline" onClick={onClose} disabled={isSaving} className="h-9 rounded-lg">
             Cancel
           </Button>
