@@ -69,13 +69,6 @@ const GUARD_CALLS = [
   "requireAnyUser(",
   "getServerSession(",
   "getCurrentUser(",
-  // Still in use by upload-actions.ts until Task 8 converts it.
-  "getAdminUser(",
-  // The direct admin guard. Every current admin action calls this one —
-  // its absence here was a detection gap, not a coverage gap: it showed up
-  // as 62 actions across 12 files failing this test on a codebase where
-  // every one of them opens with `await requireAdmin();`.
-  "requireAdmin(",
   // Local wrapper in privacy-actions.ts, `async function requireUserId() {
   // return (await requireUser()).id; }`. Six GDPR self-service actions call
   // this instead of requireUser() directly; same guard, one line of
@@ -83,11 +76,31 @@ const GUARD_CALLS = [
   "requireUserId(",
   // Local wrapper in event-actions.ts around the AI-assist helpers
   // (generateEventImage, generateEventDetails, improveEventTitle,
-  // improveEventDescription, generateCategory). It calls requireAdmin() and
-  // then applies a per-administrator rate limit before any Gemini/image call
-  // runs — a guard plus a budget, not a bypass.
+  // improveEventDescription, generateCategory). It calls
+  // requirePermission("events.ai") and then applies a per-administrator rate
+  // limit before any Gemini/image call runs — a guard plus a budget, not a
+  // bypass.
   "requireAiCaller(",
 ];
+
+/**
+ * `getAdminUser(` and `requireAdmin(` used to live in this list. Both are
+ * gone on purpose, not by omission:
+ *
+ *  - `requireAdmin()` no longer exists in the codebase (removed once every
+ *    call site was converted to `requirePermission()`); its presence here
+ *    was satisfied by a stray comment mentioning the name, not a real call.
+ *  - `getAdminUser()` reads `role` from the JWT rather than the database —
+ *    exactly the shortcut `requirePermission()` exists to close (see D3 in
+ *    the design doc). Nothing in `src/lib/*-actions.ts` calls it directly
+ *    (verified by search); it remains legitimate internal plumbing inside
+ *    `guards.ts` itself and in `feature-gate.ts`'s `assertFeature`, neither
+ *    of which this test scans as an action.
+ *
+ * If a future action is found to need `getAdminUser()` directly, that is
+ * itself the bug to fix (convert it to `requirePermission()`), not a reason
+ * to put the string back here.
+ */
 
 /**
  * `-actions.ts` is a naming convention, not a guarantee that a file is a
@@ -181,6 +194,139 @@ describe("action coverage", () => {
           guarded,
           `${action.name} in ${label} calls no guard. Add one, or add it to ` +
             `UNGUARDED_ACTIONS in this file with a reason.`
+        ).toBe(true);
+      });
+    }
+  }
+});
+
+/**
+ * Route handlers (`src/app/api/**\/route.ts`) are a second, separate public
+ * surface — reachable directly by URL, entirely outside `proxy.ts`'s
+ * `/admin/:path*` match and outside this file's own `-actions.ts` glob. That
+ * gap is exactly how `POST /api/config` shipped guarded only by
+ * `getAdminUser()` (JWT-trusting, no permission check) and sat undetected
+ * until a whole-branch review found it by hand. This block exists so that
+ * category can never be invisible again.
+ *
+ * Every exported HTTP method in every route file must either call one of
+ * `GUARD_CALLS` above, or appear on `UNGUARDED_ROUTES` below with a reason —
+ * same discipline as the action scan, applied to a different export shape.
+ */
+const ROUTES_DIR = path.resolve(__dirname, "../src/app/api");
+
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"] as const;
+type HttpMethod = (typeof HTTP_METHODS)[number];
+
+/**
+ * Routes that legitimately answer with no call to anything in GUARD_CALLS.
+ * Every entry needs a reason, checked by hand — a route handler's
+ * authorisation is often a shared secret or a per-resource scope rather than
+ * a session guard, neither of which a text scan can verify on its own.
+ */
+const UNGUARDED_ROUTES: Record<string, string> = {
+  "admin/auth/[...nextauth]/route.ts#GET":
+    "Framework route — NextAuth's own handler. Must stay unauthenticated so sign-in itself is reachable.",
+  "admin/auth/[...nextauth]/route.ts#POST":
+    "Framework route — NextAuth's own handler. Must stay unauthenticated so sign-in itself is reachable.",
+  "auth/[...nextauth]/route.ts#GET":
+    "Framework route — NextAuth's own handler. Must stay unauthenticated so sign-in itself is reachable.",
+  "auth/[...nextauth]/route.ts#POST":
+    "Framework route — NextAuth's own handler. Must stay unauthenticated so sign-in itself is reachable.",
+  "cron/route.ts#GET":
+    "Bearer CRON_SECRET checked in authorise() — refuses when the secret is unset or the caller's value " +
+    "doesn't match. Not a session guard, so it can't be text-matched; verified by hand.",
+  "cron/route.ts#POST":
+    "Same authorise() check as GET — some schedulers only issue POST.",
+  "gallery/download/route.ts#GET":
+    "Public by design — the publicId is resolved against GalleryMedia scoped to a *published* album before " +
+    "anything is fetched, so nothing outside the public gallery is addressable through it.",
+  "tickets/[ticketId]/route.ts#GET":
+    "Public by design — the ticket id (a CSPRNG value) is the credential, the same way a payment receipt " +
+    "link is; misses are rate-limited per client to blunt enumeration.",
+};
+
+/** Every `route.ts` file under src/app/api, however deep it's nested. */
+function routeFiles(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...routeFiles(full));
+    } else if (entry.isFile() && entry.name === "route.ts") {
+      found.push(full);
+    }
+  }
+  return found;
+}
+
+/**
+ * Every exported HTTP method, in whichever of the two shapes Next.js route
+ * handlers actually use in this codebase:
+ *
+ *   export async function GET(...) { ... }
+ *   export { handler as GET, handler as POST };
+ *
+ * A direct declaration's body is sliced the same way `extractActions` slices
+ * an action — from its own export to the start of the next one, or EOF — so
+ * a guard call in a neighbouring handler is never mistaken for this one's.
+ * A re-export has no body of its own to slice, so the whole file is used as
+ * its text: harmless for the routes this repo has today (none resolve to a
+ * guard call that way and all sit on the allowlist instead), and it means a
+ * future route that both re-exports *and* calls a guard nearby is still
+ * detected rather than automatically failing.
+ */
+function extractRouteMethods(source: string): { method: HttpMethod; body: string }[] {
+  const DIRECT_START = /^export (?:async function\s+(GET|POST|PUT|PATCH|DELETE)\s*\(|const\s+(GET|POST|PUT|PATCH|DELETE)\s*=\s*(?:\w+\(\s*)*async\b)/gm;
+
+  const starts: { method: HttpMethod; index: number }[] = [];
+  for (const m of source.matchAll(DIRECT_START)) {
+    starts.push({ method: (m[1] ?? m[2]) as HttpMethod, index: m.index });
+  }
+
+  const results: { method: HttpMethod; body: string }[] = starts.map((start, i) => ({
+    method: start.method,
+    body: source.slice(start.index, starts[i + 1]?.index ?? source.length),
+  }));
+
+  const seen = new Set(results.map((r) => r.method));
+
+  // `export { handler as GET, handler as POST };` — one statement can name
+  // several methods at once.
+  const REEXPORT = /^export\s*\{([^}]+)\}\s*;?/gm;
+  for (const m of source.matchAll(REEXPORT)) {
+    for (const clause of m[1].split(",")) {
+      const named = clause.match(/\bas\s+(GET|POST|PUT|PATCH|DELETE)\b/);
+      if (named && !seen.has(named[1] as HttpMethod)) {
+        seen.add(named[1] as HttpMethod);
+        results.push({ method: named[1] as HttpMethod, body: source });
+      }
+    }
+  }
+
+  return results;
+}
+
+describe("route handler coverage", () => {
+  const files = routeFiles(ROUTES_DIR);
+
+  it("finds the route files", () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  for (const file of files) {
+    const source = readFileSync(file, "utf8");
+    const label = path.relative(ROUTES_DIR, file).split(path.sep).join("/");
+    for (const { method, body } of extractRouteMethods(source)) {
+      const key = `${label}#${method}`;
+      const exempt = key in UNGUARDED_ROUTES;
+      it(`${label} → ${method} is guarded${exempt ? " (exempt)" : ""}`, () => {
+        if (exempt) return;
+        const guarded = GUARD_CALLS.some((call) => body.includes(call));
+        expect(
+          guarded,
+          `${method} in ${label} calls no guard. Add one, or add "${key}" to ` +
+            `UNGUARDED_ROUTES in this file with a reason.`
         ).toBe(true);
       });
     }
