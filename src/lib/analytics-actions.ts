@@ -2,13 +2,13 @@
 
 import { prisma } from "./prisma";
 import { getServerSession } from "next-auth";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { startOfMonth, endOfMonth, subMonths, format, startOfDay } from "date-fns";
 import { getCollectedRevenue } from "./revenue";
 import { percentChange } from "./format-stats";
 
 export async function getAnalyticsData() {
-  await requireAdmin();
+  await requirePermission("analytics.view");
 
   // Every block below is independent of every other — none reads another
   // block's result — so they used to run as five sequential round trips

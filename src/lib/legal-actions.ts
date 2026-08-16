@@ -9,7 +9,7 @@ import { Prisma } from "@prisma/client";
 
 import { NOT_REVOKED, prisma } from "./prisma";
 import { publicAuthOptions } from "./auth";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { requestFingerprint } from "./consent-recorder";
 import {
   COOKIE_CONSENT_MAX_AGE,
@@ -301,7 +301,7 @@ export interface AdminLegalSummary {
 }
 
 export async function adminListLegalDocuments(): Promise<AdminLegalSummary[]> {
-  await requireAdmin();
+  await requirePermission("legal.view");
 
   const [docs, totalMembers] = await Promise.all([
     prisma.legalDocument.findMany(),
@@ -351,7 +351,7 @@ export async function adminListLegalDocuments(): Promise<AdminLegalSummary[]> {
 }
 
 export async function adminGetLegalDocument(slug: string): Promise<LegalDocumentData | null> {
-  await requireAdmin();
+  await requirePermission("legal.view");
   if (!isLegalSlug(slug)) return null;
 
   const doc = await prisma.legalDocument.findUnique({ where: { slug } });
@@ -381,7 +381,7 @@ export async function adminSaveDraft(
   slug: string,
   content: { de: LegalContent; en: LegalContent }
 ) {
-  await requireAdmin();
+  await requirePermission("legal.edit");
   if (!isLegalSlug(slug)) throw new Error("Unknown document");
 
   assertContent(content.de, "German");
@@ -417,7 +417,7 @@ export async function adminPublishVersion(
     requireReconsent: boolean;
   }
 ) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("legal.publish");
   if (!isLegalSlug(slug)) throw new Error("Unknown document");
 
   assertContent(input.de, "German");
@@ -465,7 +465,7 @@ export async function adminPublishVersion(
 }
 
 export async function adminSetPublished(slug: string, isPublished: boolean) {
-  await requireAdmin();
+  await requirePermission("legal.publish");
   if (!isLegalSlug(slug)) throw new Error("Unknown document");
 
   await prisma.legalDocument.update({ where: { slug }, data: { isPublished } });
@@ -483,7 +483,7 @@ export interface RevisionSummary {
 }
 
 export async function adminListRevisions(slug: string): Promise<RevisionSummary[]> {
-  await requireAdmin();
+  await requirePermission("legal.view");
   if (!isLegalSlug(slug)) return [];
 
   const revisions = await prisma.legalRevision.findMany({
@@ -505,7 +505,7 @@ export async function adminListRevisions(slug: string): Promise<RevisionSummary[
 }
 
 export async function adminGetRevision(id: string) {
-  await requireAdmin();
+  await requirePermission("legal.view");
 
   const revision = await prisma.legalRevision.findUnique({ where: { id } });
   if (!revision) return null;
@@ -540,7 +540,7 @@ export async function adminListConsents(filter?: {
   type?: string;
   take?: number;
 }): Promise<ConsentLogEntry[]> {
-  await requireAdmin();
+  await requirePermission("legal.consents.view");
 
   const consents = await prisma.userConsent.findMany({
     where: {
@@ -571,7 +571,7 @@ export async function adminListConsents(filter?: {
 
 /** CSV of the consent log — the evidence pack for an Art. 5(2) enquiry. */
 export async function adminExportConsentsCsv(filter?: { slug?: string; type?: string }) {
-  await requireAdmin();
+  await requirePermission("legal.consents.export");
 
   const rows = await adminListConsents({ ...filter, take: 1000 });
   const header = [
@@ -615,6 +615,6 @@ export async function adminExportConsentsCsv(filter?: { slug?: string; type?: st
 
 /** Seed-on-demand guard for the admin list, so a fresh DB is never blank. */
 export async function adminLegalDocumentCount(): Promise<number> {
-  await requireAdmin();
+  await requirePermission("legal.view");
   return prisma.legalDocument.count({ where: { slug: { in: LEGAL_SLUGS } } });
 }

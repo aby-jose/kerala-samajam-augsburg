@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { NOT_REVOKED, prisma } from "./prisma";
-import { requireAdmin, requireUser } from "./guards";
+import { requirePermission, requireUser } from "./guards";
 import { recordConsent } from "./consent-recorder";
 import { LegalSlug } from "./legal-schema";
 import { sendMail, templates } from "./email";
@@ -336,7 +336,7 @@ export async function cancelDeletionRequest() {
  * skeleton stays and no longer identifies anyone.
  */
 export async function completeAccountDeletion(userId: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("members.erase");
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("Account not found");

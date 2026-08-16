@@ -1,5 +1,16 @@
+import { readFileSync, readdirSync, statSync } from "fs";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, PERMISSIONS, isPermission } from "@/lib/permissions";
+
+function sourceFiles(dir: string, acc: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const full = path.join(dir, entry);
+    if (statSync(full).isDirectory()) sourceFiles(full, acc);
+    else if (/\.tsx?$/.test(entry)) acc.push(full);
+  }
+  return acc;
+}
 
 describe("permission catalogue", () => {
   it("holds exactly 53 keys", () => {
@@ -32,5 +43,17 @@ describe("permission catalogue", () => {
   it("narrows known keys and rejects unknown ones", () => {
     expect(isPermission("payments.record")).toBe(true);
     expect(isPermission("payments.embezzle")).toBe(false);
+  });
+
+  // Un-skip in Task 18, once every screen exists.
+  it.skip("has no dead keys — every permission is referenced in the source", () => {
+    const src = path.resolve(__dirname, "../src");
+    const corpus = sourceFiles(src)
+      .filter((f) => !f.endsWith("permissions.ts"))
+      .map((f) => readFileSync(f, "utf8"))
+      .join("\n");
+
+    const unused = ALL_PERMISSIONS.filter((key) => !corpus.includes(`"${key}"`));
+    expect(unused, `unreferenced permissions: ${unused.join(", ")}`).toEqual([]);
   });
 });

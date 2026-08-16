@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "./prisma";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { getConfig } from "./config-utils";
 import { EMAIL_LOG_PAGE_SIZE } from "./email-constants";
 import {
@@ -52,7 +52,7 @@ export interface EmailLogPage {
 const PAGE_SIZE = EMAIL_LOG_PAGE_SIZE;
 
 export async function getEmailLog(options: { status?: string; search?: string; page?: number } = {}): Promise<EmailLogPage> {
-  await requireAdmin();
+  await requirePermission("email.view");
 
   const where: Record<string, unknown> = {};
   if (options.status && options.status !== "all") where.status = options.status.toUpperCase();
@@ -153,7 +153,7 @@ async function configWarnings(): Promise<string[]> {
 
 /** The message as it was actually sent, for inspection in the admin panel. */
 export async function getEmailHtml(id: string): Promise<{ html: string | null; subject: string }> {
-  await requireAdmin();
+  await requirePermission("email.view");
   const log = await prisma.emailLog.findUnique({
     where: { id },
     select: { html: true, subject: true },
@@ -178,7 +178,7 @@ export async function getEmailHtml(id: string): Promise<{ html: string | null; s
  * own screen.
  */
 export async function resendEmail(id: string) {
-  await requireAdmin();
+  await requirePermission("email.resend");
 
   const original = await prisma.emailLog.findUnique({ where: { id } });
   if (!original) throw new Error("Email not found");
@@ -238,7 +238,7 @@ export async function resendEmail(id: string) {
  * that could succeed where the real thing fails.
  */
 export async function sendTestEmail(to: string) {
-  await requireAdmin();
+  await requirePermission("email.test");
 
   const result = await sendMail({
     template: "admin.test",
