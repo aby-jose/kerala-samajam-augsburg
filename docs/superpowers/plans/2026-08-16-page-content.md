@@ -14,12 +14,21 @@
 
 This plan covers Phases 2–5 of the spec. **Phase 1 — finishing the home page editor — is Tasks 14–17 of [the home page plan](2026-08-16-home-page-content.md)** and is not restated here.
 
-Do Phase 1 first. Two things in this plan depend on it:
+**This plan does not depend on Phase 1 and does not wait for it.** The two are
+independent: Phase 1 finishes the *home* page editor, which no task here
+touches.
 
-- `src/components/admin/ui/field.tsx`, which Task 14 Step 3 lifts out of `about-content-editor.tsx`. Every editor below imports it.
-- The rebase reconciliations in spec §9, including swapping `requireAdmin()` for `requirePermission("content.home.edit")`.
+One file overlaps. `src/components/admin/ui/field.tsx` is lifted out of
+`about-content-editor.tsx` by home-plan Task 14 Step 3, and every editor below
+imports it. Whichever plan runs first creates it:
 
-If you are executing this plan and `src/components/admin/ui/field.tsx` does not exist, stop — Phase 1 has not been done.
+- If it already exists when you reach Task 5, import it and add the `hint`
+  prop if it lacks one.
+- If it does not, Task 5 creates it by lifting the `Field` component out of
+  `about-content-editor.tsx` — the same lift, described in Task 5 Step 0.
+
+If you are executing Phase 1 afterwards, its Task 14 Step 3 is then a no-op:
+import the existing file rather than creating it.
 
 ## Global Constraints
 
@@ -828,8 +837,43 @@ git commit -m "Render the contact page from stored content"
 - Modify: `src/app/admin/(dashboard)/layout.tsx`
 
 **Interfaces:**
-- Consumes: `getPageContent`/`savePageContent` (Task 1), `contactContentSchema`/`ContactContentT` (Task 3), `Field` from `src/components/admin/ui/field.tsx` (Phase 1).
-- Produces: `<ContactContentEditor initialData={...} />`, and the pattern Tasks 6 and 7 follow.
+- Consumes: `getPageContent`/`savePageContent` (Task 1), `contactContentSchema`/`ContactContentT` (Task 3), `Field` from `src/components/admin/ui/field.tsx`.
+- Produces: `src/components/admin/ui/field.tsx` (if absent), `<ContactContentEditor initialData={...} />`, and the pattern Tasks 6 and 7 follow.
+
+- [ ] **Step 0: Ensure the shared Field helper exists**
+
+If `src/components/admin/ui/field.tsx` already exists (home-plan Task 14 got there first), skip to Step 1 — but confirm it accepts a `hint` prop, and add one if not.
+
+Otherwise create it, containing exactly the `Field` component currently defined at the top of `src/components/admin/about-content-editor.tsx`, with `"use client"` at the top, an `export`, and a `hint` prop:
+
+```tsx
+"use client";
+
+/**
+ * Label, control, optional hint and error message — the row every content
+ * editor is built from. Lifted out of about-content-editor.tsx, which was
+ * the only screen that had one, so the page editors do not each grow their
+ * own slightly different copy.
+ */
+export function Field({
+  label,
+  error,
+  hint,
+  className,
+  children,
+}: {
+  label: string;
+  error?: string;
+  hint?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  // …the body moved verbatim from about-content-editor.tsx, plus:
+  //   {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
+}
+```
+
+Then delete the local copy from `about-content-editor.tsx` and import the shared one. Run `npm run build` to confirm the About editor still compiles, and open `/admin/about` to confirm it looks unchanged.
 
 - [ ] **Step 1: Write the editor**
 
