@@ -33,7 +33,7 @@ export const ROLE_PRESETS: RolePreset[] = [
       "events.view", "events.edit", "events.publish", "events.delete",
       "events.cancel", "events.announce", "events.ai",
       "registrations.view", "registrations.edit", "registrations.checkin",
-      "registrations.delete", "registrations.ticket",
+      "registrations.delete",
       "payments.view",
       "gallery.view", "gallery.albums.edit", "gallery.media.upload",
     ],
@@ -44,7 +44,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     isSystem: false,
     permissions: [
       "dashboard.view",
-      "payments.view", "payments.record", "payments.revert", "payments.invoice",
+      "payments.view", "payments.record", "payments.revert",
       "membership.plans.view", "membership.plans.edit", "membership.plans.delete",
       "membership.applications.view", "membership.applications.approve",
       "membership.applications.cancel",

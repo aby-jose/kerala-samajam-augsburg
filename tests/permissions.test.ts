@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, PERMISSIONS, isPermission } from "@/lib/permissions";
 
 describe("permission catalogue", () => {
-  it("holds exactly 55 keys", () => {
-    expect(ALL_PERMISSIONS).toHaveLength(55);
+  it("holds exactly 53 keys", () => {
+    expect(ALL_PERMISSIONS).toHaveLength(53);
   });
 
   it("gives every key a group, a label and a mutates flag", () => {

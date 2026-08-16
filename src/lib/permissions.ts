@@ -36,13 +36,11 @@ export const PERMISSIONS = {
   "registrations.edit": { group: "Registrations", label: "Adjust registration amounts", mutates: true },
   "registrations.checkin": { group: "Registrations", label: "Check attendees in", mutates: true },
   "registrations.delete": { group: "Registrations", label: "Delete registrations", mutates: true },
-  "registrations.ticket": { group: "Registrations", label: "Send tickets", mutates: true },
 
   // --- Payments ---
   "payments.view": { group: "Payments", label: "View payments", mutates: false },
   "payments.record": { group: "Payments", label: "Record a payment", mutates: true },
   "payments.revert": { group: "Payments", label: "Reverse a recorded payment", mutates: true },
-  "payments.invoice": { group: "Payments", label: "Send invoices and receipts", mutates: true },
 
   // --- Members ---
   "members.view": { group: "Members", label: "View members", mutates: false },
