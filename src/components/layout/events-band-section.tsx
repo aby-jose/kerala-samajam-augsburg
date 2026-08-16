@@ -4,11 +4,12 @@ import { motion, Variants } from "framer-motion";
 import { EventsShowcase } from "@/components/layout/events-showcase";
 import { Container } from "@/components/layout/container";
 import {
-  Accent,
   Eyebrow,
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
+import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -26,10 +27,12 @@ export interface EventCard {
 }
 
 export function EventsBandSection({
+  content = DEFAULT_HOME_CONTENT.content.events,
   events,
   surface = "bg-surface-2",
   bordered = true,
 }: {
+  content?: HomeContentT["content"]["events"];
   events: EventCard[];
   surface?: string;
   bordered?: boolean;
@@ -60,21 +63,20 @@ export function EventsBandSection({
           variants={revealVariants}
         >
           <div className="max-w-2xl">
-            <Eyebrow>Events</Eyebrow>
+            <Eyebrow>{content.eyebrow}</Eyebrow>
             <SectionTitle className="mt-6">
-              Upcoming <Accent>Events</Accent>
+              {withAccent(content.title, content.accentWord)}
             </SectionTitle>
             <SectionLead className="mt-5 max-w-lg">
-              Everything on the calendar right now. Members hear about new
-              dates first, and everyone is welcome at most of them.
+              {content.lead}
             </SectionLead>
           </div>
-          <Link href="/events" className="shrink-0">
+          <Link href={content.cta.href} className="shrink-0">
             <Button
               variant="outline"
               className="h-12 rounded-full border-border bg-surface-1 px-8 text-[10px] font-bold uppercase tracking-[0.2em] transition-all duration-300 hover:border-primary hover:bg-primary hover:text-primary-foreground"
             >
-              Full Calendar
+              {content.cta.label}
               <ArrowRight className="ml-2 h-3.5 w-3.5" />
             </Button>
           </Link>
@@ -85,10 +87,10 @@ export function EventsBandSection({
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-surface-1 px-6 py-16 text-center">
             <p className="text-base font-semibold text-foreground">
-              Nothing on the calendar just yet
+              {content.empty.title}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              New dates are announced here first — members hear about them by email.
+              {content.empty.body}
             </p>
           </div>
         )}
