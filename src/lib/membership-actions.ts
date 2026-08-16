@@ -8,7 +8,8 @@ import { revalidatePath } from "next/cache";
 import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
-import { requireAdmin, requireUser } from "./guards";
+import { requirePermission, requireUser } from "./guards";
+import { describeAudit } from "./rbac/audit";
 import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail, adminEmailOrNull } from "./admin-contact";
@@ -29,7 +30,7 @@ import { sendMembershipPaymentRequest, sendSubscriptionReceipt } from "./invoice
  * The public site uses `getActiveMembershipPlans` below.
  */
 export async function getMembershipPlans() {
-  await requireAdmin();
+  await requirePermission("membership.plans.view");
 
   return await prisma.membershipPlan.findMany({
     orderBy: { price: 'asc' }
@@ -44,7 +45,7 @@ export async function getActiveMembershipPlans() {
 }
 
 export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
-  await requireAdmin();
+  await requirePermission("membership.plans.edit");
 
   const validated = membershipPlanSchema.parse(data);
   const { id, ...planData } = validated;
@@ -73,7 +74,7 @@ export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
 }
 
 export async function deleteMembershipPlan(id: string) {
-  await requireAdmin();
+  await requirePermission("membership.plans.delete");
 
   const subscriptionCount = await prisma.subscription.count({
     where: { planId: id }
@@ -96,7 +97,7 @@ export async function deleteMembershipPlan(id: string) {
 }
 
 export async function togglePlanStatus(id: string, isActive: boolean) {
-  await requireAdmin();
+  await requirePermission("membership.plans.edit");
 
   await prisma.membershipPlan.update({
     where: { id },
@@ -339,7 +340,7 @@ export async function createMembershipSubscription(data: {
  * payment instructions that were withheld until the ID was checked.
  */
 export async function approveMembership(subscriptionId: string) {
-  await requireAdmin();
+  await requirePermission("membership.applications.approve");
 
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -401,7 +402,7 @@ export async function recordSubscriptionPayment(
     note?: string;
   } = {}
 ) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payments.record");
 
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -427,6 +428,13 @@ export async function recordSubscriptionPayment(
   }
 
   const method = isPaymentMethod(input.method) ? input.method : (sub.paymentMethod as PaymentMethod);
+
+  await describeAudit({
+    summary: `Recorded ${sub.plan.price} ${sub.plan.name} payment for ${sub.user.name ?? sub.user.email}`,
+    entity: "Subscription",
+    entityId: sub.id,
+    metadata: { paymentReference: input.reference?.trim() || null, paymentMethod: method },
+  });
 
   await prisma.subscription.update({
     where: { id: subscriptionId },
@@ -502,13 +510,23 @@ export async function recordSubscriptionPayment(
  * on a payment we have just said did not happen.
  */
 export async function revertSubscriptionPayment(subscriptionId: string, reason?: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payments.revert");
 
-  const sub = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
+  const sub = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+    include: { user: true },
+  });
   if (!sub) throw new Error("Subscription not found");
   if (sub.paymentStatus !== "PAID") throw new Error("No recorded payment to undo.");
 
   const details = (sub.details as any) || {};
+
+  await describeAudit({
+    summary: `Reversed the payment on ${sub.user.name ?? sub.user.email}'s membership`,
+    entity: "Subscription",
+    entityId: sub.id,
+    metadata: { reason: reason ?? null },
+  });
 
   await prisma.subscription.update({
     where: { id: subscriptionId },
@@ -541,7 +559,7 @@ export async function revertSubscriptionPayment(subscriptionId: string, reason?:
  * purely a record that the term no longer runs.
  */
 export async function cancelSubscriptionAsAdmin(subscriptionId: string, reason?: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("membership.applications.cancel");
 
   const sub = await prisma.subscription.findUnique({ where: { id: subscriptionId } });
   if (!sub) throw new Error("Subscription not found");
@@ -571,7 +589,7 @@ export async function cancelSubscriptionAsAdmin(subscriptionId: string, reason?:
 }
 
 export async function rejectMembership(subscriptionId: string, reason?: string) {
-  await requireAdmin();
+  await requirePermission("membership.applications.approve");
 
   const sub = await prisma.subscription.findUnique({
     where: { id: subscriptionId },
@@ -636,7 +654,7 @@ export async function resetRejectedSubscription(subscriptionId: string) {
  * rejected application too, so refusals kept reappearing in the queue.
  */
 export async function getPendingSubscriptions() {
-  await requireAdmin();
+  await requirePermission("membership.applications.view");
 
   return await prisma.subscription.findMany({
     where: { status: { in: PENDING_STATUSES } },
@@ -691,7 +709,7 @@ export async function getMembershipPaymentDetails() {
 }
 
 export async function getAllMembers() {
-  await requireAdmin();
+  await requirePermission("members.view");
 
   const notifyAddress = adminEmailOrNull();
 
@@ -730,7 +748,7 @@ export async function getAllMembers() {
 }
 
 export async function suspendUser(userId: string, currentStatus: string) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("members.suspend");
 
   // Suspending yourself locks the last administrator out of the panel with no
   // way back in through the UI.
@@ -748,13 +766,21 @@ export async function suspendUser(userId: string, currentStatus: string) {
     newRole = user.role.replace("SUSPENDED_", "");
   }
 
+  const nextStatus = newRole.startsWith("SUSPENDED_") ? "SUSPENDED" : "ACTIVE";
+
+  await describeAudit({
+    summary: `${nextStatus === "ACTIVE" ? "Reinstated" : "Suspended"} ${user.email}`,
+    entity: "User",
+    entityId: user.id,
+  });
+
   await prisma.user.update({
     where: { id: userId },
     data: { role: newRole }
   });
 
   revalidatePath("/admin/members");
-  return { success: true, status: newRole.startsWith("SUSPENDED_") ? "SUSPENDED" : "ACTIVE" };
+  return { success: true, status: nextStatus };
 }
 
 /**
@@ -784,7 +810,7 @@ const memberDetailsSchema = z.object({
 export type MemberDetailsInput = z.input<typeof memberDetailsSchema>;
 
 export async function updateMemberDetails(userId: string, data: MemberDetailsInput) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("members.edit");
 
   const parsed = memberDetailsSchema.safeParse(data);
   if (!parsed.success) throw new Error("Invalid member details");

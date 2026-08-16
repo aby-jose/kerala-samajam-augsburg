@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
 import { displayStatus, isPaymentMethod, type PaymentMethod } from "./membership-term";
 import { sendMail, templates } from "./email";
 
@@ -41,7 +41,7 @@ export type PaymentRecord = {
 };
 
 export async function getAllPayments(): Promise<PaymentRecord[]> {
-  await requireAdmin();
+  await requirePermission("payments.view");
 
   const [subscriptions, registrations] = await Promise.all([
     prisma.subscription.findMany({
@@ -126,7 +126,7 @@ export async function recordRegistrationPayment(
   registrationId: string,
   input: { receivedOn?: string | Date; method?: PaymentMethod; reference?: string } = {}
 ) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("payments.record");
 
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
@@ -183,7 +183,7 @@ export async function recordRegistrationPayment(
 }
 
 export async function revertRegistrationPayment(registrationId: string) {
-  await requireAdmin();
+  await requirePermission("payments.revert");
 
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
