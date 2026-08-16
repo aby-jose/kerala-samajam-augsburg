@@ -311,6 +311,7 @@ export function renderEmail(ctx: EmailContext, doc: EmailDocument): string {
           ${masthead(t, ctx)}
           ${hero(t, doc)}
           ${body(t, doc)}
+          ${action(t, doc)}
           ${footer(t, ctx)}
         </table>
       </td>
