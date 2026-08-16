@@ -7,33 +7,15 @@ import { Loader2, MoveUp, MoveDown, Plus, Trash2, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/admin/ui/page-header";
+import { Field } from "@/components/admin/ui/field";
 import { cardSurface, panelHeader } from "@/components/admin/ui/surface";
 import ImageUpload from "@/components/admin/image-upload";
 import { saveAboutContent } from "@/lib/about-actions";
 import { aboutContentSchema, ABOUT_ICONS, type AboutContentT } from "@/lib/about-schema";
 import { cn } from "@/lib/utils";
-
-function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm font-medium">{label}</Label>
-      {children}
-      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-    </div>
-  );
-}
 
 export function AboutContentEditor({ initialData }: { initialData: AboutContentT }) {
   const [isSaving, setIsSaving] = useState(false);
