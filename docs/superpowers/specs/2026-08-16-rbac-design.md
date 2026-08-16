@@ -199,7 +199,7 @@ export type Permission = keyof typeof PERMISSIONS;
 | `registrations.edit` | `updateRegistrationAmount` |
 | `registrations.checkin` | `toggleCheckIn`, `getRegistrationByTicketId` |
 | `registrations.delete` | `deleteRegistration` |
-| `payments.view` | `getAllPayments`, `getMembershipPaymentDetails` |
+| `payments.view` | `getAllPayments` |
 | `payments.record` | `recordRegistrationPayment`, `recordSubscriptionPayment` |
 | `payments.revert` | `revertRegistrationPayment`, `revertSubscriptionPayment` |
 | `members.view` | `getAllMembers` |
@@ -210,7 +210,7 @@ export type Permission = keyof typeof PERMISSIONS;
 | `membership.plans.edit` | `upsertMembershipPlan`, `togglePlanStatus` |
 | `membership.plans.delete` | `deleteMembershipPlan` |
 | `membership.applications.view` | `getPendingSubscriptions` |
-| `membership.applications.approve` | `approveMembership`, `rejectMembership`, `resetRejectedSubscription` |
+| `membership.applications.approve` | `approveMembership`, `rejectMembership` |
 | `membership.applications.cancel` | `cancelSubscriptionAsAdmin` |
 | `gallery.view` | Pages `/admin/gallery`, `/admin/gallery/[id]` (page guard only) |
 | `gallery.albums.edit` | `createAlbum`, `updateAlbum` |
