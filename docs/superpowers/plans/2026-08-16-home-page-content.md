@@ -1711,7 +1711,7 @@ In `src/lib/permissions.ts`, beside `content.about.edit`:
 "content.home.edit": { group: "Content", label: "Edit the Home page", mutates: true },
 ```
 
-`tests/permissions.test.ts` asserts `toHaveLength(55)`. Bump it to `56`.
+`tests/permissions.test.ts` asserts a total count — read the current number rather than trusting this plan, since the RBAC branch moves it (it was 55, then 53 as of `4bd8335`), and bump it by one.
 
 Run: `npm test -- permissions`
 Expected: PASS.
