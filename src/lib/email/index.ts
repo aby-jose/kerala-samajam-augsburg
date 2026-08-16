@@ -23,5 +23,6 @@ import * as payments from "./templates/payments";
 import * as gallery from "./templates/gallery";
 import * as contact from "./templates/contact";
 import * as privacy from "./templates/privacy";
+import * as staff from "./templates/staff";
 
-export const templates = { account, events, membership, payments, gallery, contact, privacy };
+export const templates = { account, events, membership, payments, gallery, contact, privacy, staff };
