@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/registry";
 import { parseInlineLinks } from "@/lib/page-content/section";
+import { contactContentSchema, DEFAULT_CONTACT } from "@/lib/page-content/contact";
 
 describe("page content registry", () => {
   it("recognises its own slugs and nothing else", () => {
@@ -120,6 +121,44 @@ describe("parseInlineLinks", () => {
   it("never returns an empty node", () => {
     for (const node of parseInlineLinks("[Events](/events)")) {
       expect(node.text.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("contact content", () => {
+  it("accepts its own defaults", () => {
+    expect(() => contactContentSchema.parse(DEFAULT_CONTACT)).not.toThrow();
+  });
+
+  it("ships the four questions the page answers today", () => {
+    expect(DEFAULT_CONTACT.faq.items).toHaveLength(4);
+  });
+
+  it("rejects an empty title", () => {
+    expect(() =>
+      contactContentSchema.parse({
+        ...DEFAULT_CONTACT,
+        hero: { ...DEFAULT_CONTACT.hero, title: "" },
+      })
+    ).toThrow();
+  });
+
+  it("requires at least one question", () => {
+    expect(() =>
+      contactContentSchema.parse({
+        ...DEFAULT_CONTACT,
+        faq: { ...DEFAULT_CONTACT.faq, items: [] },
+      })
+    ).toThrow();
+  });
+
+  it("keeps every accent word findable in its title", () => {
+    // A word that is not in the title renders plain, which reads as a bug.
+    for (const [name, section] of Object.entries(DEFAULT_CONTACT)) {
+      const { title, accentWord } = section as { title?: string; accentWord?: string };
+      if (!title || !accentWord) continue;
+
+      expect(title, name).toContain(accentWord);
     }
   });
 });

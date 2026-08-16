@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { contactContentSchema, DEFAULT_CONTACT } from "./contact";
+
 /**
  * What each page slug means: the shape of its document, the copy to fall back
  * on, and the routes whose cache a save invalidates.
@@ -9,27 +11,11 @@ import { z } from "zod";
  * actions.ts.
  */
 
-// Replaced by the real schema in Task 3. Structured as section -> fields from
-// the start, because mergePageContent merges one level deep.
-const placeholderSchema = z.object({
-  hero: z.object({
-    title: z.string().min(1).max(160),
-    lead: z.string().min(1).max(500),
-  }),
-  form: z.object({
-    title: z.string().min(1).max(160),
-    lead: z.string().min(1).max(500),
-  }),
-});
-
 export const PAGE_CONTENT = {
   contact: {
     label: "Contact",
-    schema: placeholderSchema,
-    defaults: {
-      hero: { title: "Get in Touch", lead: "Placeholder — replaced in Task 3." },
-      form: { title: "Send a Message", lead: "Placeholder — replaced in Task 3." },
-    },
+    schema: contactContentSchema,
+    defaults: DEFAULT_CONTACT,
     revalidate: ["/contact"],
   },
 } as const satisfies Record<string, PageEntry>;
