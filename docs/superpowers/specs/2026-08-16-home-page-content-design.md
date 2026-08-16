@@ -164,8 +164,14 @@ initial HTML. The skeleton branch goes away with it. `GalleryStrip` and
 
 ### 6.1 Registry
 
-`src/components/layout/home-sections.ts` maps each id to its component, its
-admin-facing label, and its surface mode:
+The registry is split in two, because Vitest runs in a `node` environment over
+`tests/**/*.test.ts` only — a module that reaches a test may not import a
+component. `src/lib/home-sections.ts` holds the pure metadata (admin label and
+surface mode per id) and is imported by the layout helper, the tests and the
+admin editor; `src/components/layout/home-sections.tsx` holds the id →
+component map and is imported only by the client renderer.
+
+Surface modes:
 
 | Section | Surface mode |
 |---|---|
@@ -181,22 +187,32 @@ its id plus the `surface` and `tone` its component should receive:
 
 - `media` → the hero's own black treatment; always first.
 - `deep` → `surface-deep` with `tone="dark"`.
-- `rotate` → `["surface-1", "surface-2", "surface-3"][n % 3]`, where `n` counts
-  only the rotating sections that came before it.
+- `rotate` → base and tint alternate. Counting only rotating sections, even
+  positions take the base `surface-1`; odd positions take a tint, and the tints
+  themselves cycle `surface-2`, `surface-3`, `surface-2`, …
 
-Because the index counts rotating sections rather than all sections, two
-identical adjacent surfaces are impossible by construction, and the white →
-cream → blush rhythm holds for any permutation. It also returns `seamless` for
-each section — true when the section above already ends in a border — which is
-what [leadership-row.tsx](../../../src/components/layout/leadership-row.tsx)'s
-existing `seamless` prop was added for.
+The alternation is not a three-way cycle, because the page is not built as one.
+Today's order is about, events, gallery, committee, join on surfaces 1, 2, 1, 3,
+1 — white with a tinted band every second section. `n % 3` would have produced
+1, 2, 3, 1, 2 and quietly recoloured three sections before anyone edited
+anything. Base-then-tint reproduces the current assignment exactly at the
+default order, keeps two identical adjacent surfaces impossible by
+construction, and holds for any permutation.
+
+`resolveSections` also returns `bordered`, true for tinted sections only. That
+reproduces the `border-y` the events band and the committee row draw today,
+and it means a border always separates two different surfaces rather than
+stacking into a 2px seam — the problem
+[leadership-row.tsx](../../../src/components/layout/leadership-row.tsx)'s
+`seamless` prop was added for. `seamless` stays as it is for the About page's
+call site.
 
 Being pure and returning plain data, it is tested without rendering anything.
 
 ### 6.3 Component changes
 
 Each of the six section components gains a `content` prop plus optional
-`surface`, `tone` and `seamless` props, **all defaulted to today's hardcoded
+`surface`, `tone` and `bordered` props, **all defaulted to today's hardcoded
 values**. The About page's `<LeadershipRow limit={0} showEmptyState seamless />`
 therefore keeps working with no change at that call site.
 
@@ -268,10 +284,14 @@ Vitest is already configured. New `tests/home-content.test.ts` covers:
    falls back to the default pillars.
 3. Layout repair: unknown ids dropped, missing ids appended, duplicates
    collapsed, `hero` forced to index 0.
-4. `resolveSections` over every permutation of the six movable sections — no
+4. `resolveSections` at the default order returns exactly today's assignment —
+   `surface-1`, `surface-2`, `surface-1`, `surface-3`, `surface-1` across
+   about, events, gallery, committee, join, with `bordered` true for events and
+   committee alone.
+5. `resolveSections` over every permutation of the six movable sections — no
    two adjacent rotating sections share a surface, the hero is always `media`,
    and the CTA is always `deep` with `tone="dark"`.
-5. `splitOnAccent`: an accent word found in the title splits into three parts;
+6. `splitOnAccent`: an accent word found in the title splits into three parts;
    an accent word that is blank, absent from the title, or differs in case
    returns the whole title as `before` with no match — the plain-text
    fallback the About page already relies on.
@@ -285,10 +305,11 @@ New:
 - `src/lib/home-icons.ts`
 - `src/lib/home-actions.ts`
 - `src/lib/home-layout.ts`
+- `src/lib/home-sections.ts` — pure section metadata
 - `src/lib/accent.ts`
 - `src/components/layout/with-accent.tsx`
 - `src/components/layout/home-page-client.tsx`
-- `src/components/layout/home-sections.ts`
+- `src/components/layout/home-sections.tsx` — id → component map
 - `src/components/layout/events-band-section.tsx`
 - `src/components/layout/join-cta.tsx`
 - `src/components/admin/ui/field.tsx`
