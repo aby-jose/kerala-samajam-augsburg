@@ -32,6 +32,8 @@ interface LeadershipRowProps {
    *  two don't stack into a 2px seam. */
   seamless?: boolean;
   className?: string;
+  surface?: string;
+  bordered?: boolean;
 }
 
 export function LeadershipRow({
@@ -39,6 +41,8 @@ export function LeadershipRow({
   showEmptyState = false,
   seamless = false,
   className,
+  surface = "bg-surface-3",
+  bordered = true,
 }: LeadershipRowProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,8 +67,10 @@ export function LeadershipRow({
   return (
     <section
       className={cn(
-        "relative overflow-hidden border-b border-border bg-surface-3 py-24 md:py-32",
-        !seamless && "border-t",
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-b border-border",
+        bordered && !seamless && "border-t",
         className
       )}
     >

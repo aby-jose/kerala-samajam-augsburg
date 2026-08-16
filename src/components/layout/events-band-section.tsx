@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 // Exported so home-page-client.tsx types its `events` prop from one place.
 export interface EventCard {
@@ -26,10 +27,12 @@ export interface EventCard {
 
 export function EventsBandSection({
   events,
-  isLoading = false,
+  surface = "bg-surface-2",
+  bordered = true,
 }: {
   events: EventCard[];
-  isLoading?: boolean;
+  surface?: string;
+  bordered?: boolean;
 }) {
   const revealVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
@@ -41,7 +44,13 @@ export function EventsBandSection({
   };
 
   return (
-    <section className="relative overflow-hidden border-y border-border bg-surface-2 py-24 md:py-32">
+    <section
+      className={cn(
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-y border-border"
+      )}
+    >
       <Container>
         <motion.div
           className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end"
@@ -71,24 +80,7 @@ export function EventsBandSection({
           </Link>
         </motion.div>
 
-        {isLoading ? (
-          <div
-            className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4"
-            aria-busy="true"
-            aria-label="Loading upcoming events"
-          >
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="overflow-hidden rounded-2xl border border-border bg-surface-1">
-                <div className="aspect-[4/3] animate-pulse bg-muted" />
-                <div className="space-y-3 p-5">
-                  <div className="h-3 w-24 animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                  <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : events.length > 0 ? (
+        {events.length > 0 ? (
           <EventsShowcase events={events} />
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-surface-1 px-6 py-16 text-center">

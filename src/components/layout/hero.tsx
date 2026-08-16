@@ -11,6 +11,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -20,7 +21,7 @@ const fade = (delay: number) => ({
   transition: { duration: 1.3, ease: EASE, delay },
 });
 
-export function Hero() {
+export function Hero({ surface = "bg-black" }: { surface?: string } = {}) {
   const ref = useRef<HTMLElement>(null);
   const reduced = useReducedMotion();
 
@@ -36,7 +37,10 @@ export function Hero() {
   return (
     <section
       ref={ref}
-      className="relative isolate w-full h-svh min-h-[640px] overflow-hidden bg-black"
+      className={cn(
+        "relative isolate w-full h-svh min-h-[640px] overflow-hidden",
+        surface
+      )}
     >
       {/* ---------- Full-bleed video ---------- */}
       <motion.div

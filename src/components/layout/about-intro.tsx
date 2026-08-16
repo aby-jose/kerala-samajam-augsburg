@@ -18,6 +18,7 @@ import {
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -70,7 +71,13 @@ const facts = [
   { value: "Augsburg", label: "And the towns around" },
 ];
 
-export function AboutIntro() {
+export function AboutIntro({
+  surface = "bg-surface-1",
+  bordered = false,
+}: {
+  surface?: string;
+  bordered?: boolean;
+} = {}) {
   const reduced = useReducedMotion();
 
   const rise: Variants = {
@@ -90,7 +97,11 @@ export function AboutIntro() {
   return (
     <section
       id="vision"
-      className="relative scroll-mt-20 overflow-hidden bg-surface-1 py-24 md:py-32"
+      className={cn(
+        "relative scroll-mt-20 overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-y border-border"
+      )}
     >
       {/* Ambient warmth. Both tints are primary at single-digit alpha, so they
           read as a glow on white and as a faint ember on black. */}

@@ -33,7 +33,13 @@ const fallbackShots: Shot[] = [
   { id: "f5", url: "/images/gallery/community_picnic.png", albumTitle: "Summer picnic" },
 ];
 
-export function GalleryStrip() {
+export function GalleryStrip({
+  surface = "bg-surface-1",
+  bordered = false,
+}: {
+  surface?: string;
+  bordered?: boolean;
+} = {}) {
   const [shots, setShots] = useState<Shot[]>(fallbackShots);
   const [counts, setCounts] = useState<{ albums: number; photos: number } | null>(
     null
@@ -51,7 +57,13 @@ export function GalleryStrip() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-surface-1 py-24 md:py-32">
+    <section
+      className={cn(
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-y border-border"
+      )}
+    >
       <Container>
         <motion.div
           className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end"

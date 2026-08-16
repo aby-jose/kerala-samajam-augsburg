@@ -11,6 +11,7 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -29,9 +30,21 @@ const steps = [
   },
 ];
 
-export function JoinSteps() {
+export function JoinSteps({
+  surface = "bg-surface-1",
+  bordered = false,
+}: {
+  surface?: string;
+  bordered?: boolean;
+} = {}) {
   return (
-    <section className="relative overflow-hidden bg-surface-1 py-24 md:py-32">
+    <section
+      className={cn(
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-y border-border"
+      )}
+    >
       <Container>
         <motion.div
           className="mb-14 flex flex-col justify-between gap-8 md:flex-row md:items-end"

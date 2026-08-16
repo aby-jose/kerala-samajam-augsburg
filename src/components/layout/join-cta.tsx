@@ -11,8 +11,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-export function JoinCta() {
+export function JoinCta({
+  surface = "bg-surface-deep",
+  bordered = false,
+}: {
+  surface?: string;
+  bordered?: boolean;
+} = {}) {
   const revealVariants: Variants = {
     hidden: { opacity: 0, y: 30 },
     visible: {
@@ -23,7 +30,13 @@ export function JoinCta() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-surface-deep py-28 md:py-36">
+    <section
+      className={cn(
+        "relative overflow-hidden py-28 md:py-36",
+        surface,
+        bordered && "border-y border-border"
+      )}
+    >
       <div className="pointer-events-none absolute left-1/2 top-0 h-[420px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]" />
       <div
         aria-hidden
