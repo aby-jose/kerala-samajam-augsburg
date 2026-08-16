@@ -45,8 +45,7 @@ describe("permission catalogue", () => {
     expect(isPermission("payments.embezzle")).toBe(false);
   });
 
-  // Un-skip in Task 18, once every screen exists.
-  it.skip("has no dead keys — every permission is referenced in the source", () => {
+  it("has no dead keys — every permission is referenced in the source", () => {
     const src = path.resolve(__dirname, "../src");
     const corpus = sourceFiles(src)
       .filter((f) => !f.endsWith("permissions.ts"))
