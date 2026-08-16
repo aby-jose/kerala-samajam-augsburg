@@ -7,7 +7,8 @@ import { eventSchema, type EventFormValues } from "./schemas";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
-import { requireAdmin } from "./guards";
+import { requirePermission } from "./guards";
+import { describeAudit } from "./rbac/audit";
 import { generateCaptcha, verifyCaptcha } from "./captcha";
 import { enforceRateLimit } from "./rate-limit";
 import { generateTicketId } from "./ticket";
@@ -59,7 +60,7 @@ async function generateContentWithFallback(prompt: string) {
 // Schema moved to schemas.ts
 
 export async function getAdminEvents() {
-  await requireAdmin();
+  await requirePermission("events.view");
 
   return await prisma.event.findMany({
     include: {
@@ -98,7 +99,7 @@ export async function getEventBySlug(slug: string) {
 }
 
 export async function upsertEvent(data: EventFormValues) {
-  await requireAdmin();
+  await requirePermission("events.edit");
 
   const validated = eventSchema.parse(data);
   const { id, ...eventData } = validated;
@@ -204,11 +205,18 @@ async function notifyRegistrants(
  * about it. The row and its registrations stay; the status changes.
  */
 export async function cancelEvent(id: string, reason?: string) {
-  await requireAdmin();
+  await requirePermission("events.cancel");
 
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) throw new Error("Event not found");
   if (event.status === "CANCELLED") throw new Error("This event is already cancelled.");
+
+  await describeAudit({
+    summary: `Cancelled "${event.title}"`,
+    entity: "Event",
+    entityId: event.id,
+    metadata: { reason: reason ?? null },
+  });
 
   const cancelled = await prisma.event.update({
     where: { id },
@@ -244,7 +252,7 @@ export async function cancelEvent(id: string, reason?: string) {
 
 /** Undo a cancellation. Registrants are told it is back on. */
 export async function reinstateEvent(id: string) {
-  await requireAdmin();
+  await requirePermission("events.cancel");
 
   const event = await prisma.event.update({
     where: { id },
@@ -274,7 +282,7 @@ export async function reinstateEvent(id: string) {
 }
 
 export async function deleteEvent(id: string) {
-  await requireAdmin();
+  await requirePermission("events.delete");
 
   const event = await prisma.event.findUnique({
     where: { id },
@@ -313,7 +321,7 @@ export async function deleteEvent(id: string) {
 }
 
 export async function toggleEventPublish(id: string, isPublished: boolean) {
-  await requireAdmin();
+  await requirePermission("events.publish");
 
   const event = await prisma.event.update({
     where: { id },
@@ -334,12 +342,18 @@ export async function toggleEventPublish(id: string, isPublished: boolean) {
  * `once` makes a second press harmless anyway.
  */
 export async function announceEvent(id: string) {
-  await requireAdmin();
+  await requirePermission("events.announce");
 
   const event = await prisma.event.findUnique({ where: { id } });
   if (!event) throw new Error("Event not found");
   if (!event.isPublished) throw new Error("Publish the event before announcing it.");
   if (event.status === "CANCELLED") throw new Error("This event is cancelled.");
+
+  await describeAudit({
+    summary: `Announced "${event.title}" to the membership`,
+    entity: "Event",
+    entityId: event.id,
+  });
 
   // Members with a running subscription, plus anyone verified who has asked to
   // hear about events. `sendMail` re-checks the preference per recipient, so
@@ -385,7 +399,7 @@ export async function announceEvent(id: string) {
  * reach it at all.
  */
 async function requireAiCaller(bucket: string, limit = 10, windowMs = 60_000) {
-  const admin = await requireAdmin();
+  const admin = await requirePermission("events.ai");
   enforceRateLimit(
     `ai:${bucket}:${admin.id ?? admin.email ?? "unknown"}`,
     limit,
@@ -780,7 +794,7 @@ export async function cancelRegistration(registrationId: string) {
 }
 
 export async function getRegistrationsByEvent(eventId?: string) {
-  await requireAdmin();
+  await requirePermission("registrations.view");
 
   return await prisma.registration.findMany({
     where: eventId ? { eventId } : {},
@@ -798,7 +812,7 @@ export async function getRegistrationsByEvent(eventId?: string) {
 }
 
 export async function updateRegistrationAmount(id: string, amount: number) {
-  await requireAdmin();
+  await requirePermission("registrations.edit");
 
   await prisma.registration.update({
     where: { id },
@@ -823,7 +837,7 @@ function isSameUTCDay(a: Date, b: Date) {
 }
 
 export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean) {
-  await requireAdmin();
+  await requirePermission("registrations.checkin");
 
   if (isCheckedIn) {
     const registration = await prisma.registration.findUnique({
@@ -863,13 +877,20 @@ export async function toggleCheckIn(registrationId: string, isCheckedIn: boolean
  * they turned up at the door holding a ticket that had been void for a week.
  */
 export async function deleteRegistration(id: string, reason?: string) {
-  await requireAdmin();
+  await requirePermission("registrations.delete");
 
   const registration = await prisma.registration.findUnique({
     where: { id },
     include: { event: true },
   });
   if (!registration) throw new Error("Registration not found");
+
+  await describeAudit({
+    summary: `Deleted ${registration.name}'s registration for "${registration.event.title}"`,
+    entity: "Registration",
+    entityId: registration.id,
+    metadata: { reason: reason ?? null, attendees: registration.attendees },
+  });
 
   await prisma.registration.delete({ where: { id } });
 
@@ -892,7 +913,7 @@ export async function deleteRegistration(id: string, reason?: string) {
 }
 
 export async function getAdminDashboardStats() {
-  await requireAdmin();
+  await requirePermission("dashboard.view");
 
   const now = new Date();
   const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
@@ -992,7 +1013,7 @@ export async function getAdminDashboardStats() {
  * id — which the QR code on every printed ticket carries in plain text.
  */
 export async function getRegistrationByTicketId(ticketId: string) {
-  await requireAdmin();
+  await requirePermission("registrations.checkin");
 
   return await prisma.registration.findUnique({
     where: { ticketId },
