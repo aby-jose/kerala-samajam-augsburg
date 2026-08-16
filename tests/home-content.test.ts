@@ -171,3 +171,36 @@ describe("resolveSections", () => {
     }
   });
 });
+
+import { splitOnAccent } from "@/lib/accent";
+
+describe("splitOnAccent", () => {
+  it("splits a title around the accent word", () => {
+    expect(splitOnAccent("A home for Kerala in Augsburg", "Kerala")).toEqual({
+      before: "A home for ",
+      match: "Kerala",
+      after: " in Augsburg",
+    });
+  });
+
+  it("returns the whole title when the accent is blank", () => {
+    expect(splitOnAccent("Upcoming Events", "")).toEqual({
+      before: "Upcoming Events",
+      match: "",
+      after: "",
+    });
+  });
+
+  it("returns the whole title when the accent is absent or differs in case", () => {
+    expect(splitOnAccent("Upcoming Events", "Missing").match).toBe("");
+    expect(splitOnAccent("Upcoming Events", "events").match).toBe("");
+  });
+
+  it("splits on the first occurrence only", () => {
+    expect(splitOnAccent("Events after Events", "Events")).toEqual({
+      before: "",
+      match: "Events",
+      after: " after Events",
+    });
+  });
+});
