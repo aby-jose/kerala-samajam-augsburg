@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:roles": "tsx prisma/seed-roles.ts"
+    "seed:roles": "tsx prisma/seed-roles.ts",
+    "email:preview": "tsx scripts/email-preview.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",

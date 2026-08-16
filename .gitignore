@@ -57,3 +57,11 @@ scratch/
 # committed; they are stale within a day and can quote connection strings.
 errors*.txt
 *.log
+
+# Isolated worktrees created for agent-driven work
+.claude/worktrees/
+.superpowers/
+
+# Rendered email gallery from `npm run email:preview`. Regenerated on demand
+# and large enough to bury a real diff.
+.email-preview/

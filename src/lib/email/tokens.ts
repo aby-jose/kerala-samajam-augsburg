@@ -42,6 +42,36 @@ export interface EmailTheme {
   surface: string;
   surfaceAlt: string;
 
+  /**
+   * Section bands — the brand colour at 2.5% and 5% over white.
+   *
+   * The site's equivalents (`--surface-2` warm cream, `--surface-3` faint
+   * blush) are hardcoded in `globals.css` and tuned to the rose default, so an
+   * administrator who sets green would get pink bands beside green buttons.
+   * Deriving them keeps the message in one colour family whatever they choose.
+   *
+   * Both are deliberately *fainter* than `primaryTint` (6%). A block that
+   * filled itself with the tint would otherwise vanish on `bandB` — which is
+   * why nothing in `blocks.ts` fills itself at all. The band is the container;
+   * hairlines do the dividing inside it.
+   */
+  bandA: string;
+  bandB: string;
+
+  /**
+   * The closing band, matching the site's `--surface-deep` (0 0% 6%).
+   *
+   * The home page ends on a dark call-to-action band before the footer, and
+   * the message does the same. These are flat hex rather than white-at-alpha
+   * because Outlook's Word engine does not composite 8-digit hex.
+   */
+  deep: string;
+  deepInk: string;
+  deepBody: string;
+  deepMuted: string;
+  deepHairline: string;
+  deepEdge: string;
+
   sans: string;
   mono: string;
 
@@ -158,13 +188,46 @@ export function buildTheme(branding?: EmailBranding): EmailTheme {
     // with it outright. Urgency is carried by the words in the eyebrow
     // ("SECURITY NOTICE", "EVENT CANCELLED") and by whether a block is
     // accented or plain, not by hue.
-    ink: "#1a1a1a",
-    body: "#525252",
-    muted: "#8a8a8a",
-    hairline: "#ececec",
-    canvas: "#f6f6f7",
+    // A warm neutral ramp rather than pure grey.
+    //
+    // The site's own surfaces are warm — `--surface-2` is a cream at hue 32 —
+    // so pure-grey type on them reads slightly cold and slightly cheap. These
+    // carry the faintest warmth, which is felt rather than seen. They are
+    // still neutrals: no hue is doing any signalling.
+    //
+    // `muted` is the one that changed materially. At #8a8a8a it cleared only
+    // 3.5:1 on white, and it is the colour every 11px section label and every
+    // fact label is set in — the smallest type in the message was the least
+    // legible. #78716c clears 4.8:1.
+    ink: "#1c1a19",
+    body: "#55504c",
+    muted: "#78716c",
+    hairline: "#eae7e4",
+    canvas: "#f4f2f0",
     surface: "#ffffff",
-    surfaceAlt: "#fafafa",
+    surfaceAlt: "#faf8f7",
+
+    bandA: toHex(mix(rgb, WHITE, 0.975)),
+    bandB: toHex(mix(rgb, WHITE, 0.95)),
+
+    // Lifted from the home page's closing band — the "Become a Member of KSA"
+    // section on `surface-deep`. That band expresses everything as white at an
+    // alpha (`text-white/60`, `border-white/15`, `bg-white/[0.06]`); mail
+    // clients composite 8-digit hex unreliably and Outlook's Word engine not
+    // at all, so each one is precomputed flat over #0f0f0f.
+    //
+    // Neutral, not warm. An earlier pass warmed these to match the light ramp,
+    // which put a set of greys in the message that appear nowhere on the site.
+    deep: "#0f0f0f",
+    deepInk: "#ffffff",
+    /** white/60 — `SectionLead tone="dark"`. */
+    deepBody: "#9f9f9f",
+    /** white/40 — the faintest line, for the copyright. */
+    deepMuted: "#6f6f6f",
+    /** Divider between the closing band and the footer. */
+    deepHairline: "#262626",
+    /** white/15 — `border-white/15` on the eyebrow pill and the ghost button. */
+    deepEdge: "#333333",
 
     // One face, matching the site.
     //
