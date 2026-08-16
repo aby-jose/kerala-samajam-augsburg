@@ -60,8 +60,30 @@ beforeEach(() => {
   mockedDeliver.mockResolvedValue({ ok: true, attempts: 1 } as never);
 });
 
-const RAW_TOKEN = "abcXYZ0192838475RAWTOKENvalue";
+// A realistic nanoid(32) shape — nanoid's default alphabet is
+// A-Za-z0-9_-, so nothing here needs URL-encoding once it lands in an href.
+const RAW_TOKEN = "V1StGXR8_Z5jdHi6B-myT3xa9bK2pQnW";
+const RESET_TOKEN = "Qf7mLp2Xz9RtY0aWc4Vd_e6Ns-8ghJkB";
+const VERIFY_TOKEN = "H3nUo1Ck7Ls5Rp0Ta-Yb9Xd_Ge2mVfQz";
 const INVITE_LINK = `https://example.org/admin/invite/${RAW_TOKEN}`;
+
+/**
+ * The invite button's actual shape (`button()` in `components.ts`): the same
+ * href rendered twice — once inside the MSO-only VML `roundrect`, once as the
+ * real `<a>` every other client sees. A redaction that only replaced the
+ * first occurrence would leave a live credential in the Outlook fallback.
+ */
+function inviteButtonHtml(href: string): string {
+  return `
+    <!--[if mso]>
+    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${href}" style="width:250px;">
+      <center>Set up your access</center>
+    </v:roundrect>
+    <![endif]-->
+    <!--[if !mso]><!-- -->
+    <a href="${href}">Set up your access</a>
+    <!--<![endif]-->`;
+}
 
 describe("sendMail — redactForStorage", () => {
   it("keeps the raw token out of the stored EmailLog.html while still delivering a working link", async () => {
@@ -75,7 +97,7 @@ describe("sendMail — redactForStorage", () => {
         previewText: "Set up your access.",
         eyebrow: "Invitation",
         title: "Set up your access",
-        action: `<a href="${INVITE_LINK}">Set up your access</a>`,
+        action: inviteButtonHtml(INVITE_LINK),
       }),
     });
 
@@ -89,6 +111,9 @@ describe("sendMail — redactForStorage", () => {
     // The credential is gone from storage...
     expect(storedHtml).not.toContain(RAW_TOKEN);
     expect(storedHtml).toContain("[invite link — token withheld from the stored copy]");
+    // ...both copies of it — the VML fallback and the real anchor — not just
+    // the first one a naive single-shot replace would have caught.
+    expect(storedHtml.split("[invite link — token withheld from the stored copy]")).toHaveLength(3);
     // ...but the rest of the message — subject, heading, structure — survives,
     // so a reviewer can still see what was sent, just not the working link.
     expect(storedHtml).toContain("Set up your access");
@@ -97,27 +122,197 @@ describe("sendMail — redactForStorage", () => {
     // The delivered copy is untouched: the invitee's link still works.
     expect(deliveredHtml).toContain(RAW_TOKEN);
     expect(deliveredHtml).toContain(INVITE_LINK);
+    expect(deliveredHtml.split(RAW_TOKEN)).toHaveLength(3); // both occurrences, unredacted
   });
 
-  it("does not touch storage for templates that don't opt in", async () => {
+  /**
+   * This used to pin the vulnerability: without an explicit opt-in, the raw
+   * token landed in storage unredacted. `redactCredentialsForStorage` in
+   * `send.ts` now runs unconditionally on every send, so the invite link is
+   * stripped here too even though this call never passes `redactForStorage`.
+   */
+  it("redacts the invite link automatically even for a template that never opts in", async () => {
     await sendMail({
-      template: "account.password-changed",
-      to: "someone@example.org",
+      template: "staff.invite.resend",
+      to: "invitee@example.org",
       build: () => ({
-        subject: "Your password changed",
-        previewText: "Your password changed.",
-        eyebrow: "Security",
-        title: "Password changed",
-        action: `<a href="${INVITE_LINK}">Details</a>`,
+        subject: "You've been invited",
+        previewText: "Set up your access.",
+        eyebrow: "Invitation",
+        title: "Set up your access",
+        action: inviteButtonHtml(INVITE_LINK),
       }),
     });
 
     const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
     const deliveredHtml = mockedDeliver.mock.calls[0][0].html;
 
-    // No redaction hook supplied — the two copies are identical, which is
-    // the existing behaviour for every template that isn't the invite.
-    expect(storedHtml).toBe(deliveredHtml);
-    expect(storedHtml).toContain(RAW_TOKEN);
+    expect(storedHtml).not.toContain(RAW_TOKEN);
+    expect(storedHtml).toContain("[invite link — token withheld from the stored copy]");
+    // The delivered copy is still the real thing — only storage changed.
+    expect(deliveredHtml).toContain(RAW_TOKEN);
+    expect(deliveredHtml).not.toBe(storedHtml);
+  });
+
+  it("redacts a `token` query parameter (password reset) automatically", async () => {
+    const resetLink = `https://example.org/reset-password?token=${RESET_TOKEN}`;
+
+    await sendMail({
+      template: "account.password-reset",
+      to: "someone@example.org",
+      build: () => ({
+        subject: "Reset your password",
+        previewText: "A link to set a new password.",
+        eyebrow: "Security",
+        title: "Set a new password",
+        action: `<a href="${resetLink}">Choose a new password</a>`,
+      }),
+    });
+
+    const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
+    const deliveredHtml = mockedDeliver.mock.calls[0][0].html;
+
+    expect(storedHtml).not.toContain(RESET_TOKEN);
+    // Where it pointed is still legible — only the credential is gone.
+    expect(storedHtml).toContain("/reset-password?token=[link — token withheld from the stored copy]");
+    expect(deliveredHtml).toContain(resetLink);
+    expect(deliveredHtml).toContain(RESET_TOKEN);
+  });
+
+  it("redacts a `token` query parameter (email verification) automatically", async () => {
+    const verifyLink = `https://example.org/verify-email?token=${VERIFY_TOKEN}`;
+
+    await sendMail({
+      template: "account.verify-email",
+      to: "someone@example.org",
+      build: () => ({
+        subject: "Verify your email",
+        previewText: "Confirm your account.",
+        eyebrow: "Confirm your account",
+        title: "Confirm your email address",
+        action: `<a href="${verifyLink}">Verify my email</a>`,
+      }),
+    });
+
+    const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
+    const deliveredHtml = mockedDeliver.mock.calls[0][0].html;
+
+    expect(storedHtml).not.toContain(VERIFY_TOKEN);
+    expect(storedHtml).toContain("/verify-email?token=[link — token withheld from the stored copy]");
+    expect(deliveredHtml).toContain(verifyLink);
+    expect(deliveredHtml).toContain(VERIFY_TOKEN);
+  });
+
+  it("does not redact a query parameter that merely contains the word token", async () => {
+    const galleryLink = "https://example.org/gallery?tokenCount=3&sort=asc";
+
+    await sendMail({
+      // Not one of the templates gated by `NOTIFICATION_TOGGLE`, so this
+      // reaches the render/store path unconditionally.
+      template: "gallery.link-test",
+      to: "someone@example.org",
+      build: () => ({
+        subject: "Your photo was approved",
+        previewText: "It's live in the gallery.",
+        eyebrow: "Gallery",
+        title: "Your photo is live",
+        action: `<a href="${galleryLink}">View gallery</a>`,
+      }),
+    });
+
+    const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
+
+    // `tokenCount` is not `token` — the whole URL, param name included,
+    // survives untouched.
+    expect(storedHtml).toContain(galleryLink);
+    expect(storedHtml).toContain("tokenCount=3");
+  });
+
+  it("keeps custom redactForStorage working alongside the automatic pass, without double-mangling", async () => {
+    // Exercises the exact callback `staff-actions.ts` passes today
+    // (`redactInviteLink`): a literal split/join on the raw token. Once the
+    // automatic pass has already removed that substring, the callback finds
+    // nothing left to do — a no-op, not a second, corrupting redaction.
+    const result = await sendMail({
+      template: "staff.invite",
+      to: "invitee@example.org",
+      redactForStorage: (html) =>
+        html.split(RAW_TOKEN).join("[invite link — token withheld from the stored copy]"),
+      build: () => ({
+        subject: "You've been invited",
+        previewText: "Set up your access.",
+        eyebrow: "Invitation",
+        title: "Set up your access",
+        action: inviteButtonHtml(INVITE_LINK),
+      }),
+    });
+
+    expect(result.ok).toBe(true);
+    const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
+
+    // Exactly one clean placeholder per occurrence — not a mangled
+    // "[invite link — …][invite link — …]" from the two passes colliding.
+    expect(storedHtml).not.toMatch(/\]\s*link|—\]\s*—/);
+    expect(storedHtml).toContain(
+      `href="https://example.org/admin/invite/[invite link — token withheld from the stored copy]"`
+    );
+    // The HTML around the link is still well-formed: the anchor and VML tags
+    // that wrapped it are intact, not truncated mid-attribute.
+    expect(storedHtml).toContain("</a>");
+    expect(storedHtml).toContain("</v:roundrect>");
+  });
+
+  it("traces the exact value handed to deliver(): the un-redacted render, not the stored copy", async () => {
+    await sendMail({
+      template: "staff.invite",
+      to: "invitee@example.org",
+      redactForStorage: (html) =>
+        html.split(RAW_TOKEN).join("[invite link — token withheld from the stored copy]"),
+      build: () => ({
+        subject: "You've been invited",
+        previewText: "Set up your access.",
+        eyebrow: "Invitation",
+        title: "Set up your access",
+        action: inviteButtonHtml(INVITE_LINK),
+      }),
+    });
+
+    const [deliverArgs] = mockedDeliver.mock.calls;
+    const [logCreateArgs] = mockedLogCreate.mock.calls;
+    const deliveredHtml = deliverArgs[0].html as string;
+    const storedHtml = logCreateArgs[0]?.data.html as string;
+
+    // `deliver()` is called with the plain render — the same string that
+    // `renderEmail` produced — never the redacted one written to storage.
+    expect(deliveredHtml).toContain(INVITE_LINK);
+    expect(deliveredHtml).not.toContain("token withheld");
+    expect(deliveredHtml).not.toBe(storedHtml);
+  });
+
+  it("does not touch the plain-text alternative or the subject — redaction is an EmailLog.html-only boundary", async () => {
+    const resetLink = `https://example.org/reset-password?token=${RESET_TOKEN}`;
+
+    await sendMail({
+      template: "account.password-reset",
+      to: "someone@example.org",
+      build: () => ({
+        subject: "Reset your password",
+        previewText: "A link to set a new password.",
+        eyebrow: "Security",
+        title: "Set a new password",
+        action: `<a href="${resetLink}">Choose a new password</a>`,
+      }),
+    });
+
+    const deliverArgs = mockedDeliver.mock.calls[0][0];
+
+    // Subject is never redacted — it never carries the credential to begin
+    // with, and only `emailLog.html` is written through the redaction path.
+    expect(deliverArgs.subject).toBe("Reset your password");
+
+    // `text` is `htmlToText(html)` derived from the *un-redacted* render (the
+    // anchor's href survives as "label (href)"), not from the stored copy.
+    expect(deliverArgs.text).toContain(RESET_TOKEN);
+    expect(deliverArgs.text).toContain(resetLink);
   });
 });

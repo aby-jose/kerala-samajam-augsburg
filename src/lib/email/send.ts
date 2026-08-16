@@ -105,20 +105,19 @@ export interface SendMailOptions {
   /** Build the message. Receives the context so templates stay pure. */
   build: (ctx: EmailContext) => TemplateOutput;
   /**
-   * Rewrite the rendered HTML before it is written to `EmailLog.html`. What
-   * is actually delivered is never touched — this only changes the stored
-   * copy.
+   * Rewrite the rendered HTML before it is written to `EmailLog.html`, on top
+   * of the pattern-based redaction (see `redactCredentialsForStorage` below)
+   * that already runs unconditionally on every send. What is actually
+   * delivered is never touched — this only changes the stored copy.
    *
    * `getEmailHtml` (`email-admin-actions.ts`) lets anyone holding
    * `email.view` — a much lower bar than whatever permission sent the mail —
    * read a stored message back, and the retention window (90 days) outlives
    * plenty of short-lived credentials (an invite token's 72 hours, for one).
-   * A template whose body carries such a credential should use this to strip
-   * it before the row is written, rather than leaving a working link sitting
-   * in a log every low-trust viewer can open.
    *
-   * Deliberately opt-in and per-call, not a default: most templates have
-   * nothing to redact, and an admin inspecting *those* still needs the real
+   * Most templates need nothing beyond the automatic redaction. This exists
+   * for a credential shape the pattern-based pass does not already know
+   * about — an admin inspecting an ordinary template still needs the real
    * body, not a guess at what might be sensitive.
    */
   redactForStorage?: (html: string) => string;
@@ -206,6 +205,51 @@ function htmlToText(html: string): string {
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+/**
+ * The placeholder every credential redaction collapses to, whatever shape the
+ * link took. Kept in one constant so the two mechanisms that redact storage
+ * — this pattern-based pass and a template's own narrow `redactForStorage`
+ * (`redactInviteLink` in `staff-actions.ts`, notably) — read the same way in
+ * an admin's inbox instead of one looking like a bug next to the other.
+ *
+ * Deliberately not a valid URL fragment (spaces, an em dash, brackets): it
+ * must be obvious at a glance that this could never be followed, not just
+ * that the value looks unfamiliar.
+ */
+const REDACTED = "token withheld from the stored copy";
+
+/**
+ * Strip credential values out of rendered HTML before it is written to
+ * `EmailLog.html`. Runs on *every* send, unconditionally — unlike
+ * `redactForStorage`, which a template has to opt into — so a future
+ * template that grows a credential-bearing link is covered the moment it
+ * ships, not whenever its author remembers to ask for it.
+ *
+ * Two shapes are known to carry one today:
+ *
+ *  - a `token` query parameter, on any URL (password reset, email
+ *    verification, the one-click unsubscribe link) — matched by parameter
+ *    name so `?tokenCount=3` or `?apiToken=x` are left alone;
+ *  - the path segment right after `/admin/invite/` (the staff invite link).
+ *
+ * Both regexes are global: the invite template's button renders the same
+ * link twice — once in the Outlook VML fallback, once in the real `<a>` —
+ * and a first-match-only replace would leave the second copy live. Only the
+ * credential itself is swapped out; the surrounding markup, and the rest of
+ * the URL (host, path, other params), is left as-is so a reviewer can still
+ * see there was a link and where it pointed.
+ *
+ * This runs *before* any caller-supplied `redactForStorage`, so a callback
+ * that still matches on the raw token (as `redactInviteLink` does) simply
+ * finds nothing left to replace — a harmless no-op — rather than the two
+ * passes fighting over the same substring.
+ */
+function redactCredentialsForStorage(html: string): string {
+  return html
+    .replace(/([?&](?:amp;)?token=)[^&"'<>\s]+/gi, `$1[link — ${REDACTED}]`)
+    .replace(/(\/admin\/invite\/)[^"'<>\s]+/gi, `$1[invite link — ${REDACTED}]`);
 }
 
 /** Mint an unsubscribe token on first need rather than backfilling every row. */
@@ -313,8 +357,18 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
   }
 
   // `html` itself is untouched and is what `deliver` below actually sends —
-  // only the copy written to the log goes through the redaction, so a
-  // caller-supplied `redactForStorage` can never accidentally break delivery.
+  // only the copy written to the log goes through redaction, so neither the
+  // automatic pass nor a caller-supplied `redactForStorage` can ever
+  // accidentally break delivery.
+  //
+  // Pattern-based redaction runs first, against the pristine render, so a
+  // caller's own `redactForStorage` — which typically matches the literal
+  // raw token, as `redactInviteLink` does — runs against text that has
+  // already had that same substring removed and safely finds nothing left to
+  // do, instead of the two passes colliding mid-string.
+  let storedHtml = redactCredentialsForStorage(html);
+  if (options.redactForStorage) storedHtml = options.redactForStorage(storedHtml);
+
   const log = await prisma.emailLog.create({
     data: {
       template: options.template,
@@ -322,7 +376,7 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
       subject: built.subject,
       status: "QUEUED",
       entityId: options.entityId,
-      html: options.redactForStorage ? options.redactForStorage(html) : html,
+      html: storedHtml,
     },
   });
 
