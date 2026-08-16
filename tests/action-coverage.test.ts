@@ -57,6 +57,8 @@ const UNGUARDED_ACTIONS: Record<string, string> = {
   getCookieConsent: "Public — anonymous visitors",
   saveCookieConsent: "Public — anonymous visitors",
   withdrawCookieConsent: "Public — anonymous visitors",
+  getInviteForToken: "Public — the invite token is the credential",
+  acceptInvite: "Public — the invite token is the credential",
 };
 
 const GUARD_CALLS = [
