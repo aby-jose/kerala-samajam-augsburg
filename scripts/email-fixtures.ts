@@ -135,6 +135,75 @@ export const FIXTURES: Fixture[] = [
       newEmail: "ammu@example.org", audience: "old",
     }),
   },
+
+  // --- events -----------------------------------------------------------
+  {
+    id: "events-ticket", group: "events", name: "ticket",
+    build: (ctx) => templates.events.ticket(ctx, {
+      name: "Ammu", event: EVENT, ticketId: "KSA-8F42-9C11",
+      attendees: 4, amountDue: 36, pricePaid: 0,
+    }),
+  },
+  {
+    id: "events-cancelled-self", group: "events", name: "registrationCancelled",
+    build: (ctx) => templates.events.registrationCancelled(ctx, {
+      name: "Ammu", event: EVENT, ticketId: "KSA-8F42-9C11",
+    }),
+  },
+  {
+    id: "events-removed", group: "events", name: "registrationRemovedByAdmin",
+    build: (ctx) => templates.events.registrationRemovedByAdmin(ctx, {
+      name: "Ammu", event: EVENT, ticketId: "KSA-8F42-9C11",
+      reason: "Duplicate booking under the same name.",
+    }),
+  },
+  {
+    id: "events-cancel-notice", group: "events", name: "registrationCancelledAdminNotice",
+    build: (ctx) => templates.events.registrationCancelledAdminNotice(ctx, {
+      name: "Ammu", email: "ammu@example.org", event: EVENT,
+      attendees: 4, hadPaid: true,
+    }),
+  },
+  {
+    id: "events-event-cancelled", group: "events", name: "eventCancelled",
+    build: (ctx) => templates.events.eventCancelled(ctx, {
+      name: "Ammu", event: EVENT,
+      reason: "The venue withdrew at short notice.", hadPaid: true,
+    }),
+  },
+  {
+    id: "events-rescheduled", group: "events", name: "eventRescheduled",
+    build: (ctx) => templates.events.eventRescheduled(ctx, {
+      name: "Ammu", event: EVENT,
+      previousDate: new Date("2026-09-05T17:00:00Z"),
+      previousLocation: "Kongress am Park",
+    }),
+  },
+  {
+    id: "events-reminder", group: "events", name: "eventReminder",
+    build: (ctx) => templates.events.eventReminder(ctx, {
+      name: "Ammu", event: EVENT, ticketId: "KSA-8F42-9C11",
+      attendees: 4, amountDue: 36, when: "same-day",
+    }),
+  },
+  {
+    id: "events-thank-you", group: "events", name: "eventThankYou",
+    build: (ctx) => templates.events.eventThankYou(ctx, {
+      name: "Ammu", event: EVENT, galleryUrl: null,
+    }),
+  },
+  {
+    id: "events-announcement", group: "events", name: "eventAnnouncement",
+    build: (ctx) => templates.events.eventAnnouncement(ctx, {
+      name: "Ammu", event: EVENT,
+      description: "An afternoon of sadhya, dance and music at the Zeughaus. Doors from five.",
+      memberPrice: 12, nonMemberPrice: 18,
+    }),
+  },
+  {
+    id: "events-full", group: "events", name: "eventFull",
+    build: (ctx) => templates.events.eventFull(ctx, { name: "Ammu", event: EVENT }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
