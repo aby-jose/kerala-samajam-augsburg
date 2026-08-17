@@ -91,7 +91,9 @@ export function AboutContentEditor({ initialData }: { initialData: AboutContentT
           </div>
           <Field label="Hero image" error={errors.heroImageUrl?.message}>
             <ImageUpload
-              onUploadComplete={(url) => setValue("heroImageUrl", url, { shouldValidate: true })}
+              onUploadComplete={(url) =>
+                setValue("heroImageUrl", url, { shouldValidate: true, shouldDirty: true })
+              }
               defaultValue={heroImageUrl}
               aspect="aspect-21/9"
             />

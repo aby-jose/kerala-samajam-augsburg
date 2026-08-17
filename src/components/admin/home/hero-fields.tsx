@@ -67,7 +67,7 @@ export function HeroFields({
           <ImageUpload
             accept="video/*"
             onUploadComplete={(url) =>
-              setValue("content.hero.videoUrl", url, { shouldValidate: true })
+              setValue("content.hero.videoUrl", url, { shouldValidate: true, shouldDirty: true })
             }
             defaultValue={videoUrl}
             aspect="aspect-video"
@@ -76,7 +76,7 @@ export function HeroFields({
         <Field label="Poster image" error={e?.posterUrl?.message}>
           <ImageUpload
             onUploadComplete={(url) =>
-              setValue("content.hero.posterUrl", url, { shouldValidate: true })
+              setValue("content.hero.posterUrl", url, { shouldValidate: true, shouldDirty: true })
             }
             defaultValue={posterUrl}
             aspect="aspect-video"

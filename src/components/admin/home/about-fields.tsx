@@ -147,7 +147,10 @@ export function AboutFields({
             <Field label="Primary image" error={e?.collage?.primary?.url?.message}>
               <ImageUpload
                 onUploadComplete={(url) =>
-                  setValue("content.about.collage.primary.url", url, { shouldValidate: true })
+                  setValue("content.about.collage.primary.url", url, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
                 }
                 defaultValue={primaryUrl}
                 aspect="aspect-4/3"
@@ -170,7 +173,10 @@ export function AboutFields({
             <Field label="Secondary image" error={e?.collage?.secondary?.url?.message}>
               <ImageUpload
                 onUploadComplete={(url) =>
-                  setValue("content.about.collage.secondary.url", url, { shouldValidate: true })
+                  setValue("content.about.collage.secondary.url", url, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
                 }
                 defaultValue={secondaryUrl}
                 aspect="aspect-square"
