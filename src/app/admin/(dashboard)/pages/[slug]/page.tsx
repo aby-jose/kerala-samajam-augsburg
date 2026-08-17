@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { requirePermissionPage } from "@/lib/guards";
-import { PageHeader } from "@/components/admin/ui/page-header";
 import { getPageContent } from "@/lib/page-content/actions";
-import { isPageSlug, PAGE_CONTENT } from "@/lib/page-content/registry";
+import { isPageSlug } from "@/lib/page-content/registry";
 import { ContactContentEditor } from "@/components/admin/pages/contact-content-editor";
 import type { ContactContentT } from "@/lib/page-content/contact";
 import { MembershipContentEditor } from "@/components/admin/pages/membership-content-editor";
@@ -25,12 +24,12 @@ export default async function AdminPageContent({
 
   const content = await getPageContent(slug);
 
+  // No PageHeader here. Each editor renders its own, with the Save button
+  // inside it — the pattern /admin/about and /admin/home already follow, where
+  // the route renders nothing but the editor. This route used to add a second
+  // one, so every page editor showed two titles and two descriptions.
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`${PAGE_CONTENT[slug].label} page`}
-        description="Edit the wording shown to visitors. Changes appear immediately."
-      />
       {slug === "contact" && (
         <ContactContentEditor initialData={content as ContactContentT} />
       )}
