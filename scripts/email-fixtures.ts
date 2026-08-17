@@ -264,6 +264,46 @@ export const FIXTURES: Fixture[] = [
       startDate: new Date("2026-04-01"), endDate: new Date("2027-03-31"),
     }),
   },
+
+  // --- privacy ----------------------------------------------------------
+  {
+    id: "privacy-export", group: "privacy", name: "dataExportReady",
+    build: (ctx) => templates.privacy.dataExportReady(ctx, {
+      name: "Ammu", requestedAt: new Date("2026-08-10"),
+    }),
+  },
+  {
+    id: "privacy-deletion-requested", group: "privacy", name: "deletionRequested",
+    build: (ctx) => templates.privacy.deletionRequested(ctx, {
+      name: "Ammu", requestedAt: new Date("2026-08-10"), deadline: new Date("2026-09-10"),
+    }),
+  },
+  {
+    id: "privacy-deletion-admin", group: "privacy", name: "deletionAdminNotice",
+    build: (ctx) => templates.privacy.deletionAdminNotice(ctx, {
+      memberName: "Ammu", memberEmail: "ammu@example.org",
+      requestedAt: new Date("2026-08-10"), deadline: new Date("2026-09-10"),
+      hasActiveMembership: true,
+    }),
+  },
+  {
+    id: "privacy-deletion-cancelled", group: "privacy", name: "deletionCancelled",
+    build: (ctx) => templates.privacy.deletionCancelled(ctx, { name: "Ammu" }),
+  },
+  {
+    id: "privacy-deletion-completed", group: "privacy", name: "deletionCompleted",
+    build: (ctx) => templates.privacy.deletionCompleted(ctx, {
+      name: "Ammu", completedAt: new Date("2026-09-01"),
+    }),
+  },
+  {
+    id: "privacy-legal-update", group: "privacy", name: "legalUpdate",
+    build: (ctx) => templates.privacy.legalUpdate(ctx, {
+      name: "Ammu", documentTitle: "Privacy Policy",
+      changeNote: "We now name our email provider and its data-processing location.",
+      requiresConsent: true, effectiveFrom: new Date("2026-09-01"),
+    }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
