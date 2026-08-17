@@ -21,8 +21,37 @@
  * `border-radius`, which the Word engine drops.
  */
 
-import { esc, escUrl } from "./components";
-import { SPACE, type EmailTheme } from "./tokens";
+import { type EmailTheme } from "./tokens";
+
+/**
+ * Escape a value before it goes into email HTML.
+ *
+ * Names, subjects, album titles and contact messages all reach these templates
+ * straight from a form. Unescaped, a sender could put markup — a link, a
+ * styled block impersonating the committee — into the notification an
+ * administrator reads. Not browser XSS, since mail clients do not run scripts,
+ * but it is still attacker-controlled content rendered as markup to staff.
+ */
+export const esc = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+/**
+ * Escape for a URL used as an `href`.
+ *
+ * `esc` alone is not enough: a value that survives HTML escaping can still
+ * carry a `javascript:` scheme. Anything that is not plainly http(s), mailto
+ * or tel is dropped to `#`.
+ */
+export const escUrl = (url: unknown): string => {
+  const raw = String(url ?? "").trim();
+  if (!/^(https?:\/\/|mailto:|tel:)/i.test(raw)) return "#";
+  return esc(raw);
+};
 
 /** Which palette a block paints against. The shell passes this down. */
 export type Surface = "light" | "deep";
@@ -491,8 +520,6 @@ export const eventFacts = (
       ),
       `<a href="https://www.google.com/maps/search/?api=1&amp;query=${mapQuery}" style="font-family:${t.sans};font-size:12.5px;color:${c.accent};text-decoration:underline;font-weight:600;">Open in Maps &rarr;</a>`,
     ],
-    SPACE.md
+    12
   );
 };
-
-export { esc, escUrl };

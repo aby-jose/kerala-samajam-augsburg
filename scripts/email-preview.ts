@@ -3,7 +3,7 @@
  *
  * `npm run email:preview` writes one HTML file per fixture into
  * `.email-preview/`, plus an index that stacks them all in iframes. Each file
- * is the exact HTML the transport would send — same `renderFor`, same shell —
+ * is the exact HTML the transport would send — same `renderMessage`, same shell —
  * so what you scroll through is what lands in the inbox, short of the client's
  * own quirks.
  *
@@ -23,7 +23,7 @@ import { join } from "node:path";
 
 import { FIXTURES, previewContext } from "./email-fixtures";
 import { esc } from "../src/lib/email/blocks";
-import { renderFor } from "../src/lib/email/send";
+import { renderMessage } from "../src/lib/email/shell";
 import { buildTheme } from "../src/lib/email/tokens";
 
 async function main() {
@@ -32,7 +32,7 @@ async function main() {
 
   const entries = FIXTURES.map((fixture) => {
     const message = fixture.build(ctx);
-    return { ...fixture, message, html: renderFor(ctx, message) };
+    return { ...fixture, message, html: renderMessage(ctx, message) };
   });
 
   const OUT = join(process.cwd(), ".email-preview");
@@ -82,7 +82,7 @@ async function main() {
     ${entries.length} message${entries.length === 1 ? "" : "s"} · brand
     <code>${esc(t.primary)}</code> from ${esc(source)} · bands
     <code>${esc(t.bandA)}</code> and <code>${esc(t.bandB)}</code> · rendered by
-    <code>renderFor</code>, exactly as sent.
+    <code>renderMessage</code>, exactly as sent.
     <br />Set <code>PREVIEW_BRAND</code> to check the palette at another brand colour.
   </p>
   ${

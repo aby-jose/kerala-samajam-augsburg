@@ -151,10 +151,10 @@ export interface Message {
   /**
    * The body, as ordered panels.
    *
-   * Required, and the discriminator `renderFor` uses to tell which shell a
-   * template speaks to — an `EmailDocument` never carries it. A message with
-   * no body passes `[]`, and the presence of the array is what is checked,
-   * never its length.
+   * Required rather than optional. A message with no body passes `[]` — three
+   * templates do, among them the one-time code and the email verification —
+   * which keeps every template's shape identical and means the shell never has
+   * to guess whether an absent field meant "empty" or "forgotten".
    */
   sections: MessageSection[];
   close?: MessageClose;

@@ -14,15 +14,11 @@
 import { describe, expect, it } from "vitest";
 
 import { FIXTURES, allTemplateKeys, testContext } from "../scripts/email-fixtures";
-import { renderFor } from "../src/lib/email/send";
-import { MAX_SECTIONS, type Message } from "../src/lib/email/shell";
+import { MAX_SECTIONS, renderMessage } from "../src/lib/email/shell";
 import { buildTheme } from "../src/lib/email/tokens";
 
 const ctx = testContext();
 const t = buildTheme(ctx.branding);
-
-const isMessage = (doc: unknown): doc is Message =>
-  Array.isArray((doc as Message).sections);
 
 /**
  * Colours that are not derived from the brand.
@@ -75,7 +71,7 @@ describe("email templates", () => {
   for (const fixture of FIXTURES) {
     describe(`${fixture.group}/${fixture.name}`, () => {
       const doc = fixture.build(ctx);
-      const html = renderFor(ctx, doc);
+      const html = renderMessage(ctx, doc);
 
       it("renders with all four inbox-facing fields", () => {
         expect(html).toContain("<html");
@@ -99,21 +95,19 @@ describe("email templates", () => {
         expect(stray).toEqual([]);
       });
 
-      if (isMessage(doc)) {
-        it("has an accent word occurring verbatim in the title", () => {
-          expect(doc.accentWord).toBeTruthy();
-          expect(doc.title).toContain(doc.accentWord as string);
-        });
+      it("has an accent word occurring verbatim in the title", () => {
+        expect(doc.accentWord).toBeTruthy();
+        expect(doc.title).toContain(doc.accentWord as string);
+      });
 
-        it(`carries at most ${MAX_SECTIONS} section panels`, () => {
-          expect(doc.sections.length).toBeLessThanOrEqual(MAX_SECTIONS);
-        });
+      it(`carries at most ${MAX_SECTIONS} section panels`, () => {
+        expect(doc.sections.length).toBeLessThanOrEqual(MAX_SECTIONS);
+      });
 
-        it("declares light-only and ships no dark-mode rule", () => {
-          expect(html).toContain('name="color-scheme" content="light"');
-          expect(html).not.toContain("@media (prefers-color-scheme");
-        });
-      }
+      it("declares light-only and ships no dark-mode rule", () => {
+        expect(html).toContain('name="color-scheme" content="light"');
+        expect(html).not.toContain("@media (prefers-color-scheme");
+      });
     });
   }
 });
