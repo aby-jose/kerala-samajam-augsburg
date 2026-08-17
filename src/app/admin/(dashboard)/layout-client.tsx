@@ -80,7 +80,7 @@ const NAV_GROUPS: {
   {
     label: "Community",
     items: [
-      { href: "/admin/members", label: "Members", icon: Users, permission: "members.view", isActive: (p) => p.startsWith("/admin/members") },
+      { href: "/admin/members", label: "Members", icon: Users, permission: "members.view", isActive: (p) => p === "/admin/members" || p.startsWith("/admin/members/") },
       {
         href: "/admin/membership",
         label: "Plans",
@@ -146,7 +146,7 @@ const NAV_GROUPS: {
     items: [
       { href: "/admin/analytics", label: "Analytics", icon: BarChart3, permission: "analytics.view", isActive: (p) => p === "/admin/analytics" },
       { href: "/admin/emails", label: "Email", icon: Send, permission: "email.view", isActive: (p) => p.startsWith("/admin/emails") },
-      { href: "/admin/staff", label: "Staff", icon: Users, permission: "staff.view", isActive: (p) => p.startsWith("/admin/staff") },
+      { href: "/admin/staff", label: "Team", icon: Users, permission: "staff.view", isActive: (p) => p.startsWith("/admin/staff") },
       { href: "/admin/roles", label: "Roles", icon: ShieldCheck, permission: "roles.view", isActive: (p) => p.startsWith("/admin/roles") },
       { href: "/admin/audit", label: "Audit log", icon: FileClock, permission: "audit.view", isActive: (p) => p.startsWith("/admin/audit") },
       { href: "/admin/settings", label: "Settings", icon: Settings, permission: "settings.edit", isActive: (p) => p === "/admin/settings" },
@@ -178,7 +178,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   preview: "Template gallery",
   roles: "Roles",
   settings: "Settings",
-  staff: "Staff",
+  staff: "Team",
   "check-in": "Check-in",
   legal: "Legal",
   consents: "Consents",

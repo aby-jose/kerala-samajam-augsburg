@@ -686,7 +686,7 @@ export default function MembersClient() {
                         href="/admin/staff"
                         className="text-xs font-medium text-primary hover:underline"
                       >
-                        Manage in Staff →
+                        Manage in Team →
                       </a>
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, CheckCircle2, AlertCircle, Info, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,15 +42,27 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return id;
   }, [dismiss]);
 
-  const success = (message: string, duration?: number) => toast(message, "success", duration);
-  const error = (message: string, duration?: number) => toast(message, "error", duration);
-  const info = (message: string, duration?: number) => toast(message, "info", duration);
-  const loading = (message: string) => toast(message, "loading");
+  // Stable identities, not a style preference: consumers list these in effect
+  // dependency arrays, so recreating them on every render re-ran those effects
+  // each time a toast appeared or expired. The email-preference switches lost
+  // the value you had just clicked to the refetch that followed, and a failing
+  // fetch toasted -> re-rendered -> refetched without end.
+  const success = useCallback((message: string, duration?: number) => toast(message, "success", duration), [toast]);
+  const error = useCallback((message: string, duration?: number) => toast(message, "error", duration), [toast]);
+  const info = useCallback((message: string, duration?: number) => toast(message, "info", duration), [toast]);
+  const loading = useCallback((message: string) => toast(message, "loading"), [toast]);
+
+  const value = useMemo(
+    () => ({ toast, success, error, info, loading, dismiss }),
+    [toast, success, error, info, loading, dismiss]
+  );
 
   return (
-    <ToastContext.Provider value={{ toast, success, error, info, loading, dismiss }}>
+    <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed bottom-6 right-6 z-[200] flex flex-col gap-3 w-full max-w-xs pointer-events-none">
+      {/* Above the modal layer (z-200): auth and consent dialogs raise toasts of
+          their own, and at equal z they only stayed visible by DOM accident. */}
+      <div className="fixed bottom-6 right-6 z-[250] flex flex-col gap-3 w-full max-w-xs pointer-events-none">
         <AnimatePresence mode="popLayout">
           {toasts.map((t) => (
             <motion.div

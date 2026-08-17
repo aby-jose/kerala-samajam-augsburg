@@ -40,6 +40,7 @@ import { getMembershipPaymentDetails } from "@/lib/membership-actions";
 import { displayStatus, isTermRunning } from "@/lib/membership-term";
 import { updateProfile } from "@/lib/profile-actions";
 import { PrivacyPanel } from "@/components/legal/privacy-panel";
+import FaceSearchModal from "@/components/gallery/face-search-modal";
 import { uploadProfileImage } from "@/lib/upload-actions";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,8 +75,7 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
   const [formSuccess, setFormSuccess] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
-  const [userMemories, setUserMemories] = useState<any[]>([]);
-  const [isScanningMemories, setIsScanningMemories] = useState(false);
+  const [isFaceSearchOpen, setIsFaceSearchOpen] = useState(false);
   const [profileImage, setProfileImage] = useState(user.image || null);
   const [paymentDetails, setPaymentDetails] =
     useState<Awaited<ReturnType<typeof getMembershipPaymentDetails>>>(null);
@@ -278,25 +278,23 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                   <div className="space-y-3">
                     <h1 className="text-2xl font-bold tracking-tight">{user.name}</h1>
                     <div className="flex flex-wrap justify-center gap-2">
-                       <Badge className="bg-secondary text-secondary-foreground border-none font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                          {user.role}
-                       </Badge>
+                       {/* Every signed-in account's role is MEMBER, so printing
+                           it told the reader nothing — and sitting beside
+                           "Guest" it contradicted the status next to it. It
+                           earns a pill only when it is not the default. */}
+                       {user.role !== "MEMBER" && (
+                         <StatusPill tone="neutral">{user.role}</StatusPill>
+                       )}
                        {activeSub ? (
-                         <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                            Active Member
-                         </Badge>
+                         <StatusPill tone="active">Active Member</StatusPill>
                        ) : pendingSub ? (
-                         <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold text-[9px] uppercase tracking-wider px-2 h-5">
+                         <StatusPill tone="pending">
                             {pendingSub.status === "AWAITING_PAYMENT" ? "Payment Pending" : "Pending Verification"}
-                         </Badge>
+                         </StatusPill>
                        ) : displayStatus(latestSub) === "EXPIRED" ? (
-                         <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                            Expired
-                         </Badge>
+                         <StatusPill tone="pending">Expired</StatusPill>
                        ) : (
-                         <Badge className="bg-muted text-muted-foreground border-border font-bold text-[9px] uppercase tracking-wider px-2 h-5">
-                            Guest
-                         </Badge>
+                         <StatusPill tone="quiet">Guest</StatusPill>
                        )}
                     </div>
                   </div>
@@ -355,7 +353,7 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                   </div>
                   <div className="flex justify-between items-center text-xs">
                      <span className="text-muted-foreground font-medium">Registrations</span>
-                     <Badge variant="secondary" className="bg-secondary text-secondary-foreground border-none px-2 h-5 text-[10px]">{registrations.length}</Badge>
+                     <StatusPill tone="neutral" className="tracking-normal tabular-nums">{registrations.length}</StatusPill>
                   </div>
                   {activeSub && (
                     <div className="pt-4 border-t border-border">
@@ -475,38 +473,23 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                   <Badge variant="outline" className="text-[10px] font-bold border-border">AI-Powered</Badge>
                 </div>
                 <div className="p-12 text-center space-y-6">
-                  {user.image ? (
-                    <>
-                      <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary">
-                        <Sparkles className="w-10 h-10" />
-                      </div>
-                      <div className="max-w-md mx-auto space-y-2">
-                        <h3 className="text-xl font-bold">Discover yourself in our gallery</h3>
-                        <p className="text-sm text-muted-foreground">Our AI can scan all event photos to find every moment you were captured. This might take a few seconds.</p>
-                      </div>
-                      <Button 
-                        disabled={isScanningMemories}
-                        className="h-12 px-10 rounded-xl font-bold bg-primary shadow-xl shadow-primary/20"
-                      >
-                        {isScanningMemories ? (
-                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Scanning Galleries...</>
-                        ) : (
-                          "Find My Photos"
-                        )}
-                      </Button>
-                    </>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="h-20 w-20 bg-secondary rounded-full flex items-center justify-center mx-auto text-muted-foreground">
-                        <User className="w-10 h-10" />
-                      </div>
-                      <div className="max-w-md mx-auto space-y-2">
-                        <h3 className="text-lg font-bold">Profile Photo Required</h3>
-                        <p className="text-sm text-muted-foreground">Please upload a clear profile photo first so our AI can identify you in event galleries.</p>
-                      </div>
-                      <Button variant="outline" onClick={() => setActiveTab("profile")} className="rounded-xl">Go to Profile</Button>
-                    </div>
-                  )}
+                  <div className="h-24 w-24 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary">
+                    <Sparkles className="w-10 h-10" />
+                  </div>
+                  <div className="max-w-md mx-auto space-y-2">
+                    <h3 className="text-xl font-bold">Discover yourself in our gallery</h3>
+                    {/* The reference shot is taken or uploaded inside the modal,
+                        so this no longer waits on a profile photo being set —
+                        gating it on one left members without a picture with a
+                        button they could never reach. */}
+                    <p className="text-sm text-muted-foreground">Take a selfie or upload a photo and our AI will match it against every event album. Your reference photo is processed in your browser and never uploaded.</p>
+                  </div>
+                  <Button
+                    onClick={() => setIsFaceSearchOpen(true)}
+                    className="h-12 px-10 rounded-xl font-bold bg-primary shadow-xl shadow-primary/20"
+                  >
+                    Find My Photos
+                  </Button>
                 </div>
               </div>
             )}
@@ -534,12 +517,9 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                             </div>
                          </div>
                          <div className="flex items-center gap-4">
-                            <Badge className={cn(
-                              "text-[9px] font-bold px-3 py-1 border-none",
-                              reg.paymentStatus === "PAID" ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
-                            )}>
+                            <StatusPill tone={reg.paymentStatus === "PAID" ? "active" : "pending"}>
                                {reg.paymentStatus === "PAID" ? "Confirmed" : "Pending"}
-                            </Badge>
+                            </StatusPill>
                             <Link href={`/events/${reg.event.slug || reg.event.id}`}>
                                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-lg border border-border text-muted-foreground hover:text-primary"><ExternalLink className="h-4 w-4" /></Button>
                             </Link>
@@ -585,12 +565,9 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
                                    </p>
                                 </td>
                                 <td className="px-8 py-5">
-                                   <Badge className={cn(
-                                     "text-[9px] font-bold px-3 py-1 border-none",
-                                     paid ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
-                                   )}>
+                                   <StatusPill tone={paid ? "active" : "pending"}>
                                      {paid ? "Paid" : "Awaiting payment"}
-                                   </Badge>
+                                   </StatusPill>
                                 </td>
                                 <td className="px-8 py-5 text-muted-foreground">
                                    {paid ? formatDate(sub.startDate) : `Applied ${formatDate(sub.createdAt)}`}
@@ -612,7 +589,54 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
           </div>
         </div>
       </Container>
+
+      {/* Art. 9 consent is enforced inside the modal and again server-side in
+          searchMediaByFace, so nothing here needs to pre-check it. */}
+      <FaceSearchModal
+        isOpen={isFaceSearchOpen}
+        onClose={() => setIsFaceSearchOpen(false)}
+      />
     </main>
+  );
+}
+
+/**
+ * A status pill.
+ *
+ * `variant="outline"` is deliberate. Badge's default variant carries
+ * `hover:bg-primary/80`, and since `hover:bg-*` is a different utility key
+ * from `bg-*`, passing `bg-secondary` in `className` never displaced it —
+ * so every one of these labels turned crimson under the cursor, keeping its
+ * old dark text. They report state and cannot be clicked, so they take no
+ * hover treatment at all.
+ */
+const PILL_TONES = {
+  neutral: "bg-secondary text-secondary-foreground border-transparent",
+  active: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20",
+  pending: "bg-amber-500/10 text-amber-700 border-amber-500/20",
+  quiet: "bg-muted text-muted-foreground border-border",
+} as const;
+
+function StatusPill({
+  tone,
+  className,
+  children,
+}: {
+  tone: keyof typeof PILL_TONES;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "h-6 rounded-full px-2.5 text-[10px] font-semibold uppercase tracking-[0.16em]",
+        PILL_TONES[tone],
+        className
+      )}
+    >
+      {children}
+    </Badge>
   );
 }
 

@@ -24,8 +24,21 @@ import { searchMediaByFace } from "@/lib/gallery-actions";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { BiometricConsentGate } from "@/components/legal/biometric-consent-gate";
+import { Accent } from "@/components/layout/section-heading";
 
 const MODEL_URL = "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights/";
+
+/**
+ * The one utility-label voice, lifted from the hero eyebrow.
+ *
+ * This file had grown seven different treatments for the same job — 8px to
+ * 12px, medium through black, three tracking values — so the modal read as a
+ * different product to the rest of the site. `TIGHT` is the same voice with
+ * the tracking pulled in, for labels inside chips and badges where 0.22em
+ * does not fit.
+ */
+const LABEL = "text-[10px] font-semibold uppercase tracking-[0.22em]";
+const LABEL_TIGHT = "text-[10px] font-semibold uppercase tracking-[0.12em]";
 
 interface FaceSearchModalProps {
   isOpen: boolean;
@@ -209,12 +222,20 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
         className="relative w-full max-w-4xl bg-card border border-border/40 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         <div className="px-8 py-6 border-b border-border/40 flex items-center justify-between bg-secondary/10">
-          <div className="space-y-1">
-            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-foreground">
-              {isCameraActive ? "Take a Selfie" : "Find My Photos"}
+          {/* Same voice as the hero: Manrope extrabold at -0.035em with one
+              Newsreader italic word in primary. Without `font-sans` the base
+              layer's h1-h6 rule sets this in Newsreader, which is why the
+              title read as a heavy serif. */}
+          <div className="space-y-1.5">
+            <h2 className="font-sans text-xl md:text-2xl font-extrabold tracking-[-0.035em] text-foreground">
+              {isCameraActive ? (
+                <>Take a <Accent>Selfie</Accent></>
+              ) : (
+                <>Find My <Accent>Photos</Accent></>
+              )}
             </h2>
-            <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest">
-              {isCameraActive ? "Align your face in the center" : "AI-Powered Facial Recognition"}
+            <p className={cn(LABEL, "text-muted-foreground")}>
+              {isCameraActive ? "Align your face in the centre" : "AI-powered face search"}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-secondary transition-colors text-muted-foreground">
@@ -255,7 +276,7 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                   <div className="w-12 h-12" />
                 </div>
               </div>
-              <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-widest">
+              <p className={cn(LABEL, "text-center text-muted-foreground")}>
                 Your photo is processed locally and never stored
               </p>
             </div>
@@ -279,32 +300,54 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                   {preview ? (
                     <>
                       <img src={preview} alt="Reference" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                        <Button variant="secondary" onClick={() => fileInputRef.current?.click()} className="rounded-xl font-bold text-xs">Change Photo</Button>
-                        <Button variant="secondary" onClick={startCamera} className="rounded-xl font-bold text-xs bg-white/20 text-white border-white/10">Take New Photo</Button>
+                      {/* Same two actions as the empty state, so the same pair
+                          and the same order — over the image the outline half
+                          is tinted glass, since a border-only button on a photo
+                          disappears against whatever is behind it. */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-black/50 p-4 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Button
+                          onClick={startCamera}
+                          className="h-10 w-full max-w-[10rem] rounded-xl text-[10px] font-bold uppercase tracking-[0.16em]"
+                        >
+                          <Camera className="mr-2 h-3.5 w-3.5" />
+                          Retake selfie
+                        </Button>
+                        <Button
+                          onClick={() => fileInputRef.current?.click()}
+                          className="h-10 w-full max-w-[10rem] rounded-xl border border-white/25 bg-white/10 text-[10px] font-bold uppercase tracking-[0.16em] text-white backdrop-blur-sm hover:bg-white/20"
+                        >
+                          <Upload className="mr-2 h-3.5 w-3.5" />
+                          Upload another
+                        </Button>
                       </div>
                     </>
                   ) : (
-                    <div className="text-center p-6 space-y-4">
-                      <div className="flex justify-center gap-3">
-                        <div 
-                          onClick={() => fileInputRef.current?.click()}
-                          className="h-16 w-16 rounded-2xl bg-primary/10 flex flex-col items-center justify-center text-primary border border-primary/20 cursor-pointer hover:bg-primary/20 transition-all"
-                        >
-                          <Upload className="w-6 h-6" />
-                          <span className="text-[8px] font-bold mt-1 uppercase">Upload</span>
-                        </div>
-                        <div 
-                          onClick={startCamera}
-                          className="h-16 w-16 rounded-2xl bg-zinc-900 flex flex-col items-center justify-center text-white border border-white/10 cursor-pointer hover:bg-zinc-800 transition-all shadow-xl"
-                        >
-                          <Camera className="w-6 h-6" />
-                          <span className="text-[8px] font-bold mt-1 uppercase">Camera</span>
-                        </div>
+                    <div className="w-full space-y-5 p-6 text-center">
+                      <div className="space-y-1.5">
+                        <p className="text-[13px] font-bold tracking-[-0.01em] text-foreground">Reference photo</p>
+                        <p className="text-[11px] leading-relaxed text-muted-foreground">Matched against every event album.</p>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-xs font-bold text-foreground">Reference Photo</p>
-                        <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">Take a selfie or upload one</p>
+                      {/* The site's button language rather than a bespoke one:
+                          the filled/outline pair from the gallery header, at
+                          the consent gate's h-11 rounded-xl spec. The two 64px
+                          icon tiles this replaces appeared on no other screen,
+                          and a 10px tracked label never fitted inside one. */}
+                      <div className="flex flex-col gap-2.5">
+                        <Button
+                          onClick={startCamera}
+                          className="h-11 w-full rounded-xl text-[10px] font-bold uppercase tracking-[0.18em] shadow-lg shadow-primary/20"
+                        >
+                          <Camera className="mr-2 h-3.5 w-3.5" />
+                          Take a selfie
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="h-11 w-full rounded-xl border-border text-[10px] font-bold uppercase tracking-[0.18em] transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <Upload className="mr-2 h-3.5 w-3.5" />
+                          Upload a photo
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -312,14 +355,14 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                   {isSearching && (
                     <div className="absolute inset-0 bg-primary/10 backdrop-blur-sm flex flex-col items-center justify-center gap-2">
                       <Zap className="w-8 h-8 animate-pulse text-primary" />
-                      <span className="text-[9px] font-black uppercase tracking-widest text-primary">AI Analyzing...</span>
+                      <span className={cn(LABEL, "text-primary")}>Searching</span>
                     </div>
                   )}
                 </div>
 
                 <div className="p-4 bg-muted/20 rounded-2xl border border-border/40">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="w-3 h-3 text-primary" /> Privacy Note
+                  <h4 className={cn(LABEL, "font-sans text-muted-foreground mb-2 flex items-center gap-2")}>
+                    <CheckCircle2 className="w-3 h-3 text-primary" /> Privacy note
                   </h4>
                   {/*
                     The old wording said nothing was stored at all, which read
@@ -327,11 +370,11 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                     gallery photos are held server-side. Both halves are stated
                     now so the note is actually accurate.
                   */}
-                  <p className="text-[10px] text-muted-foreground font-medium leading-relaxed italic">
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
                     Your reference photo is processed in your browser and is never
                     uploaded. Face descriptors for gallery photos are stored on our
                     servers and deleted with the photo — see the{" "}
-                    <Link href="/legal/privacy" className="not-italic font-semibold text-primary underline underline-offset-2">
+                    <Link href="/legal/privacy" className="font-semibold text-primary underline underline-offset-2">
                       Privacy Policy
                     </Link>
                     .
@@ -341,19 +384,29 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
 
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-border/40">
-                  <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
-                    Discovered Moments
+                  <h3 className="font-sans text-sm font-extrabold tracking-[-0.02em] text-foreground">
+                    Discovered moments
                   </h3>
-                  <Badge variant="outline" className="rounded-lg font-bold text-[10px]">
-                    {results.length} Matches Found
+                  <Badge variant="outline" className={cn(LABEL_TIGHT, "rounded-lg")}>
+                    {results.length} matches
                   </Badge>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   {results.length === 0 ? (
-                    <div className="col-span-full py-20 text-center opacity-30">
-                      <ImageIcon className="w-12 h-12 mx-auto mb-3" />
-                      <p className="text-xs font-bold uppercase tracking-widest">No matching photos yet</p>
+                    // This block covers two different states: nothing searched
+                    // yet, and a search that came back empty. One line for both
+                    // would be wrong in one of them.
+                    <div className="col-span-full py-20 text-center text-muted-foreground">
+                      <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                      <p className={LABEL}>
+                        {preview ? "No matches in the archive" : "Add a reference photo to start"}
+                      </p>
+                      {preview && (
+                        <p className="mx-auto mt-3 max-w-[15rem] text-[11px] leading-relaxed">
+                          Try a photo where your face is larger and clearly lit.
+                        </p>
+                      )}
                     </div>
                   ) : (
                     results.map((media) => (
@@ -384,8 +437,8 @@ export default function FaceSearchModal({ isOpen, onClose, albumId }: FaceSearch
                             </Button>
                           </div>
                           <Link href={`/gallery/${media.albumId}`}>
-                            <Button variant="link" className="text-[9px] font-bold uppercase tracking-widest text-white hover:text-primary transition-colors">
-                              View Album
+                            <Button variant="link" className={cn(LABEL_TIGHT, "text-white hover:text-primary transition-colors")}>
+                              View album
                             </Button>
                           </Link>
                         </div>

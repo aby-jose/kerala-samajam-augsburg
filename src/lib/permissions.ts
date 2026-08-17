@@ -91,13 +91,13 @@ export const PERMISSIONS = {
   "analytics.view": { group: "System", label: "View analytics", mutates: false },
   "settings.edit": { group: "System", label: "Edit site settings", mutates: true },
 
-  // --- Staff & Access ---
-  "staff.view": { group: "Staff & Access", label: "View staff and invites", mutates: false },
-  "staff.invite": { group: "Staff & Access", label: "Invite, resend and revoke invites", mutates: true },
-  "staff.manage": { group: "Staff & Access", label: "Change roles and revoke access", mutates: true },
-  "roles.view": { group: "Staff & Access", label: "View roles", mutates: false },
-  "roles.edit": { group: "Staff & Access", label: "Create and edit roles", mutates: true },
-  "audit.view": { group: "Staff & Access", label: "View the audit log", mutates: false },
+  // --- Team & Access ---
+  "staff.view": { group: "Team & Access", label: "View team members and invites", mutates: false },
+  "staff.invite": { group: "Team & Access", label: "Invite, resend and revoke invites", mutates: true },
+  "staff.manage": { group: "Team & Access", label: "Change roles and revoke access", mutates: true },
+  "roles.view": { group: "Team & Access", label: "View roles", mutates: false },
+  "roles.edit": { group: "Team & Access", label: "Create and edit roles", mutates: true },
+  "audit.view": { group: "Team & Access", label: "View the audit log", mutates: false },
 } as const satisfies Record<string, PermissionMeta>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -107,7 +107,7 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 /** Display order for the permission matrix. */
 export const PERMISSION_GROUPS = [
   "Overview", "Events", "Registrations", "Payments", "Members", "Membership",
-  "Gallery", "Content", "Inquiries", "Legal", "Email", "System", "Staff & Access",
+  "Gallery", "Content", "Inquiries", "Legal", "Email", "System", "Team & Access",
 ] as const;
 
 export function isPermission(value: string): value is Permission {

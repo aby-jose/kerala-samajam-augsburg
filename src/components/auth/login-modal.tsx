@@ -6,7 +6,13 @@ import { X, Mail, Lock, User, ArrowRight, Loader2, Sparkles } from "lucide-react
 import { getProviders, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { registerUser, requestPasswordReset, getNewCaptcha } from "@/lib/auth-actions";
+import {
+  registerUser,
+  requestPasswordReset,
+  getNewCaptcha,
+} from "@/lib/auth-actions";
+import { EMAIL_NOT_VERIFIED } from "@/lib/auth-gate";
+import { useToast } from "@/components/ui/toast";
 import { SignupConsent } from "@/components/legal/consent-checkbox";
 import { RefreshCw } from "lucide-react";
 import { useConfig } from "../providers/config-provider";
@@ -37,10 +43,9 @@ const FacebookIcon = () => (
 
 export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const config = useConfig();
+  const toast = useToast();
   const [view, setView] = useState<AuthView>("login");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Form states
   const [email, setEmail] = useState("");
@@ -83,8 +88,6 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     }
 
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     setConsentError(null);
 
     try {
@@ -100,8 +103,14 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           basePath: "/api/auth"
         });
 
-        if (result?.error) {
-          setError(result.error);
+        if (result?.error === EMAIL_NOT_VERIFIED) {
+          // The password was right; only the address is unconfirmed. Given a
+          // little longer on screen than a plain failure — it carries an
+          // instruction, not just a verdict.
+          toast.error(`Confirm your email first — we sent a link to ${email}.`, 6000);
+          refreshCaptcha();
+        } else if (result?.error) {
+          toast.error(result.error);
           refreshCaptcha();
         } else {
           onClose();
@@ -117,10 +126,13 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
           acceptedTerms,
         });
         if (result.error) {
-          setError(result.error);
+          toast.error(result.error);
           refreshCaptcha();
         } else {
-          setSuccess(result.message || "Account created! Please check your email to verify.");
+          toast.success(
+            result.message || "Account created — check your email to confirm the address.",
+            6000
+          );
           setView("login");
           setAcceptedTerms(false);
           refreshCaptcha();
@@ -128,14 +140,14 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
       } else if (view === "forgot-password") {
         const result = await requestPasswordReset(email);
         if (result.error) {
-          setError(result.error);
+          toast.error(result.error);
         } else {
-          setSuccess("Reset link sent! Please check your email.");
+          toast.success("Reset link sent — check your email.", 6000);
           setEmail("");
         }
       }
     } catch (err) {
-      setError("An unexpected error occurred. Please try again.");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -256,7 +268,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                         className="flex p-1 bg-muted/40 rounded-full w-full max-w-[280px] border border-border/50"
                       >
                         <button
-                          onClick={() => { setView("login"); setError(null); setSuccess(null); }}
+                          onClick={() => setView("login")}
                           className={cn(
                             "flex-1 py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider rounded-full transition-all relative",
                             view === "login" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -268,7 +280,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                           <span className="relative z-10">Sign In</span>
                         </button>
                         <button
-                          onClick={() => { setView("signup"); setError(null); setSuccess(null); }}
+                          onClick={() => setView("signup")}
                           className={cn(
                             "flex-1 py-1.5 sm:py-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider rounded-full transition-all relative",
                             view === "signup" ? "text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -312,22 +324,13 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                     </div>
                   </div>
 
-                  <AnimatePresence mode="popLayout">
-                    {(error || success) && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        className={cn(
-                          "p-4 mb-6 rounded-2xl border text-xs font-semibold text-center",
-                          error ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                        )}
-                      >
-                        {error || success}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
+                  {/*
+                    Every outcome — failed sign-in, unconfirmed address, account
+                    created, reset link sent — goes to a toast. Inline banners
+                    pushed the form down as they appeared and shifted the whole
+                    modal, and two different notice styles in one panel read as
+                    two different products.
+                  */}
                   <form onSubmit={handleSubmit} className="flex flex-col w-full">
                     {/* Name Input */}
                     <AnimatePresence initial={false}>
@@ -411,7 +414,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                           <div className="flex justify-end pt-1 pb-5">
                             <button
                               type="button"
-                              onClick={() => { setView("forgot-password"); setError(null); setSuccess(null); }}
+                              onClick={() => setView("forgot-password")}
                               className="text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
                             >
                               Forgot Password?
@@ -538,7 +541,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                   {view === "forgot-password" && (
                     <div className="mt-8 text-center">
                       <button
-                        onClick={() => { setView("login"); setError(null); setSuccess(null); }}
+                        onClick={() => setView("login")}
                         className="text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2"
                       >
                         <ArrowRight className="h-3 w-3 rotate-180" /> Back to Sign In

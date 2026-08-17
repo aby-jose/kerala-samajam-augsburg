@@ -177,6 +177,16 @@ export async function inviteStaff(email: string, roleId: string) {
       roleId,
       invitedById: actor.id,
       expires: new Date(Date.now() + INVITE_TTL_MS),
+      // Written explicitly, not left to the schema default: MongoDB has no
+      // column default, so a field `create()` never mentions is left
+      // entirely absent from the document rather than stored as `null`.
+      // `listStaff`'s pending-invites query (and the "already pending"
+      // duplicate check above) filter on `acceptedAt: null, revokedAt:
+      // null` — Prisma's Mongo connector compiles that into "field is
+      // present AND equals null", which an absent field fails. Without
+      // this, every new invite was invisible to both queries.
+      acceptedAt: null,
+      revokedAt: null,
     },
   });
 
@@ -317,7 +327,7 @@ export async function changeStaffRole(userId: string, roleId: string) {
       },
     });
     if (!target || !isStaffMember(target)) {
-      return { error: "That person is not on the staff list." };
+      return { error: "That person is not on the team." };
     }
 
     const role = await prisma.role.findUnique({ where: { id: roleId } });
@@ -372,7 +382,7 @@ export async function revokeStaffAccess(userId: string) {
       },
     });
     if (!target || !isStaffMember(target)) {
-      return { error: "That person is not on the staff list." };
+      return { error: "That person is not on the team." };
     }
 
     assertAssignable({

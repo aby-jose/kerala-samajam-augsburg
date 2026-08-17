@@ -27,7 +27,7 @@ describe("assertRoleDeletable", () => {
 
   it("refuses to delete a role that still has holders", () => {
     expect(() => assertRoleDeletable({ isSystem: false, userCount: 3 })).toThrow(
-      /3 (staff member|people)/
+      /3 (team member|people)/
     );
   });
 });

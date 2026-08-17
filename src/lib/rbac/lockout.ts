@@ -28,7 +28,7 @@ export function assertRoleDeletable(role: { isSystem: boolean; userCount: number
     throw new LockoutError("Super Admin cannot be deleted.");
   }
   if (role.userCount > 0) {
-    const people = role.userCount === 1 ? "1 staff member" : `${role.userCount} staff members`;
+    const people = role.userCount === 1 ? "1 team member" : `${role.userCount} team members`;
     throw new LockoutError(
       `This role is still assigned to ${people}. Move them to another role first.`
     );
