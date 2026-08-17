@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/registry";
 import { parseInlineLinks } from "@/lib/page-content/section";
 import { contactContentSchema, DEFAULT_CONTACT } from "@/lib/page-content/contact";
+import { DEFAULT_MEMBERSHIP, membershipContentSchema } from "@/lib/page-content/membership";
 import { splitOnAccent } from "@/lib/accent";
 
 describe("page content registry", () => {
@@ -156,6 +157,49 @@ describe("contact content", () => {
   it("keeps every accent word findable in its title", () => {
     // A word that is not in the title renders plain, which reads as a bug.
     for (const [name, section] of Object.entries(DEFAULT_CONTACT)) {
+      const { title, accentWord } = section as { title?: string; accentWord?: string };
+      if (!title || !accentWord) continue;
+
+      expect(title, name).toContain(accentWord);
+    }
+  });
+});
+
+describe("membership content", () => {
+  it("accepts its own defaults", () => {
+    expect(() => membershipContentSchema.parse(DEFAULT_MEMBERSHIP)).not.toThrow();
+  });
+
+  it("keeps all six benefits, not the four the page displays", () => {
+    // membership-client.tsx renders benefits.slice(0, 4), but the array has
+    // always held six. Storing only the visible four would silently delete
+    // two on the first save.
+    expect(DEFAULT_MEMBERSHIP.benefits.items).toHaveLength(6);
+  });
+
+  it("requires at least one benefit", () => {
+    expect(() =>
+      membershipContentSchema.parse({
+        ...DEFAULT_MEMBERSHIP,
+        benefits: { ...DEFAULT_MEMBERSHIP.benefits, items: [] },
+      })
+    ).toThrow();
+  });
+
+  it("only accepts icons from the curated set", () => {
+    expect(() =>
+      membershipContentSchema.parse({
+        ...DEFAULT_MEMBERSHIP,
+        benefits: {
+          ...DEFAULT_MEMBERSHIP.benefits,
+          items: [{ icon: "NotAnIcon", title: "x", description: "y" }],
+        },
+      })
+    ).toThrow();
+  });
+
+  it("keeps every accent word findable in its title", () => {
+    for (const [name, section] of Object.entries(DEFAULT_MEMBERSHIP)) {
       const { title, accentWord } = section as { title?: string; accentWord?: string };
       if (!title || !accentWord) continue;
 

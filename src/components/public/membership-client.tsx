@@ -8,14 +8,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  Sparkles,
   Users,
   GraduationCap,
   User,
-  Globe,
-  HeartHandshake,
-  Calendar,
-  Vote,
   Wallet
 } from "lucide-react";
 import Link from "next/link";
@@ -24,12 +19,14 @@ import { LoginModal } from "@/components/auth/login-modal";
 import { cn } from "@/lib/utils";
 import MembershipFormModal from "./membership-form-modal";
 import {
-  Accent,
   Eyebrow,
   PageHeader,
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
+import type { MembershipContentT } from "@/lib/page-content/membership";
+import { MEMBERSHIP_ICON_MAP } from "@/lib/page-content/membership-icons";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -236,40 +233,13 @@ function PlanCard({
   );
 }
 
-const benefits = [
-  {
-    title: "Cultural Connection",
-    description: "Stay deeply connected to Kerala's rich traditions through celebrations like Onam, Vishu, and Christmas.",
-    icon: Globe
-  },
-  {
-    title: "Community Network",
-    description: "Build meaningful relationships with over 200+ Malayali families living in the Augsburg region.",
-    icon: HeartHandshake
-  },
-  {
-    title: "Support System",
-    description: "Access a collective knowledge base for navigating life in Germany, from integration to professional growth.",
-    icon: Sparkles
-  },
-  {
-    title: "Youth Development",
-    description: "Provide your children with a platform to learn their heritage and develop leadership skills.",
-    icon: GraduationCap
-  },
-  {
-    title: "Event Access",
-    description: "Get exclusive entry or discounted rates for KSA's year-round cultural workshops and gatherings.",
-    icon: Calendar
-  },
-  {
-    title: "Citizen Voice",
-    description: "Have your say in the organization's future through voting and participating in the General Body.",
-    icon: Vote
-  }
-];
-
-export default function MembershipClient({ plans }: { plans: any[] }) {
+export default function MembershipClient({
+  plans,
+  content,
+}: {
+  plans: any[];
+  content: MembershipContentT;
+}) {
   const { data: session } = useSession();
   const reduced = useReducedMotion();
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
@@ -325,9 +295,9 @@ export default function MembershipClient({ plans }: { plans: any[] }) {
             transition={{ duration: 0.6 }}
           >
             <PageHeader
-              eyebrow="Membership"
-              title={<>Become a <Accent>Member</Accent></>}
-              lead="One fee for the year. It pays for the halls, the sound system and the rice — and it keeps the festivals, the classes and the stage running."
+              eyebrow={content.hero.eyebrow}
+              title={withAccent(content.hero.title, content.hero.accentWord)}
+              lead={content.hero.lead}
             />
           </motion.div>
         </Container>
@@ -346,16 +316,12 @@ export default function MembershipClient({ plans }: { plans: any[] }) {
             viewport={{ once: true, margin: "-100px" }}
           >
             <div className="lg:col-span-7">
-              <Eyebrow>Plans</Eyebrow>
+              <Eyebrow>{content.plans.eyebrow}</Eyebrow>
               <SectionTitle className="mt-6">
-                Pick the one that <Accent>fits</Accent>
+                {withAccent(content.plans.title, content.plans.accentWord)}
               </SectionTitle>
             </div>
-            <SectionLead className="lg:col-span-5">
-              A student on their own, a single member, or the whole family
-              under one fee. Everything a tier covers is listed on it — no
-              small print underneath.
-            </SectionLead>
+            <SectionLead className="lg:col-span-5">{content.plans.lead}</SectionLead>
           </motion.div>
 
           {displayPlans.length === 0 ? (
@@ -418,34 +384,33 @@ export default function MembershipClient({ plans }: { plans: any[] }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
             <div className="space-y-8">
                <div className="space-y-6">
-                  <Eyebrow>Benefits</Eyebrow>
+                  <Eyebrow>{content.benefits.eyebrow}</Eyebrow>
                   <SectionTitle>
-                    What Membership <Accent>Gives You</Accent>
+                    {withAccent(content.benefits.title, content.benefits.accentWord)}
                   </SectionTitle>
                </div>
-               <SectionLead>
-                 Members get the invitations first, a say in how the Verein is
-                 run, and a vote at the general meeting. Beyond that, it is the
-                 simplest way to keep all of this going.
-               </SectionLead>
+               <SectionLead>{content.benefits.lead}</SectionLead>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
-                  {benefits.slice(0, 4).map((benefit) => (
-                    <div key={benefit.title} className="space-y-3">
-                       <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                             <benefit.icon className="h-4 w-4 text-primary" />
-                          </div>
-                          <h4 className="font-sans text-sm font-bold tracking-[-0.01em]">{benefit.title}</h4>
-                       </div>
-                       <p className="text-xs text-muted-foreground leading-relaxed">{benefit.description}</p>
-                    </div>
-                  ))}
+                  {content.benefits.items.slice(0, 4).map((benefit) => {
+                    const Icon = MEMBERSHIP_ICON_MAP[benefit.icon];
+                    return (
+                      <div key={benefit.title} className="space-y-3">
+                         <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                               <Icon className="h-4 w-4 text-primary" />
+                            </div>
+                            <h4 className="font-sans text-sm font-bold tracking-[-0.01em]">{benefit.title}</h4>
+                         </div>
+                         <p className="text-xs text-muted-foreground leading-relaxed">{benefit.description}</p>
+                      </div>
+                    );
+                  })}
                </div>
             </div>
             <div className="relative group">
                <div className="absolute inset-0 bg-primary/10 rounded-[3rem] -rotate-3 scale-[1.02] transition-transform group-hover:rotate-0" />
                <div className="relative aspect-square rounded-[3rem] bg-zinc-900 overflow-hidden border border-border/40 shadow-2xl">
-                  <img src="/images/gallery/community_picnic.png" className="w-full h-full object-cover opacity-70 transition-transform duration-700 group-hover:scale-105" alt="KSA members at a community gathering in Augsburg" />
+                  <img src={content.benefits.imageUrl} className="w-full h-full object-cover opacity-70 transition-transform duration-700 group-hover:scale-105" alt={content.benefits.imageAlt} />
                   <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-transparent to-transparent" />
                   <div className="absolute bottom-12 left-12 right-12 space-y-2">
                      <p className="font-sans text-2xl font-extrabold leading-tight tracking-[-0.03em] text-white">Kerala in Augsburg,<br /> since 2012.</p>
