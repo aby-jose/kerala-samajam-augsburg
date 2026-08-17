@@ -100,6 +100,41 @@ export const FIXTURES: Fixture[] = [
       overdue: 1, newApplications: 2,
     }),
   },
+
+  // --- account ----------------------------------------------------------
+  {
+    id: "account-verify", group: "account", name: "verifyEmail",
+    build: (ctx) => templates.account.verifyEmail(ctx, {
+      verifyLink: "https://keralasamajam.de/verify-email?token=8f42a1",
+    }),
+  },
+  {
+    id: "account-welcome", group: "account", name: "welcome",
+    build: (ctx) => templates.account.welcome(ctx, { name: "Ammu" }),
+  },
+  {
+    id: "account-otp", group: "account", name: "otpCode",
+    build: (ctx) => templates.account.otpCode(ctx, { code: "482913" }),
+  },
+  {
+    id: "account-reset", group: "account", name: "passwordReset",
+    build: (ctx) => templates.account.passwordReset(ctx, {
+      resetLink: "https://keralasamajam.de/reset-password?token=8f42a1",
+    }),
+  },
+  {
+    id: "account-password-changed", group: "account", name: "passwordChanged",
+    build: (ctx) => templates.account.passwordChanged(ctx, {
+      name: "Ammu", changedAt: new Date("2026-08-16T09:20:00Z"),
+    }),
+  },
+  {
+    id: "account-email-changed", group: "account", name: "emailChanged",
+    build: (ctx) => templates.account.emailChanged(ctx, {
+      name: "Ammu", oldEmail: "ammu.old@example.org",
+      newEmail: "ammu@example.org", audience: "old",
+    }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
