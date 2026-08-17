@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/registry";
+import {
+  isLegacyPageContent,
+  isPageSlug,
+  mergePageContent,
+  PAGE_SLUGS,
+} from "@/lib/page-content/registry";
 import { parseInlineLinks } from "@/lib/page-content/section";
 import {
   CONTACT_SECTION_IDS,
@@ -116,7 +121,10 @@ describe("mergePageContent — sectioned pages (contact, membership, events, gal
       },
     }) as { layout: { id: string; visible: boolean }[]; content: Record<string, Record<string, unknown>> };
 
-    expect(merged.layout[0]).toEqual({ id: "hero", visible: false });
+    // hero is pinned AND non-hideable — a stored `visible: false` on it is
+    // forced back to true, the same enforcement repairLayout's position pin
+    // gets, just applied to visibility instead of order.
+    expect(merged.layout[0]).toEqual({ id: "hero", visible: true });
     expect(merged.content.plans.title).toBe("Choose Your Tier");
     expect(merged.content.benefits).toEqual(DEFAULT_MEMBERSHIP.content.benefits);
   });
@@ -159,7 +167,10 @@ describe("mergePageContent — sectioned pages (contact, membership, events, gal
       },
     }) as { layout: { id: string; visible: boolean }[]; content: Record<string, Record<string, unknown>> };
 
-    expect(merged.layout[0]).toEqual({ id: "hero", visible: false });
+    // hero is pinned AND non-hideable — a stored `visible: false` on it is
+    // forced back to true, the same enforcement repairLayout's position pin
+    // gets, just applied to visibility instead of order.
+    expect(merged.layout[0]).toEqual({ id: "hero", visible: true });
     expect(merged.content.albums.title).toBe("Every Album We Have");
     // Sibling fields inside the edited section survive from defaults.
     expect(merged.content.albums.eyebrow).toBe(DEFAULT_GALLERY.content.albums.eyebrow);
@@ -181,6 +192,122 @@ describe("mergePageContent — sectioned pages (contact, membership, events, gal
     }) as { content: { benefits: { items: unknown[] } } };
 
     expect(merged.content.benefits.items).toEqual(DEFAULT_MEMBERSHIP.content.benefits.items);
+  });
+});
+
+describe("isLegacyPageContent", () => {
+  it("is true for an empty object (no layout, no content — degrades to defaults either way)", () => {
+    expect(isLegacyPageContent({})).toBe(true);
+  });
+
+  it("is true for a flat pre-migration document — no `layout` key, no `content` key", () => {
+    // The exact shape of Contact's one row as it exists on `main` today —
+    // git show 2243c9c:src/lib/page-content/contact.ts.
+    expect(isLegacyPageContent({ hero: {}, form: {}, faq: {}, visit: {} })).toBe(true);
+  });
+
+  it("is false for a document with `content` but no `layout`", () => {
+    // Not legacy, just a partial new-shape document — mergePageContent's
+    // normal branch already tolerates a missing `layout` on its own.
+    expect(isLegacyPageContent({ content: { hero: {} } })).toBe(false);
+  });
+
+  it("is false for a document with `layout` but no `content`", () => {
+    expect(isLegacyPageContent({ layout: [{ id: "hero", visible: true }] })).toBe(false);
+  });
+
+  it("is false for a genuine new-shape document — must not be mistaken for legacy", () => {
+    expect(
+      isLegacyPageContent({ layout: [{ id: "hero", visible: true }], content: { hero: {} } })
+    ).toBe(false);
+  });
+
+  it("is false for undefined, null, and an array — none of these are a flat legacy object", () => {
+    expect(isLegacyPageContent(undefined)).toBe(false);
+    expect(isLegacyPageContent(null)).toBe(false);
+    expect(isLegacyPageContent([])).toBe(false);
+  });
+});
+
+/**
+ * THE LEGACY-SHAPE FIXTURE. Every value below is deliberately DIFFERENT from
+ * DEFAULT_CONTACT — not a transcription of it — for the same reason the
+ * discriminating fixtures above are: a fixture that coincided with the
+ * defaults would pass whether mergePageContent() actually lifted the stored
+ * document or silently discarded it and fell back to defaults. See the
+ * file-level verification note at the bottom of this file for how this was
+ * checked.
+ *
+ * This is the shape a real stored PageContent row has today if `main` is
+ * deployed anywhere and an administrator has ever pressed Save on the old
+ * Contact editor: no `layout`, no `content` — the document's own top-level
+ * keys (`hero`, `form`, `faq`, `visit`) ARE the content, one key per section
+ * id. See git show 2243c9c:src/lib/page-content/contact.ts.
+ */
+const LEGACY_CONTACT_DOCUMENT = {
+  hero: {
+    eyebrow: "Reach us",
+    title: "Write To The Committee",
+    accentWord: "Committee",
+    lead: "This lead exists only in the legacy fixture and matches nothing in DEFAULT_CONTACT, so its survival through the lift is a real assertion.",
+  },
+  form: {
+    eyebrow: "Send word",
+    title: "Tell Us What You Need",
+    accentWord: "Need",
+    lead: "A distinct legacy lead for the form section, matching no default copy.",
+  },
+  faq: {
+    eyebrow: "Common questions",
+    title: "What People Ask",
+    accentWord: "Ask",
+    lead: "A distinct legacy lead for the faq section.",
+    items: [
+      { question: "Legacy question one?", answer: "Legacy answer one." },
+      { question: "Legacy question two?", answer: "Legacy answer two." },
+    ],
+  },
+  visit: {
+    eyebrow: "Just visit",
+    title: "Or Walk Right In",
+    accentWord: "Walk Right In",
+    lead: "A distinct legacy lead for the visit section.",
+  },
+};
+
+describe("mergePageContent — legacy flat documents (pre-migration shape)", () => {
+  it("lifts a legacy flat Contact document instead of discarding it as unrecognised", () => {
+    const merged = mergePageContent("contact", LEGACY_CONTACT_DOCUMENT) as {
+      layout: { id: string; visible: boolean }[];
+      content: Record<string, Record<string, unknown>>;
+    };
+
+    // Every stored field survives, lifted into the new {layout, content}
+    // shape — none of this coincides with DEFAULT_CONTACT, so a merge that
+    // fell back to defaults instead of lifting would fail every line below.
+    expect(merged.content.hero.title).toBe("Write To The Committee");
+    expect(merged.content.hero.lead).toBe(LEGACY_CONTACT_DOCUMENT.hero.lead);
+    expect(merged.content.form.title).toBe("Tell Us What You Need");
+    expect(merged.content.faq.items).toEqual(LEGACY_CONTACT_DOCUMENT.faq.items);
+    expect(merged.content.visit.title).toBe("Or Walk Right In");
+
+    // A legacy document never had a layout — falls back to the default
+    // order, hero pinned first, everything visible.
+    expect(merged.layout.map((s) => s.id)).toEqual([...CONTACT_SECTION_IDS]);
+    expect(merged.layout.every((s) => s.visible)).toBe(true);
+
+    // What mergePageContent produces must still satisfy the page's own
+    // schema — the read path hands this straight to the public page.
+    expect(() => contactContentSchema.parse(merged)).not.toThrow();
+  });
+
+  it("a legacy document with no recognised keys at all still yields the full default shape", () => {
+    // {} has neither `layout` nor `content` — isLegacyPageContent treats it
+    // as legacy, and lifting an object with no matching section keys
+    // degrades to exactly the same defaults an empty stored document
+    // already produced before this fix.
+    const merged = mergePageContent("contact", {}) as { content: unknown };
+    expect(merged.content).toEqual(DEFAULT_CONTACT.content);
   });
 });
 
@@ -650,4 +777,11 @@ describe("splitOnAccent", () => {
  * unconditionally) and confirming every test naming a distinct fixture value
  * went red, then reverting the change. A fixture whose values equal the
  * defaults would not have caught this.
+ *
+ * The same check was repeated for "mergePageContent — legacy flat documents":
+ * mergePageContent's legacy branch was temporarily changed to discard
+ * `stored` and fall through to the normal branch's defaults-only behaviour
+ * (as if `isLegacyPageContent` always returned false), confirming the legacy
+ * document's test went red, then reverted. See the task report for exactly
+ * which assertions failed.
  */

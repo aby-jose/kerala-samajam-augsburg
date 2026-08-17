@@ -117,6 +117,7 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
             label={meta.label}
             description={meta.description}
             movable={meta.movable}
+            hideable={meta.hideable}
             visible={entry.visible}
             onVisibleChange={(next) => update(index, { id: entry.id, visible: next })}
             onMoveUp={meta.movable && index > firstMovable ? () => move(index, index - 1) : undefined}

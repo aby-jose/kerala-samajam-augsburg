@@ -20,6 +20,13 @@ export const ABOUT_SECTION_META: Record<AboutSectionId, SectionMeta> = {
     // against the navbar with no clearance — the same reason the home
     // page's hero is pinned.
     movable: false,
+    // navbar.tsx decides light-vs-dark navbar type from a hardcoded route
+    // predicate, not from what actually renders at the top of the page.
+    // Hiding this section would both collapse the opening whitespace above
+    // and — if the section that slid into its place happened to be the
+    // dark closing band — leave dark navbar type over a dark background,
+    // unreadable until the user scrolls.
+    hideable: false,
   },
   story: {
     label: "Where we come from",

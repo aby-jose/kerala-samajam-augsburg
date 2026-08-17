@@ -21,6 +21,7 @@ export function SectionCard({
   onMoveUp,
   onMoveDown,
   movable,
+  hideable = true,
   children,
 }: {
   label: string;
@@ -30,6 +31,12 @@ export function SectionCard({
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   movable: boolean;
+  // Whether the Visible checkbox renders at all. Defaults to true — most
+  // sections may be hidden freely. A section whose SectionMeta carries
+  // `hideable: false` (see lib/page-layout.ts) passes false here so the
+  // checkbox never exists to click in the first place, matching what
+  // repairLayout() re-enforces server-side if it were bypassed.
+  hideable?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -53,15 +60,17 @@ export function SectionCard({
         </button>
 
         <div className="flex shrink-0 items-center gap-1">
-          <label className="mr-2 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={visible}
-              onChange={(e) => onVisibleChange(e.target.checked)}
-              className="h-4 w-4 rounded border-muted"
-            />
-            Visible
-          </label>
+          {hideable && (
+            <label className="mr-2 flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={visible}
+                onChange={(e) => onVisibleChange(e.target.checked)}
+                className="h-4 w-4 rounded border-muted"
+              />
+              Visible
+            </label>
+          )}
 
           {movable && (
             <>

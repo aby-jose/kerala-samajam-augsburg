@@ -20,6 +20,13 @@ export const MEMBERSHIP_SECTION_META: Record<MembershipSectionId, SectionMeta> =
     // against the navbar with no clearance — the same reason About's hero is
     // pinned.
     movable: false,
+    // navbar.tsx decides light-vs-dark navbar type from a hardcoded route
+    // predicate, not from what actually renders at the top of the page.
+    // Hiding this section would collapse the opening whitespace above it —
+    // and on a page whose section-meta ever grows a `deep` surface, would
+    // also risk leaving dark navbar type over a dark background until the
+    // user scrolls, the same as About, Contact, Events and Gallery today.
+    hideable: false,
   },
   plans: {
     label: "Plans",

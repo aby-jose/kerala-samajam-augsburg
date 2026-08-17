@@ -12,6 +12,8 @@ import {
   type HomeContentT,
 } from "./home-schema";
 import { repairLayout } from "./home-layout";
+import { HOME_SECTION_META } from "./home-sections";
+import { enforceHideable } from "./page-layout";
 
 /**
  * The live home page document, or the built-in defaults if nothing has been
@@ -26,7 +28,7 @@ export const getHomeContent = cache(async (): Promise<HomeContentT> => {
     const stored = record.value as { layout?: unknown; content?: unknown };
 
     return {
-      layout: repairLayout(stored.layout),
+      layout: enforceHideable(HOME_SECTION_META, repairLayout(stored.layout)) as HomeContentT["layout"],
       content: mergeHomeContent(stored.content),
     };
   } catch (error) {
@@ -40,7 +42,7 @@ export async function saveHomeContent(data: HomeContentT) {
 
   const validated = homeContentSchema.parse({
     ...data,
-    layout: repairLayout(data.layout),
+    layout: enforceHideable(HOME_SECTION_META, repairLayout(data.layout)) as HomeContentT["layout"],
   });
 
   try {

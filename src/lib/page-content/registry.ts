@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { repairLayout, type SectionMeta } from "../page-layout";
+import { enforceHideable, repairLayout, type SectionMeta } from "../page-layout";
 import {
   CONTACT_SECTION_IDS,
   contactContentSchema,
@@ -134,6 +134,31 @@ export const isPageSlug = (value: unknown): value is PageSlug =>
   typeof value === "string" && (PAGE_SLUGS as string[]).includes(value);
 
 /**
+ * A document saved before sections were orderable has neither a `layout` key
+ * nor a `content` key: its own top-level keys ARE the content, one key per
+ * section id — `{hero, form, faq, visit}` for the pre-migration Contact
+ * document (see `git show 2243c9c:src/lib/page-content/contact.ts`, the
+ * shape shipped on `main` today). Feeding that into the sectioned branch
+ * below would read `source.layout` and `source.content` as both undefined
+ * and silently discard every stored field, reverting the page to defaults
+ * with no error.
+ *
+ * A page with both keys is unambiguously the new shape (excluded here), and
+ * a page with only one of the two is a partial new-shape document — not
+ * legacy, just missing a field the merge already tolerates. Only "neither
+ * key present" means "these ARE the section keys".
+ *
+ * Pure and exported so a node-environment test can exercise the exact check
+ * mergePageContent() relies on, mirroring the inline check in
+ * `getAboutContent()` (lib/about-actions.ts) that motivated this one.
+ */
+export function isLegacyPageContent(stored: unknown): boolean {
+  if (typeof stored !== "object" || stored === null || Array.isArray(stored)) return false;
+
+  return !("layout" in stored) && !("content" in stored);
+}
+
+/**
  * Spread each stored section over its defaults, so a document saved before a
  * field existed keeps rendering rather than failing validation. Unknown
  * section keys are dropped: a field removed from a schema must not survive in
@@ -142,7 +167,14 @@ export const isPageSlug = (value: unknown): value is PageSlug =>
  * For a sectioned page (every page registered today) this repairs `layout`
  * with the generic page-layout.ts machinery and hands `content` off to the
  * page's own merge function — mirroring getAboutContent()'s read path, just
- * wired through the shared registry.
+ * wired through the shared registry. A legacy flat document (see
+ * isLegacyPageContent() above) is lifted rather than merged against the new
+ * shape: each page's own mergeContent() already spreads top-level keys of
+ * its argument over the section defaults, which is exactly what a legacy
+ * document's own top-level keys need — so handing it the raw stored document
+ * instead of `source.content` does the lift with no separate function
+ * required, and the layout falls back to the default order since a legacy
+ * document never had one.
  *
  * The flat branch below has no callers today (see FlatPageEntry's comment
  * above) and is one level deep by design — sections are merged, the fields
@@ -154,10 +186,23 @@ export function mergePageContent(slug: PageSlug, stored: unknown): Record<string
   const entry = PAGE_CONTENT[slug] as PageEntry;
 
   if (isSectioned(entry)) {
+    if (isLegacyPageContent(stored)) {
+      return {
+        layout: enforceHideable(
+          entry.sectionMeta,
+          repairLayout(entry.sectionIds, entry.sectionMeta, undefined)
+        ),
+        content: entry.mergeContent(stored),
+      };
+    }
+
     const source = (stored ?? {}) as { layout?: unknown; content?: unknown };
 
     return {
-      layout: repairLayout(entry.sectionIds, entry.sectionMeta, source.layout),
+      layout: enforceHideable(
+        entry.sectionMeta,
+        repairLayout(entry.sectionIds, entry.sectionMeta, source.layout)
+      ),
       content: entry.mergeContent(source.content),
     };
   }
@@ -200,7 +245,8 @@ export function mergePageContent(slug: PageSlug, stored: unknown): Record<string
 /**
  * Normalise a document about to be saved: for a sectioned page, repair its
  * `layout` the same way a stored one is repaired on read (drop unknown ids,
- * collapse duplicates, pin unmovable sections) before the schema validates
+ * collapse duplicates, pin unmovable sections, force non-hideable sections
+ * visible) before the schema validates
  * it. A flat page's document passes through unchanged. Kept here, next to
  * the shape knowledge it depends on, so actions.ts stays free of
  * page-layout.ts's specifics.
@@ -212,6 +258,9 @@ export function normalizePageContentForSave(slug: PageSlug, data: unknown): unkn
   const record = (data ?? {}) as Record<string, unknown>;
   return {
     ...record,
-    layout: repairLayout(entry.sectionIds, entry.sectionMeta, record.layout),
+    layout: enforceHideable(
+      entry.sectionMeta,
+      repairLayout(entry.sectionIds, entry.sectionMeta, record.layout)
+    ),
   };
 }

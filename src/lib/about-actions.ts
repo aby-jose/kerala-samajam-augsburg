@@ -14,7 +14,7 @@ import {
   type AboutContentT,
 } from "./about-schema";
 import { ABOUT_SECTION_META } from "./about-sections";
-import { repairLayout } from "./page-layout";
+import { enforceHideable, repairLayout } from "./page-layout";
 
 /**
  * The live About page content, or the built-in defaults if nothing has been
@@ -38,7 +38,10 @@ export const getAboutContent = cache(async (): Promise<AboutContentT> => {
     const layout = isLegacy ? undefined : (stored as { layout?: unknown }).layout;
 
     return {
-      layout: repairLayout(ABOUT_SECTION_IDS, ABOUT_SECTION_META, layout) as AboutContentT["layout"],
+      layout: enforceHideable(
+        ABOUT_SECTION_META,
+        repairLayout(ABOUT_SECTION_IDS, ABOUT_SECTION_META, layout)
+      ) as AboutContentT["layout"],
       content: mergeAboutContent(content),
     };
   } catch (error) {
@@ -52,7 +55,10 @@ export async function saveAboutContent(data: AboutContentT) {
 
   const validated = aboutContentSchema.parse({
     ...data,
-    layout: repairLayout(ABOUT_SECTION_IDS, ABOUT_SECTION_META, data.layout) as AboutContentT["layout"],
+    layout: enforceHideable(
+      ABOUT_SECTION_META,
+      repairLayout(ABOUT_SECTION_IDS, ABOUT_SECTION_META, data.layout)
+    ) as AboutContentT["layout"],
   });
 
   try {

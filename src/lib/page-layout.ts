@@ -5,6 +5,18 @@ export type SectionMeta = {
   description: string;
   surfaceMode: SurfaceMode;
   movable: boolean;
+  /**
+   * Whether the admin editor's Visible checkbox may hide this section at
+   * all. Optional, defaulting to hideable (`true`) when omitted — most
+   * sections may be turned off freely. Set to `false` only for a section
+   * whose absence would break the page, e.g. the opening section every page
+   * pins to index 0 for the `pt-40` that clears the transparent navbar: hide
+   * it and the opening whitespace collapses, and on the interior pages whose
+   * navbar type is decided by a hardcoded route predicate (navbar.tsx) a
+   * `bg-surface-deep` section sliding into that pinned slot would leave dark
+   * navbar type on a dark background until the user scrolls.
+   */
+  hideable?: boolean;
 };
 
 export type LayoutEntry = { id: string; visible: boolean };
@@ -65,6 +77,35 @@ export function repairLayout<Id extends string>(
   }
 
   return repaired.length ? repaired : ids.map((id) => ({ id, visible: true }));
+}
+
+/**
+ * Force `visible: true` on every section whose SectionMeta marks it
+ * `hideable: false` — a hand-crafted payload must not be able to hide a
+ * section the admin editor never rendered a checkbox for in the first place
+ * (see SectionCard's `hideable` prop and SectionMeta's doc comment for what
+ * breaks if it is hidden).
+ *
+ * Deliberately a separate pass rather than folded into repairLayout() above:
+ * repairLayout()'s own contract is "pin position, otherwise preserve
+ * whatever visibility a stored layout carried", and several tests — some of
+ * them frozen (tests/home-content.test.ts, tests/about-content.test.ts) —
+ * exercise that contract directly against real page section metas with a
+ * pinned section stored `visible: false`. Every real read and save path
+ * (getHomeContent/saveHomeContent, getAboutContent/saveAboutContent,
+ * mergePageContent/normalizePageContentForSave) calls this immediately
+ * after repairLayout, so the enforcement is universal in practice: nothing
+ * reaches storage, and nothing read back out, with a non-hideable section
+ * hidden — while repairLayout's own directly-tested contract stays exactly
+ * what it always was.
+ */
+export function enforceHideable<Id extends string>(
+  meta: Record<Id, SectionMeta>,
+  layout: LayoutEntry[]
+): LayoutEntry[] {
+  return layout.map((entry) =>
+    meta[entry.id as Id].hideable === false ? { ...entry, visible: true } : entry
+  );
 }
 
 /**

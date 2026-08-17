@@ -17,6 +17,13 @@ export const HOME_SECTION_META: Record<HomeSectionId, SectionMeta> = {
     // A full-height autoplaying video mid-page is not a layout the rest of
     // the design supports, and the navbar renders transparent over it.
     movable: false,
+    // navbar.tsx gives the home route dark navbar type unconditionally
+    // (`isHomePage`), independent of what actually renders there. Hide the
+    // hero and the next visible section — a white "rotate" band by default —
+    // would open the page with light navbar type on a white background:
+    // illegible until the user scrolls. Not hideable for the same reason
+    // it is not movable.
+    hideable: false,
   },
   about: {
     label: "Who we are",

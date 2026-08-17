@@ -20,6 +20,13 @@ export const GALLERY_SECTION_META: Record<GallerySectionId, SectionMeta> = {
     // against the navbar with no clearance — the same reason About's,
     // Contact's and Events's heroes are pinned.
     movable: false,
+    // navbar.tsx decides light-vs-dark navbar type from a hardcoded route
+    // predicate, not from what actually renders at the top of the page.
+    // Hiding this section would both collapse the opening whitespace above
+    // and — if the section that slid into its place happened to be the
+    // dark closing band — leave dark navbar type over a dark background,
+    // unreadable until the user scrolls.
+    hideable: false,
   },
   albums: {
     label: "Albums",
