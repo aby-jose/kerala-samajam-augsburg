@@ -1,4 +1,5 @@
 import { HOME_SECTION_IDS, type HomeSectionId } from "./home-schema";
+import type { SectionMeta, SurfaceMode } from "./page-layout";
 
 /**
  * How each section behaves on the page and how it is labelled in the admin
@@ -6,12 +7,9 @@ import { HOME_SECTION_IDS, type HomeSectionId } from "./home-schema";
  * can import it under Vitest's node environment — the id → component map
  * lives in components/layout/home-sections.tsx.
  */
-export type SurfaceMode = "media" | "rotate" | "deep";
+export type { SurfaceMode };
 
-export const HOME_SECTION_META: Record<
-  HomeSectionId,
-  { label: string; description: string; surfaceMode: SurfaceMode; movable: boolean }
-> = {
+export const HOME_SECTION_META: Record<HomeSectionId, SectionMeta> = {
   hero: {
     label: "Hero",
     description: "The full-height video banner at the top of the page.",
