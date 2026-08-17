@@ -5,7 +5,13 @@ import { revalidatePath } from "next/cache";
 
 import { prisma } from "../prisma";
 import { requirePermission } from "../guards";
-import { isPageSlug, mergePageContent, PAGE_CONTENT, type PageSlug } from "./registry";
+import {
+  isPageSlug,
+  mergePageContent,
+  normalizePageContentForSave,
+  PAGE_CONTENT,
+  type PageSlug,
+} from "./registry";
 
 /**
  * The live document for a page, or the built-in defaults if nothing has been
@@ -36,7 +42,7 @@ export async function savePageContent(slug: string, data: unknown) {
   // would leave a row nothing ever reads.
   if (!isPageSlug(slug)) throw new Error(`Unknown page: ${slug}`);
 
-  const validated = PAGE_CONTENT[slug].schema.parse(data);
+  const validated = PAGE_CONTENT[slug].schema.parse(normalizePageContentForSave(slug, data));
 
   try {
     await prisma.pageContent.upsert({
