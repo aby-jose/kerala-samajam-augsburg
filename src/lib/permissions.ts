@@ -66,6 +66,7 @@ export const PERMISSIONS = {
   "gallery.contributions.moderate": { group: "Gallery", label: "Approve and reject contributions", mutates: true },
 
   // --- Content ---
+  "content.home.edit": { group: "Content", label: "Edit the Home page", mutates: true },
   "content.about.edit": { group: "Content", label: "Edit the About page", mutates: true },
   "content.leadership.edit": { group: "Content", label: "Edit the leadership list", mutates: true },
   "content.pages.edit": { group: "Content", label: "Edit site pages", mutates: true },

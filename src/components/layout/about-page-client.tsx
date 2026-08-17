@@ -9,9 +9,9 @@ import {
   PageHeader,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
 import { ABOUT_ICON_MAP } from "@/lib/about-icons";
 import type { AboutContentT } from "@/lib/about-schema";
-import { withAccent } from "@/components/layout/with-accent";
 
 export function AboutPageClient({ content }: { content: AboutContentT }) {
   const revealVariants: Variants = {

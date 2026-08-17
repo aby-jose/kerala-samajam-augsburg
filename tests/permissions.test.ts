@@ -14,7 +14,7 @@ function sourceFiles(dir: string, acc: string[] = []): string[] {
 
 describe("permission catalogue", () => {
   it("holds exactly 54 keys", () => {
-    expect(ALL_PERMISSIONS).toHaveLength(54);
+    expect(ALL_PERMISSIONS).toHaveLength(55);
   });
 
   it("gives every key a group, a label and a mutates flag", () => {

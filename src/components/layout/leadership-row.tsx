@@ -6,11 +6,12 @@ import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import {
-  Accent,
   Eyebrow,
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
+import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { getLeadershipMembers } from "@/lib/leadership-actions";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,7 @@ interface Member {
 }
 
 interface LeadershipRowProps {
+  content?: HomeContentT["content"]["committee"];
   /** How many members to show. 0 shows everyone — the home page previews 8. */
   limit?: number;
   /** Keep the section (with a placeholder) instead of hiding it when nobody is listed. */
@@ -32,13 +34,18 @@ interface LeadershipRowProps {
    *  two don't stack into a 2px seam. */
   seamless?: boolean;
   className?: string;
+  surface?: string;
+  bordered?: boolean;
 }
 
 export function LeadershipRow({
-  limit = 8,
+  content = DEFAULT_HOME_CONTENT.content.committee,
+  limit,
   showEmptyState = false,
   seamless = false,
   className,
+  surface = "bg-surface-3",
+  bordered = true,
 }: LeadershipRowProps) {
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,13 +65,16 @@ export function LeadershipRow({
   // headline section pass showEmptyState so the heading still lands.
   if (members.length === 0 && !showEmptyState) return null;
 
-  const shown = limit > 0 ? members.slice(0, limit) : members;
+  const effectiveLimit = limit ?? content.limit;
+  const shown = effectiveLimit > 0 ? members.slice(0, effectiveLimit) : members;
 
   return (
     <section
       className={cn(
-        "relative overflow-hidden border-b border-border bg-surface-3 py-24 md:py-32",
-        !seamless && "border-t",
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-b border-border",
+        bordered && !seamless && "border-t",
         className
       )}
     >
@@ -77,14 +87,13 @@ export function LeadershipRow({
           transition={{ duration: 0.7, ease: EASE }}
         >
           <div className="flex justify-center">
-            <Eyebrow>Committee</Eyebrow>
+            <Eyebrow>{content.eyebrow}</Eyebrow>
           </div>
           <SectionTitle className="mt-6">
-            Our <Accent>Committee</Accent>
+            {withAccent(content.title, content.accentWord)}
           </SectionTitle>
           <SectionLead className="mx-auto mt-5 max-w-lg">
-            The volunteers who run KSA this year — with day jobs, families, and
-            a shared stubbornness about keeping this going.
+            {content.lead}
           </SectionLead>
         </motion.div>
 

@@ -6,11 +6,12 @@ import { ArrowUpRight, Images } from "lucide-react";
 import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import {
-  Accent,
   Eyebrow,
   SectionLead,
   SectionTitle,
 } from "@/components/layout/section-heading";
+import { withAccent } from "@/components/layout/with-accent";
+import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { getGalleryHighlights } from "@/lib/gallery-actions";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +34,15 @@ const fallbackShots: Shot[] = [
   { id: "f5", url: "/images/gallery/community_picnic.png", albumTitle: "Summer picnic" },
 ];
 
-export function GalleryStrip() {
+export function GalleryStrip({
+  content = DEFAULT_HOME_CONTENT.content.gallery,
+  surface = "bg-surface-1",
+  bordered = false,
+}: {
+  content?: HomeContentT["content"]["gallery"];
+  surface?: string;
+  bordered?: boolean;
+} = {}) {
   const [shots, setShots] = useState<Shot[]>(fallbackShots);
   const [counts, setCounts] = useState<{ albums: number; photos: number } | null>(
     null
@@ -51,7 +60,13 @@ export function GalleryStrip() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-surface-1 py-24 md:py-32">
+    <section
+      className={cn(
+        "relative overflow-hidden py-24 md:py-32",
+        surface,
+        bordered && "border-y border-border"
+      )}
+    >
       <Container>
         <motion.div
           className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end"
@@ -61,14 +76,12 @@ export function GalleryStrip() {
           transition={{ duration: 0.7, ease: EASE }}
         >
           <div className="max-w-2xl">
-            <Eyebrow>Gallery</Eyebrow>
+            <Eyebrow>{content.eyebrow}</Eyebrow>
             <SectionTitle className="mt-6">
-              Photo <Accent>Gallery</Accent>
+              {withAccent(content.title, content.accentWord)}
             </SectionTitle>
             <SectionLead className="mt-5 max-w-lg">
-              Every sadhya, every stage and every picnic since 2012 —
-              photographed by whoever had a camera that day. Search by face to
-              find yourself in there.
+              {content.lead}
             </SectionLead>
           </div>
 
@@ -81,11 +94,11 @@ export function GalleryStrip() {
               </span>
             )}
             <Link
-              href="/gallery"
+              href={content.link.href}
               className="group inline-flex items-center gap-2 text-sm font-semibold text-foreground"
             >
               <span className="border-b border-foreground/30 pb-0.5 transition-colors group-hover:border-primary group-hover:text-primary">
-                View all albums
+                {content.link.label}
               </span>
               <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
             </Link>

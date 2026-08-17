@@ -11,19 +11,22 @@ interface ImageUploadProps {
   defaultValue?: string;
   className?: string;
   aspect?: string;
+  accept?: string;
 }
 
 export default function ImageUpload({
     onUploadComplete,
     defaultValue,
     className,
-    aspect = "aspect-video"
+    aspect = "aspect-video",
+    accept = "image/*"
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(defaultValue || null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlRef = useRef<string | null>(null);
+  const isVideo = accept.startsWith("video");
 
   const releaseObjectUrl = () => {
     if (objectUrlRef.current) {
@@ -98,27 +101,38 @@ export default function ImageUpload({
           type="file"
           ref={fileInputRef}
           onChange={handleFileChange}
-          accept="image/*"
+          accept={accept}
           className="hidden"
         />
 
         {preview ? (
           <div className="relative h-full w-full">
-            <img src={preview} alt="Upload preview" className="h-full w-full object-cover" />
+            {isVideo ? (
+              <video
+                src={preview}
+                muted
+                loop
+                autoPlay
+                playsInline
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <img src={preview} alt="Upload preview" className="h-full w-full object-cover" />
+            )}
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
               <Button
                 type="button"
                 variant="secondary"
                 className="h-8 rounded-lg px-3 text-xs"
               >
-                Change image
+                Change {isVideo ? "video" : "image"}
               </Button>
               <Button
                 type="button"
                 variant="secondary"
                 onClick={clearImage}
                 className="h-8 w-8 rounded-lg p-0"
-                aria-label="Remove image"
+                aria-label={`Remove ${isVideo ? "video" : "image"}`}
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -134,8 +148,10 @@ export default function ImageUpload({
           <div className="flex flex-col items-center space-y-2 p-8 text-center">
             <Upload className="h-5 w-5 text-muted-foreground" />
             <div className="space-y-0.5">
-                <p className="text-sm text-muted-foreground">Click to upload an image</p>
-                <p className="text-xs text-muted-foreground">PNG, JPG or WEBP, up to 10MB</p>
+                <p className="text-sm text-muted-foreground">Click to upload a {isVideo ? "video" : "image"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isVideo ? "MP4, MOV or WEBM, up to 100MB" : "PNG, JPG or WEBP, up to 8MB"}
+                </p>
             </div>
           </div>
         )}

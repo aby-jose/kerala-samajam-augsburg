@@ -57,7 +57,7 @@ export const ROLE_PRESETS: RolePreset[] = [
     isSystem: false,
     permissions: [
       "dashboard.view",
-      "content.about.edit", "content.leadership.edit", "content.pages.edit",
+      "content.home.edit", "content.about.edit", "content.leadership.edit", "content.pages.edit",
       "events.view",
       "gallery.view", "gallery.albums.edit", "gallery.media.upload",
       "legal.view",
