@@ -39,6 +39,26 @@ const NEUTRALS = new Set([
   "#0f0f0f", "#9f9f9f", "#6f6f6f", "#262626", "#333333", "#1d1d1d", "#a8a09a",
 ]);
 
+/**
+ * Every colour a reader can actually see, lowercased and deduplicated.
+ *
+ * Ordinary HTML comments are dropped first. The shell carries a comment
+ * explaining the dark-mode bug this design replaced, and it quotes the two hex
+ * values involved — text that no mail client renders, but that a naive scan
+ * reports as a stray hue.
+ *
+ * Conditional comments are deliberately *kept*. `<!--[if mso]>` wraps the VML
+ * button, whose `fillcolor` and `strokecolor` are real colours in Outlook —
+ * the one client where the fallback matters most. Stripping every comment
+ * would blind this check to exactly the markup hardest to eyeball.
+ */
+function visibleColours(html: string): Set<string> {
+  const rendered = html.replace(/<!--(?!\[if)[\s\S]*?-->/g, "");
+  return new Set(
+    [...rendered.matchAll(/#[0-9a-fA-F]{6}/g)].map((m) => m[0].toLowerCase())
+  );
+}
+
 describe("email templates", () => {
   it("every exported template has a fixture", () => {
     const covered = new Set(FIXTURES.map((f) => `${f.group}/${f.name}`));
@@ -72,11 +92,11 @@ describe("email templates", () => {
             t.bandA, t.bandB, t.onPrimary,
           ].map((c) => c.toLowerCase())
         );
-        const stray = [...html.matchAll(/#[0-9a-fA-F]{6}/g)]
-          .map((m) => m[0].toLowerCase())
-          .filter((c) => !derived.has(c) && !NEUTRALS.has(c));
+        const stray = [...visibleColours(html)].filter(
+          (c) => !derived.has(c) && !NEUTRALS.has(c)
+        );
 
-        expect([...new Set(stray)]).toEqual([]);
+        expect(stray).toEqual([]);
       });
 
       if (isMessage(doc)) {

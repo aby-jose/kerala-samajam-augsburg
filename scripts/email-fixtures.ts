@@ -55,7 +55,51 @@ export const BANK = {
 // --- The registry ------------------------------------------------------------
 
 export const FIXTURES: Fixture[] = [
-  // Populated one template file at a time by the conversion tasks.
+  // --- payments ---------------------------------------------------------
+  {
+    id: "payments-request", group: "payments", name: "membershipPaymentRequest",
+    build: (ctx) => templates.payments.membershipPaymentRequest(ctx, {
+      name: "Ammu", planName: "Family", amount: 45, reference: "KSA-MEM-2026-0417",
+      dueDate: new Date("2026-09-30"), bank: BANK, method: "BANK",
+    }),
+  },
+  {
+    id: "payments-received", group: "payments", name: "membershipPaymentReceived",
+    build: (ctx) => templates.payments.membershipPaymentReceived(ctx, {
+      name: "Ammu", planName: "Family", amount: 45,
+      startDate: new Date("2026-04-01"), endDate: new Date("2027-03-31"),
+      term: "12 months", reference: "KSA-MEM-2026-0417",
+    }),
+  },
+  {
+    id: "payments-event-recorded", group: "payments", name: "eventPaymentRecorded",
+    build: (ctx) => templates.payments.eventPaymentRecorded(ctx, {
+      name: "Ammu", eventTitle: EVENT.title, eventSlug: EVENT.slug,
+      ticketId: "KSA-8F42-9C11", amount: 36, method: "CASH",
+      paidAt: new Date("2026-08-14"), reference: null,
+    }),
+  },
+  {
+    id: "payments-event-reverted", group: "payments", name: "eventPaymentReverted",
+    build: (ctx) => templates.payments.eventPaymentReverted(ctx, {
+      name: "Ammu", eventTitle: EVENT.title, eventSlug: EVENT.slug,
+      ticketId: "KSA-8F42-9C11", amount: 36,
+    }),
+  },
+  {
+    id: "payments-overdue", group: "payments", name: "paymentOverdue",
+    build: (ctx) => templates.payments.paymentOverdue(ctx, {
+      name: "Ammu", planName: "Family", amount: 45, reference: "KSA-MEM-2026-0417",
+      dueDate: new Date("2026-07-01"), daysOverdue: 46, bank: BANK, finalNotice: true,
+    }),
+  },
+  {
+    id: "payments-digest", group: "payments", name: "adminPaymentDigest",
+    build: (ctx) => templates.payments.adminPaymentDigest(ctx, {
+      recorded: 7, recordedTotal: 315, outstanding: 3, outstandingTotal: 135,
+      overdue: 1, newApplications: 2,
+    }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
