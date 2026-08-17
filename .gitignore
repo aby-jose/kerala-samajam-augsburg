@@ -57,3 +57,14 @@ scratch/
 # committed; they are stale within a day and can quote connection strings.
 errors*.txt
 *.log
+
+# Isolated worktrees created for agent-driven work, and the scratch space that
+# tracks progress through a plan.
+#
+# Untracked rather than ignored, these are a live hazard: a routine
+# `git clean -fdx` deletes an entire in-progress worktree — its branch's
+# uncommitted work, its node_modules, and the ledger recording what had already
+# been done. Only `.claude/worktrees/` is listed, not `.claude/` itself, so
+# project configuration under that directory stays tracked.
+.claude/worktrees/
+.superpowers/
