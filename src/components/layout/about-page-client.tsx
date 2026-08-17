@@ -142,9 +142,18 @@ function AboutStorySection({
  * sync; here it lists everyone rather than previewing eight. It has no
  * copy of its own (see aboutCommitteeSectionSchema), so no `content` prop
  * is passed through — LeadershipRow falls back to its own default heading.
+ *
+ * No `seamless`: that prop only made sense back when this section was
+ * hardcoded to always sit directly under the always-bordered story
+ * section, so its own top border needed dropping to avoid a doubled seam.
+ * Now `bordered` is derived from position, and resolveSections's
+ * alternation guarantees two bordered (tinted) rotating sections are never
+ * adjacent — so there is nothing left to double up, and a plain border-y
+ * behaves exactly like every other tinted section (AboutStorySection
+ * included), whatever ends up next to it after a reorder.
  */
 function AboutCommitteeSection({ surface = "bg-surface-3", bordered = true }: SectionSurfaceProps) {
-  return <LeadershipRow limit={0} showEmptyState seamless surface={surface} bordered={bordered} />;
+  return <LeadershipRow limit={0} showEmptyState surface={surface} bordered={bordered} />;
 }
 
 /**

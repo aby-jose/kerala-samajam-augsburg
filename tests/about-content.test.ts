@@ -64,19 +64,14 @@ describe("mergeAboutContent", () => {
  * database, saved before sections were orderable. Its shape is flat — no
  * `layout`, no `content` — the document's own keys ARE the content, with
  * the story fields prefixed to disambiguate them from the hero's own
- * eyebrow/title/accentWord. This fixture is that shape, transcribed
- * character-for-character from DEFAULT_ABOUT_CONTENT as it existed before
- * this migration (src/lib/about-schema.ts, pre-restructure):
+ * eyebrow/title/accentWord. That is the real shape being fixtured here.
  *
- *   eyebrow: "About us"
- *   title: "About Kerala Samajam Augsburg"
- *   accentWord: "Kerala"
- *   lead: "A registered Verein in Bavaria, run entirely by its members. ..."
- *   heroImageUrl: "/images/about/hero.png"
- *   storyEyebrow: "Our story"
- *   storyTitle: "Where We Come From"
- *   storyAccentWord: "Come From"
- *   cards: [ ... 3 cards ... ]
+ * Every value below is deliberately DIFFERENT from DEFAULT_ABOUT_CONTENT —
+ * not a transcription of it. If the fixture's values coincided with the
+ * defaults, a migration that discarded the stored document and fell back
+ * to defaults would make every assertion below pass anyway, and the test
+ * would prove nothing. Distinct values are what let the assertions tell
+ * "stored value survived the lift" apart from "default happened to match".
  *
  * If the read path merged this against the new {layout, content} shape
  * instead of lifting it, every one of these fields would read as an
@@ -84,32 +79,29 @@ describe("mergeAboutContent", () => {
  * its defaults with no error.
  */
 const LEGACY_ABOUT_DOCUMENT = {
-  eyebrow: "About us",
-  title: "About Kerala Samajam Augsburg",
-  accentWord: "Kerala",
-  lead: "A registered Verein in Bavaria, run entirely by its members. We celebrate the festivals, teach the language to our children, and help people find their feet when they arrive in Augsburg.",
-  heroImageUrl: "/images/about/hero.png",
-  storyEyebrow: "Our story",
-  storyTitle: "Where We Come From",
-  storyAccentWord: "Come From",
+  eyebrow: "Est. 2012",
+  title: "The Story of Our Verein",
+  accentWord: "Verein",
+  lead: "This lead paragraph exists only in the legacy fixture and matches nothing in DEFAULT_ABOUT_CONTENT, so its survival through the lift is a real assertion.",
+  heroImageUrl: "/uploads/legacy-custom-hero.jpg",
+  storyEyebrow: "How it began",
+  storyTitle: "A Heading That Is Not The Default",
+  storyAccentWord: "Not The Default",
   cards: [
     {
-      icon: "History",
-      title: "How We Started",
-      description:
-        "In 2012, a handful of families cooked one Onam sadhya together. Word spread, more families came, and the sadhya never stopped.",
+      icon: "Globe",
+      title: "Legacy Card Title One",
+      description: "A distinct legacy description for card one, matching no default copy.",
     },
     {
-      icon: "Target",
-      title: "What We Do",
-      description:
-        "Festivals through the year, Malayalam classes for the children, dance and music on stage, and a hand for anyone new to the city.",
+      icon: "Star",
+      title: "Legacy Card Title Two",
+      description: "A distinct legacy description for card two, matching no default copy.",
     },
     {
-      icon: "Heart",
-      title: "What We Stand For",
-      description:
-        "Open to everyone, run by members and paid for by members. Nobody here is a customer — you join, and then you help cook.",
+      icon: "Handshake",
+      title: "Legacy Card Title Three",
+      description: "A distinct legacy description for card three, matching no default copy.",
     },
   ],
 };
@@ -119,35 +111,44 @@ describe("liftLegacyAboutContent", () => {
     const lifted = liftLegacyAboutContent(LEGACY_ABOUT_DOCUMENT);
 
     expect(lifted.hero).toEqual({
-      eyebrow: "About us",
-      title: "About Kerala Samajam Augsburg",
-      accentWord: "Kerala",
+      eyebrow: "Est. 2012",
+      title: "The Story of Our Verein",
+      accentWord: "Verein",
       lead: LEGACY_ABOUT_DOCUMENT.lead,
-      heroImageUrl: "/images/about/hero.png",
+      heroImageUrl: "/uploads/legacy-custom-hero.jpg",
     });
 
     expect(lifted.story).toEqual({
-      eyebrow: "Our story",
-      title: "Where We Come From",
-      accentWord: "Come From",
+      eyebrow: "How it began",
+      title: "A Heading That Is Not The Default",
+      accentWord: "Not The Default",
       cards: LEGACY_ABOUT_DOCUMENT.cards,
     });
+
+    // Neither slice coincides with the defaults — guards against a lift
+    // that ignores its argument and returns DEFAULT_ABOUT_CONTENT instead.
+    expect(lifted.hero).not.toEqual(DEFAULT_ABOUT_CONTENT.content.hero);
+    expect(lifted.story).not.toEqual(DEFAULT_ABOUT_CONTENT.content.story);
   });
 
   it("a lifted legacy document, merged over defaults, still carries every stored value through to the schema shape the page reads", () => {
     const lifted = liftLegacyAboutContent(LEGACY_ABOUT_DOCUMENT);
     const merged = mergeAboutContent(lifted);
 
-    // The exact assertion that matters: nothing an admin saved is lost.
-    expect(merged.hero.eyebrow).toBe("About us");
-    expect(merged.hero.title).toBe("About Kerala Samajam Augsburg");
-    expect(merged.hero.accentWord).toBe("Kerala");
+    // The exact assertion that matters: nothing an admin saved is lost —
+    // and every value asserted here is absent from DEFAULT_ABOUT_CONTENT,
+    // so a migration that discarded the stored document (equivalent to
+    // mergeAboutContent({})) would fail every line below rather than
+    // passing by coincidence.
+    expect(merged.hero.eyebrow).toBe("Est. 2012");
+    expect(merged.hero.title).toBe("The Story of Our Verein");
+    expect(merged.hero.accentWord).toBe("Verein");
     expect(merged.hero.lead).toBe(LEGACY_ABOUT_DOCUMENT.lead);
-    expect(merged.hero.heroImageUrl).toBe("/images/about/hero.png");
+    expect(merged.hero.heroImageUrl).toBe("/uploads/legacy-custom-hero.jpg");
 
-    expect(merged.story.eyebrow).toBe("Our story");
-    expect(merged.story.title).toBe("Where We Come From");
-    expect(merged.story.accentWord).toBe("Come From");
+    expect(merged.story.eyebrow).toBe("How it began");
+    expect(merged.story.title).toBe("A Heading That Is Not The Default");
+    expect(merged.story.accentWord).toBe("Not The Default");
     expect(merged.story.cards).toEqual(LEGACY_ABOUT_DOCUMENT.cards);
 
     // Sections the legacy document never had an opinion on still get their
