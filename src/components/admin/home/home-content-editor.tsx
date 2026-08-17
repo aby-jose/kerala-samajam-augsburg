@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useFieldArray, useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Save } from "lucide-react";
@@ -10,12 +9,17 @@ import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { SectionCard } from "@/components/admin/home/section-card";
 import { HeroFields } from "@/components/admin/home/hero-fields";
+import { AboutFields } from "@/components/admin/home/about-fields";
+import { EventsFields } from "@/components/admin/home/events-fields";
+import { GalleryFields } from "@/components/admin/home/gallery-fields";
+import { CommitteeFields } from "@/components/admin/home/committee-fields";
+import { JoinFields } from "@/components/admin/home/join-fields";
+import { CtaFields } from "@/components/admin/home/cta-fields";
 import { saveHomeContent } from "@/lib/home-actions";
 import { homeContentSchema, type HomeContentT } from "@/lib/home-schema";
 import { HOME_SECTION_META } from "@/lib/home-sections";
 
 export function HomeContentEditor({ initialData }: { initialData: HomeContentT }) {
-  const [isSaving, setIsSaving] = useState(false);
   const { success, error: toastError } = useToast();
 
   const {
@@ -24,7 +28,8 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
     control,
     watch,
     setValue,
-    formState: { errors },
+    reset,
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<HomeContentT>({
     resolver: zodResolver(homeContentSchema),
     defaultValues: initialData,
@@ -40,15 +45,13 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
   const layout = watch("layout");
 
   const onSubmit: SubmitHandler<HomeContentT> = async (data) => {
-    setIsSaving(true);
     try {
       await saveHomeContent(data);
+      reset(data);
       success("Home page updated.");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to save home content:", err);
-      toastError(err.message || "Something went wrong. Please try again.");
-    } finally {
-      setIsSaving(false);
+      toastError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
   };
 
@@ -61,8 +64,8 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
         title="Home Page"
         description="Edit the copy, images and order of the sections on the public home page."
       >
-        <Button type="submit" disabled={isSaving} className="h-9 rounded-lg">
-          {isSaving ? (
+        <Button type="submit" disabled={isSubmitting || !isDirty} className="h-9 rounded-lg">
+          {isSubmitting ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
@@ -89,18 +92,25 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
               meta.movable && index < fields.length - 1 ? () => move(index, index + 1) : undefined
             }
           >
-            {entry.id === "hero" ? (
-              <HeroFields
+            {entry.id === "hero" && (
+              <HeroFields register={register} errors={errors} watch={watch} setValue={setValue} />
+            )}
+            {entry.id === "about" && (
+              <AboutFields
+                control={control}
                 register={register}
                 errors={errors}
                 watch={watch}
                 setValue={setValue}
               />
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Fields for this section are added in the next task.
-              </p>
             )}
+            {entry.id === "events" && <EventsFields register={register} errors={errors} />}
+            {entry.id === "gallery" && <GalleryFields register={register} errors={errors} />}
+            {entry.id === "committee" && <CommitteeFields register={register} errors={errors} />}
+            {entry.id === "join" && (
+              <JoinFields control={control} register={register} errors={errors} />
+            )}
+            {entry.id === "cta" && <CtaFields register={register} errors={errors} />}
           </SectionCard>
         );
       })}
