@@ -304,6 +304,58 @@ export const FIXTURES: Fixture[] = [
       requiresConsent: true, effectiveFrom: new Date("2026-09-01"),
     }),
   },
+
+  // --- gallery ----------------------------------------------------------
+  {
+    id: "gallery-admin-notice", group: "gallery", name: "contributionAdminNotice",
+    build: (ctx) => templates.gallery.contributionAdminNotice(ctx, {
+      uploaderName: "Ammu", albumTitle: "Onam 2026", count: 12,
+    }),
+  },
+  {
+    id: "gallery-approved", group: "gallery", name: "contributionApproved",
+    build: (ctx) => templates.gallery.contributionApproved(ctx, {
+      name: "Ammu", albumTitle: "Onam 2026",
+    }),
+  },
+  {
+    id: "gallery-rejected", group: "gallery", name: "contributionRejected",
+    build: (ctx) => templates.gallery.contributionRejected(ctx, {
+      name: "Ammu", albumTitle: "Onam 2026",
+      reason: "Two of the images are out of focus.",
+    }),
+  },
+
+  // --- contact ----------------------------------------------------------
+  {
+    id: "contact-admin-notice", group: "contact", name: "contactAdminNotice",
+    build: (ctx) => templates.contact.contactAdminNotice(ctx, {
+      name: "Ammu", email: "ammu@example.org", subject: "Malayalam classes",
+      message: "Hello,\n\nAre the weekend classes open to complete beginners?\n\nThank you.",
+    }),
+  },
+  {
+    id: "contact-ack", group: "contact", name: "contactAcknowledgement",
+    build: (ctx) => templates.contact.contactAcknowledgement(ctx, {
+      name: "Ammu", subject: "Malayalam classes",
+    }),
+  },
+
+  // --- staff ------------------------------------------------------------
+  {
+    id: "staff-invite", group: "staff", name: "invite",
+    build: (ctx) => templates.staff.invite(ctx, {
+      inviteLink: "https://keralasamajam.de/invite?token=8f42a1",
+      roleName: "Editor", invitedByName: "Priya",
+      expiresHours: 48, hasExistingAccount: false,
+    }),
+  },
+  {
+    id: "staff-access-changed", group: "staff", name: "accessChanged",
+    build: (ctx) => templates.staff.accessChanged(ctx, {
+      name: "Ammu", roleName: null, changedByName: "Priya",
+    }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
