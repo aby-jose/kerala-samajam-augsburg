@@ -20,6 +20,12 @@ import {
 
 type Section = "hero" | "plans" | "benefits";
 
+const SECTION_LABELS: Record<Section, string> = {
+  hero: "Hero",
+  plans: "Plans",
+  benefits: "Benefits",
+};
+
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({
   register,
@@ -61,6 +67,7 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
     handleSubmit,
     watch,
     setValue,
+    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<MembershipContentT>({
     resolver: zodResolver(membershipContentSchema),
@@ -73,6 +80,7 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
   const onSubmit = async (data: MembershipContentT) => {
     try {
       await savePageContent("membership", data);
+      reset(data);
       success("Membership page saved");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Failed to save");
@@ -84,8 +92,8 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
       {(["hero", "plans", "benefits"] as const).map((section) => (
         <section key={section} className={cardSurface}>
           <header className={panelHeader}>
-            <h2 className="font-sans text-sm font-semibold capitalize text-foreground">
-              {section}
+            <h2 className="font-sans text-sm font-semibold text-foreground">
+              {SECTION_LABELS[section]}
             </h2>
           </header>
           <div className="space-y-4 p-5">

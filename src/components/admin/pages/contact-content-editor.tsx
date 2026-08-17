@@ -15,6 +15,13 @@ import { contactContentSchema, type ContactContentT } from "@/lib/page-content/c
 
 type Section = "hero" | "form" | "faq" | "visit";
 
+const SECTION_LABELS: Record<Section, string> = {
+  hero: "Hero",
+  form: "Form",
+  faq: "FAQ",
+  visit: "Come say hello",
+};
+
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({
   register,
@@ -54,6 +61,7 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
     register,
     control,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ContactContentT>({
     resolver: zodResolver(contactContentSchema),
@@ -65,6 +73,7 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
   const onSubmit = async (data: ContactContentT) => {
     try {
       await savePageContent("contact", data);
+      reset(data);
       success("Contact page saved");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Failed to save");
@@ -76,8 +85,8 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
       {(["hero", "form", "faq", "visit"] as const).map((section) => (
         <section key={section} className={cardSurface}>
           <header className={panelHeader}>
-            <h2 className="font-sans text-sm font-semibold capitalize text-foreground">
-              {section === "visit" ? "Come say hello" : section}
+            <h2 className="font-sans text-sm font-semibold text-foreground">
+              {SECTION_LABELS[section]}
             </h2>
           </header>
           <div className="space-y-4 p-5">
@@ -120,6 +129,7 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
                   type="button"
                   variant="outline"
                   onClick={() => append({ question: "", answer: "" })}
+                  disabled={fields.length >= 12}
                   className="h-9 rounded-lg"
                 >
                   <Plus className="mr-2 h-4 w-4" />

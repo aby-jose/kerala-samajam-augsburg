@@ -574,7 +574,7 @@ export function ContactClient({ content }: { content: ContactContentT }) {
           >
             {content.faq.items.map((item, i) => (
               <motion.div
-                key={item.question}
+                key={i}
                 variants={rise}
                 className="group bg-surface-3 p-7 transition-colors duration-300 hover:bg-muted/40 md:p-9"
               >

@@ -22,8 +22,8 @@ model AboutContent {
 }
 
 /// One editable document per public page, keyed by slug. The singleton
-/// content models above (Config, AboutContent, HomeContent) each hold exactly
-/// one document and key on "current"; this table holds several, so the slug
+/// content models above (Config, AboutContent) each hold exactly one
+/// document and key on "current"; this table holds several, so the slug
 /// is the identity — see lib/page-content/registry.ts for what each means.
 model PageContent {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId

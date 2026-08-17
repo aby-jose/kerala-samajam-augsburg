@@ -4,6 +4,9 @@ import { sectionHeadingFields } from "./section";
 
 const section = z.object({ ...sectionHeadingFields });
 
+// The document is FLAT (eventsHero, galleryHero, …), not nested under
+// { events: {...}, gallery: {...} } — mergePageContent merges one level
+// deep, so nesting would replace a whole half wholesale on save.
 export const listingsContentSchema = z.object({
   eventsHero: section,
   eventsCalendar: section,

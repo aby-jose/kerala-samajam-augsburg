@@ -94,6 +94,28 @@ After this, sign in as that administrator, confirm `/admin/staff` shows
 everyone correctly, and run `npm run seed:roles` properly (or use the Staff
 screen) to backfill anyone else still affected.
 
+## Deploying the page-content feature
+
+The `feature/page-content` branch (contact, membership and events/gallery
+pages made admin-editable) adds one collection and one permission. Neither
+is destructive, and both are cheap to run ahead of a deploy window like
+steps 1–2 above:
+
+1. **`npx prisma db push`** — creates the `PageContent` collection (see
+   `prisma/schema.prisma`). Schema-only; touches no existing document. Until
+   this has run, every save through `/admin/pages/[slug]` fails, but the
+   public `/contact`, `/membership`, `/events` and `/gallery` pages keep
+   rendering their built-in defaults regardless — `mergePageContent` treats
+   a missing document exactly like an empty one.
+2. **Grant `content.pages.edit`** to whichever roles should be able to save
+   these pages. It gates all three "Contact Page", "Membership Page" and
+   "Events & Gallery" nav entries and their `/admin/pages/*` routes. The
+   seeded "Content Editor" preset already carries it as of this branch; a
+   deployment on an older seed, or a committee that has already customised
+   its roles, should add it to "Content Editor" (or wherever it belongs)
+   through `/admin/roles` so those nav entries aren't dead for everyone who
+   should have them.
+
 ## Note on suspended administrators
 
 `npm run seed:roles` backfills `role: "ADMIN"` **and** `role:

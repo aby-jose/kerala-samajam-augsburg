@@ -8,6 +8,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
+  Globe,
   Users,
   GraduationCap,
   User,
@@ -391,10 +392,13 @@ export default function MembershipClient({
                </div>
                <SectionLead>{content.benefits.lead}</SectionLead>
                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
-                  {content.benefits.items.slice(0, 4).map((benefit) => {
-                    const Icon = MEMBERSHIP_ICON_MAP[benefit.icon];
+                  {content.benefits.items.slice(0, 4).map((benefit, i) => {
+                    // Falls back rather than crashing: a hand-edited document
+                    // or a future narrowing of MEMBERSHIP_ICONS can produce an
+                    // icon string this map does not recognise.
+                    const Icon = MEMBERSHIP_ICON_MAP[benefit.icon] ?? Globe;
                     return (
-                      <div key={benefit.title} className="space-y-3">
+                      <div key={i} className="space-y-3">
                          <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                                <Icon className="h-4 w-4 text-primary" />

@@ -274,3 +274,37 @@ describe("splitOnAccent", () => {
     });
   });
 });
+
+describe("listings content — one document, two pages", () => {
+  it("revalidates both pages the document drives", async () => {
+    const { PAGE_CONTENT } = await import("@/lib/page-content/registry");
+
+    expect(PAGE_CONTENT.listings.revalidate).toContain("/events");
+    expect(PAGE_CONTENT.listings.revalidate).toContain("/gallery");
+  });
+
+  it("ships no lead for the albums grid by default", () => {
+    // Load-bearing for gallery-landing-client.tsx: the lead only renders
+    // when an admin fills it in, and the row layout depends on it staying
+    // absent until then.
+    expect(DEFAULT_LISTINGS.galleryAlbums.lead).toBe("");
+  });
+});
+
+describe("mergePageContent — empty stored array falls back to defaults", () => {
+  it("restores the default list when a stored section's array is empty", () => {
+    const merged = mergePageContent("contact", {
+      faq: { ...DEFAULT_CONTACT.faq, items: [] },
+    }) as { faq: { items: unknown[] } };
+
+    expect(merged.faq.items).toEqual(DEFAULT_CONTACT.faq.items);
+  });
+
+  it("restores the default list when the stored value is not an array", () => {
+    const merged = mergePageContent("membership", {
+      benefits: { ...DEFAULT_MEMBERSHIP.benefits, items: "not an array" as unknown as never },
+    }) as { benefits: { items: unknown[] } };
+
+    expect(merged.benefits.items).toEqual(DEFAULT_MEMBERSHIP.benefits.items);
+  });
+});

@@ -286,16 +286,14 @@ export default function GalleryLandingClient({
               <SectionTitle className="mt-6">
                 {withAccent(content.galleryAlbums.title, content.galleryAlbums.accentWord)}
               </SectionTitle>
-            </div>
 
-            {/* Empty by default — see lib/page-content/listings.ts. Rendered
-                only when an admin fills it in, so the layout stays exactly as
-                it is today until then. */}
-            {content.galleryAlbums.lead && (
-              <SectionLead className="max-w-sm md:text-right">
-                {content.galleryAlbums.lead}
-              </SectionLead>
-            )}
+              {/* Empty by default — see lib/page-content/listings.ts. Rendered
+                  only when an admin fills it in, so the layout stays exactly
+                  as it is today until then. */}
+              {content.galleryAlbums.lead && (
+                <SectionLead className="mt-4">{content.galleryAlbums.lead}</SectionLead>
+              )}
+            </div>
 
             {/* Only worth showing once there is more than one thing to filter.
                 Scrolls sideways on a phone rather than stacking into four rows

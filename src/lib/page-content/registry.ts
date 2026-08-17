@@ -66,10 +66,30 @@ export function mergePageContent(slug: PageSlug, stored: unknown): Record<string
   const merged: Record<string, unknown> = {};
 
   for (const key of Object.keys(defaults)) {
-    merged[key] = {
-      ...(defaults[key] as Record<string, unknown>),
+    const defaultSection = defaults[key] as Record<string, unknown>;
+    const mergedSection: Record<string, unknown> = {
+      ...defaultSection,
       ...(source[key] ?? {}),
     };
+
+    // An array field (faq.items, benefits.items, …) merged wholesale above
+    // can come back an empty array if a document was written directly
+    // against the database — the .min(1) on these schemas blocks saving one
+    // through the form, but mergePageContent must not assume storage is
+    // only ever written through the form. Restore the default list rather
+    // than rendering a section with zero cells, the same guard
+    // getAboutContent applies with `cards?.length ? … : DEFAULT.cards`.
+    for (const fieldKey of Object.keys(defaultSection)) {
+      const defaultValue = defaultSection[fieldKey];
+      if (Array.isArray(defaultValue) && defaultValue.length > 0) {
+        const mergedValue = mergedSection[fieldKey];
+        if (!Array.isArray(mergedValue) || mergedValue.length === 0) {
+          mergedSection[fieldKey] = defaultValue;
+        }
+      }
+    }
+
+    merged[key] = mergedSection;
   }
 
   return merged;

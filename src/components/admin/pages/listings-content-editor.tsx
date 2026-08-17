@@ -82,6 +82,7 @@ export function ListingsContentEditor({ initialData }: { initialData: ListingsCo
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<ListingsContentT>({
     resolver: zodResolver(listingsContentSchema),
@@ -91,6 +92,7 @@ export function ListingsContentEditor({ initialData }: { initialData: ListingsCo
   const onSubmit = async (data: ListingsContentT) => {
     try {
       await savePageContent("listings", data);
+      reset(data);
       success("Events & Gallery pages saved");
     } catch (e) {
       toastError(e instanceof Error ? e.message : "Failed to save");
