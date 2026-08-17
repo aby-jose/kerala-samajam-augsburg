@@ -913,7 +913,7 @@ export async function updateMemberDetails(userId: string, data: MemberDetailsInp
 
   if (targetIsStaff && emailIsChanging && !(await can("staff.manage"))) {
     return {
-      error: "Changing a staff member's email address requires the Staff management permission.",
+      error: "Changing a team member's email address requires the Team management permission.",
     };
   }
 

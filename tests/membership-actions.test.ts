@@ -233,7 +233,7 @@ describe("updateMemberDetails — cannot write role (Blocker 3)", () => {
 
 describe("updateMemberDetails — cannot move a staff member's email without staff.manage (Fix 1)", () => {
   const NEEDS_STAFF_MANAGE = {
-    error: "Changing a staff member's email address requires the Staff management permission.",
+    error: "Changing a team member's email address requires the Team management permission.",
   };
 
   it("refuses a members.edit-only caller changing a Super Admin's email", async () => {

@@ -386,7 +386,11 @@ export default function MembershipFormModal({
                 <div className="pt-4 flex flex-col gap-3">
                    <div className="p-4 rounded-xl bg-secondary/30 border border-border/40 text-left">
                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Current Status</p>
-                      <Badge className="bg-amber-500 text-white border-none rounded-lg text-[9px] font-bold uppercase tracking-widest px-2 py-0.5">Verification Pending</Badge>
+                      {/* `variant="outline"` carries no hover; the default variant's
+                          `hover:bg-primary/80` is a different utility key from
+                          `bg-*`, so it outlived the amber override and turned
+                          this static label crimson under the cursor. */}
+                      <Badge variant="outline" className="bg-amber-500 text-white border-transparent rounded-lg text-[9px] font-bold uppercase tracking-widest px-2 py-0.5">Verification Pending</Badge>
                    </div>
                    <Button onClick={onClose} variant="outline" className="h-12 rounded-xl font-bold">Got it, thanks</Button>
                 </div>

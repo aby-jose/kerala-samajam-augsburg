@@ -20,7 +20,7 @@ const READ_ONLY = ALL_PERMISSIONS.filter((key) => !PERMISSIONS[key].mutates);
 export const ROLE_PRESETS: RolePreset[] = [
   {
     name: "Super Admin",
-    description: "Unrestricted access, including staff and role management.",
+    description: "Unrestricted access, including team and role management.",
     permissions: [],
     isSystem: true,
   },

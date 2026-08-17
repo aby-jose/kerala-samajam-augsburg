@@ -106,7 +106,7 @@ describe("changeStaffRole / revokeStaffAccess — target must actually be staff 
 
     const result = await changeStaffRole("target-1", "role-2");
 
-    expect(result).toEqual({ error: "That person is not on the staff list." });
+    expect(result).toEqual({ error: "That person is not on the team." });
     expect(mockedUpdateUser).not.toHaveBeenCalled();
   });
 
@@ -115,7 +115,7 @@ describe("changeStaffRole / revokeStaffAccess — target must actually be staff 
 
     const result = await revokeStaffAccess("target-1");
 
-    expect(result).toEqual({ error: "That person is not on the staff list." });
+    expect(result).toEqual({ error: "That person is not on the team." });
     // The bug this guards against: nothing previously stopped
     // `role: "MEMBER"` from being written here, which would have cleared
     // the suspension and mailed the person a bogus "access removed" notice.
@@ -244,6 +244,31 @@ describe("inviteStaff — case-insensitive account matching (I4)", () => {
     expect(mockedFindFirstUser).toHaveBeenCalledWith({
       where: { email: { equals: "foo@example.com", mode: "insensitive" } },
       select: { id: true, role: true, staffRoleId: true },
+    });
+  });
+});
+
+describe("inviteStaff — writes acceptedAt/revokedAt explicitly (I7)", () => {
+  // MongoDB has no column default: an optional field `create()` never
+  // mentions is left entirely absent from the document, not stored as
+  // `null`. `listStaff`'s pending-invites query (and this same function's
+  // own "already pending" duplicate check) filter on `acceptedAt: null,
+  // revokedAt: null` — Prisma's Mongo connector compiles that into "field
+  // is present AND equals null", which an absent field fails. Omitting
+  // these at creation made every new invite invisible to both queries.
+  it("includes acceptedAt: null and revokedAt: null in the create() call", async () => {
+    mockedFindUniqueRole.mockResolvedValue({ id: "role-1", name: "Payments Clerk" } as never);
+    mockedFindFirstUser.mockResolvedValue(null as never);
+    mockedFindFirstInvite.mockResolvedValue(null as never);
+
+    const result = await inviteStaff("new@example.org", "role-1");
+
+    expect(result).toEqual({ success: true });
+    expect(mockedCreateInvite).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        acceptedAt: null,
+        revokedAt: null,
+      }),
     });
   });
 });

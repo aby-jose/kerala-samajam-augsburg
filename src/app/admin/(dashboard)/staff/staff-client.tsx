@@ -161,7 +161,7 @@ export function StaffClient({
   const staffColumns: DataTableColumn<StaffRow>[] = [
     {
       key: "member",
-      header: "Staff member",
+      header: "Team member",
       width: "w-[36%]",
       cellClassName: "min-w-0",
       render: (row) => (
@@ -292,7 +292,7 @@ export function StaffClient({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Staff" description="Everyone with access to this admin panel, and who's been invited." />
+      <PageHeader title="Team" description="Everyone with access to this admin panel, and who's been invited." />
 
       {canInvite && (
         <section className={cardSurface}>
@@ -342,7 +342,7 @@ export function StaffClient({
         columns={staffColumns}
         data={staff}
         keyExtractor={(row) => row.id}
-        empty={{ icon: Users, title: "No staff yet", description: "Invite someone to get started." }}
+        empty={{ icon: Users, title: "No team members yet", description: "Invite someone to get started." }}
       />
 
       <section className="space-y-3">
