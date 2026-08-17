@@ -1,24 +1,20 @@
 "use client";
 
-import { useForm, useFieldArray, SubmitHandler } from "react-hook-form";
+import { useFieldArray, useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
-import { Loader2, MoveUp, MoveDown, Plus, Trash2, Save } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/admin/ui/page-header";
-import { Field } from "@/components/admin/ui/field";
-import { cardSurface, panelHeader } from "@/components/admin/ui/surface";
-import ImageUpload from "@/components/admin/image-upload";
+import { SectionCard } from "@/components/admin/home/section-card";
+import { AboutHeroFields } from "@/components/admin/about/hero-fields";
+import { AboutStoryFields } from "@/components/admin/about/story-fields";
 import { saveAboutContent } from "@/lib/about-actions";
-import { aboutContentSchema, ABOUT_ICONS, type AboutContentT } from "@/lib/about-schema";
-import { cn } from "@/lib/utils";
+import { aboutContentSchema, type AboutContentT } from "@/lib/about-schema";
+import { ABOUT_SECTION_META } from "@/lib/about-sections";
 
 export function AboutContentEditor({ initialData }: { initialData: AboutContentT }) {
-  const [isSaving, setIsSaving] = useState(false);
   const { success, error: toastError } = useToast();
 
   const {
@@ -27,191 +23,89 @@ export function AboutContentEditor({ initialData }: { initialData: AboutContentT
     control,
     watch,
     setValue,
-    formState: { errors },
+    reset,
+    formState: { errors, isSubmitting, isDirty },
   } = useForm<AboutContentT>({
     resolver: zodResolver(aboutContentSchema),
     defaultValues: initialData,
   });
 
-  const { fields, append, remove, move } = useFieldArray({ control, name: "cards" });
-  const heroImageUrl = watch("heroImageUrl");
+  const { fields, move, update } = useFieldArray({ control, name: "layout" });
+
+  // `fields` entries carry react-hook-form's own generated `id`, which
+  // shadows our section id of the same name — reading `field.id` would hand
+  // you a uuid and ABOUT_SECTION_META[uuid] is undefined. Take the values
+  // from watch() and use `field.id` only as the React key, where a stable
+  // generated id is exactly what you want across a move().
+  const layout = watch("layout");
 
   const onSubmit: SubmitHandler<AboutContentT> = async (data) => {
-    setIsSaving(true);
     try {
       await saveAboutContent(data);
+      reset(data);
       success("About page updated.");
-    } catch (err: any) {
+    } catch (err) {
       console.error("Failed to save about content:", err);
-      toastError(err.message || "Something went wrong. Please try again.");
-    } finally {
-      setIsSaving(false);
+      toastError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     }
   };
 
+  // The page header is pinned to the top, so nothing may move above index 1.
+  const firstMovable = 1;
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       <PageHeader
         title="About Page"
-        description="Edit the copy and images shown on the public About page."
+        description="Edit the copy, images and order of the sections on the public About page."
       >
-        <Button type="submit" disabled={isSaving} className="h-9 rounded-lg">
-          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+        <Button type="submit" disabled={isSubmitting || !isDirty} className="h-9 rounded-lg">
+          {isSubmitting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="mr-2 h-4 w-4" />
+          )}
           Save changes
         </Button>
       </PageHeader>
 
-      {/* Hero */}
-      <div className={cn(cardSurface)}>
-        <div className={panelHeader}>
-          <div>
-            <h2 className="font-sans text-sm font-semibold text-foreground">Hero</h2>
-            <p className="text-xs text-muted-foreground">The header banner at the top of the page.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-5 p-5 sm:p-6 md:grid-cols-2">
-          <div className="space-y-5">
-            <Field label="Eyebrow" error={errors.eyebrow?.message}>
-              <Input {...register("eyebrow")} placeholder="e.g. About us" className="h-9 rounded-lg" />
-            </Field>
-            <Field label="Title" error={errors.title?.message}>
-              <Input {...register("title")} placeholder="e.g. About Kerala Samajam Augsburg" className="h-9 rounded-lg" />
-            </Field>
-            <Field label="Highlighted word/phrase in title" error={errors.accentWord?.message}>
-              <Input
-                {...register("accentWord")}
-                placeholder="e.g. Kerala"
-                className="h-9 rounded-lg"
-              />
-              <p className="text-xs text-muted-foreground">Must match text within the title above exactly. Leave blank for no highlight.</p>
-            </Field>
-            <Field label="Lead paragraph" error={errors.lead?.message}>
-              <Textarea {...register("lead")} rows={4} placeholder="A short paragraph under the title." />
-            </Field>
-          </div>
-          <Field label="Hero image" error={errors.heroImageUrl?.message}>
-            <ImageUpload
-              onUploadComplete={(url) =>
-                setValue("heroImageUrl", url, { shouldValidate: true, shouldDirty: true })
-              }
-              defaultValue={heroImageUrl}
-              aspect="aspect-21/9"
-            />
-          </Field>
-        </div>
-      </div>
+      {fields.map((field, index) => {
+        const entry = layout[index];
+        if (!entry) return null;
+        const meta = ABOUT_SECTION_META[entry.id];
 
-      {/* Story section */}
-      <div className={cn(cardSurface)}>
-        <div className={panelHeader}>
-          <div>
-            <h2 className="font-sans text-sm font-semibold text-foreground">Story section</h2>
-            <p className="text-xs text-muted-foreground">The "Where We Come From" heading above the cards.</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-5 p-5 sm:p-6 md:grid-cols-2">
-          <Field label="Eyebrow" error={errors.storyEyebrow?.message}>
-            <Input {...register("storyEyebrow")} placeholder="e.g. Our story" className="h-9 rounded-lg" />
-          </Field>
-          <Field label="Title" error={errors.storyTitle?.message}>
-            <Input {...register("storyTitle")} placeholder="e.g. Where We Come From" className="h-9 rounded-lg" />
-          </Field>
-          <Field label="Highlighted word/phrase in title" error={errors.storyAccentWord?.message}>
-            <Input {...register("storyAccentWord")} placeholder="e.g. Come From" className="h-9 rounded-lg" />
-            <p className="text-xs text-muted-foreground">Must match text within the title above exactly. Leave blank for no highlight.</p>
-          </Field>
-        </div>
-      </div>
-
-      {/* Cards */}
-      <div className={cn(cardSurface)}>
-        <div className={panelHeader}>
-          <div>
-            <h2 className="font-sans text-sm font-semibold text-foreground">Cards</h2>
-            <p className="text-xs text-muted-foreground">Up to 6 cards shown under the story heading.</p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-9 rounded-lg"
-            disabled={fields.length >= 6}
-            onClick={() => append({ icon: "History", title: "", description: "" })}
+        return (
+          <SectionCard
+            key={field.id}
+            label={meta.label}
+            description={meta.description}
+            movable={meta.movable}
+            visible={entry.visible}
+            onVisibleChange={(next) => update(index, { id: entry.id, visible: next })}
+            onMoveUp={meta.movable && index > firstMovable ? () => move(index, index - 1) : undefined}
+            onMoveDown={
+              meta.movable && index < fields.length - 1 ? () => move(index, index + 1) : undefined
+            }
           >
-            <Plus className="mr-2 h-4 w-4" />
-            Add card
-          </Button>
-        </div>
-        <div className="divide-y divide-black/[0.06] dark:divide-white/[0.06]">
-          {fields.map((field, index) => (
-            <div key={field.id} className="grid grid-cols-1 gap-4 p-5 sm:p-6 md:grid-cols-[140px_1fr_1fr_auto] md:items-start">
-              <Field label="Icon" error={errors.cards?.[index]?.icon?.message}>
-                <select
-                  {...register(`cards.${index}.icon` as const)}
-                  className="h-9 w-full rounded-lg border border-muted/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                >
-                  {ABOUT_ICONS.map((icon) => (
-                    <option key={icon} value={icon}>
-                      {icon}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Title" error={errors.cards?.[index]?.title?.message}>
-                <Input
-                  {...register(`cards.${index}.title` as const)}
-                  placeholder="e.g. How We Started"
-                  className="h-9 rounded-lg"
-                />
-              </Field>
-              <Field label="Description" error={errors.cards?.[index]?.description?.message}>
-                <Textarea
-                  {...register(`cards.${index}.description` as const)}
-                  rows={3}
-                  placeholder="A sentence or two."
-                />
-              </Field>
-              <div className="flex gap-1 pt-6 md:justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === 0}
-                  onClick={() => move(index, index - 1)}
-                  className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  aria-label="Move up"
-                >
-                  <MoveUp className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={index === fields.length - 1}
-                  onClick={() => move(index, index + 1)}
-                  className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30"
-                  aria-label="Move down"
-                >
-                  <MoveDown className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  disabled={fields.length <= 1}
-                  onClick={() => remove(index)}
-                  className="h-8 w-8 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-30 dark:hover:bg-red-500/10 dark:hover:text-red-400"
-                  aria-label="Remove card"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-          {errors.cards?.message && (
-            <p className="px-5 pb-4 text-xs text-red-600 dark:text-red-400 sm:px-6">{errors.cards.message}</p>
-          )}
-        </div>
-      </div>
+            {entry.id === "hero" && (
+              <AboutHeroFields register={register} errors={errors} watch={watch} setValue={setValue} />
+            )}
+            {entry.id === "story" && (
+              <AboutStoryFields control={control} register={register} errors={errors} />
+            )}
+            {entry.id === "committee" && (
+              <p className="text-sm text-muted-foreground">
+                This section has no editable text — it lists the committee from Team Members, live.
+              </p>
+            )}
+            {entry.id === "closing" && (
+              <p className="text-sm text-muted-foreground">
+                This section has no editable text — it lists upcoming events, live.
+              </p>
+            )}
+          </SectionCard>
+        );
+      })}
     </form>
   );
 }
