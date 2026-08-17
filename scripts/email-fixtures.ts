@@ -204,6 +204,66 @@ export const FIXTURES: Fixture[] = [
     id: "events-full", group: "events", name: "eventFull",
     build: (ctx) => templates.events.eventFull(ctx, { name: "Ammu", event: EVENT }),
   },
+
+  // --- membership -------------------------------------------------------
+  {
+    id: "membership-student-applied", group: "membership", name: "studentApplicationReceived",
+    build: (ctx) => templates.membership.studentApplicationReceived(ctx, {
+      name: "Ammu", planName: "Student",
+    }),
+  },
+  {
+    id: "membership-applied", group: "membership", name: "applicationReceived",
+    build: (ctx) => templates.membership.applicationReceived(ctx, {
+      name: "Ammu", planName: "Family", amount: 45,
+    }),
+  },
+  {
+    id: "membership-admin-notice", group: "membership", name: "applicationAdminNotice",
+    build: (ctx) => templates.membership.applicationAdminNotice(ctx, {
+      memberName: "Ammu", memberEmail: "ammu@example.org", planName: "Student",
+    }),
+  },
+  {
+    id: "membership-student-verified", group: "membership", name: "studentVerified",
+    build: (ctx) => templates.membership.studentVerified(ctx, {
+      name: "Ammu", planName: "Student",
+    }),
+  },
+  {
+    id: "membership-rejected", group: "membership", name: "applicationRejected",
+    build: (ctx) => templates.membership.applicationRejected(ctx, {
+      name: "Ammu", planName: "Student",
+      reason: "The enrolment date on the card had already passed.",
+    }),
+  },
+  {
+    id: "membership-active", group: "membership", name: "membershipActive",
+    build: (ctx) => templates.membership.membershipActive(ctx, {
+      name: "Ammu", planName: "Family",
+      startDate: new Date("2026-04-01"), endDate: new Date("2027-03-31"), features: [],
+    }),
+  },
+  {
+    id: "membership-expiring", group: "membership", name: "membershipExpiring",
+    build: (ctx) => templates.membership.membershipExpiring(ctx, {
+      name: "Ammu", planName: "Family",
+      endDate: new Date("2026-08-23"), daysLeft: 7, amount: 45,
+    }),
+  },
+  {
+    id: "membership-expired", group: "membership", name: "membershipExpired",
+    build: (ctx) => templates.membership.membershipExpired(ctx, {
+      name: "Ammu", planName: "Family", endDate: new Date("2026-08-01"),
+    }),
+  },
+  {
+    id: "membership-renewed", group: "membership", name: "membershipRenewed",
+    build: (ctx) => templates.membership.membershipRenewed(ctx, {
+      name: "Ammu", planName: "Family",
+      startDate: new Date("2026-04-01"), endDate: new Date("2027-03-31"),
+    }),
+  },
 ];
 
 // --- Contexts ----------------------------------------------------------------
