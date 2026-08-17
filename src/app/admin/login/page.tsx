@@ -13,7 +13,8 @@ import { ArrowLeft, Eye, EyeOff, Loader2, RefreshCw, ShieldCheck, TriangleAlert 
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useConfig } from "@/components/providers/config-provider";
-import { getNewCaptcha } from "@/lib/auth-actions";
+import { getNewCaptcha, resendVerification } from "@/lib/auth-actions";
+import { EMAIL_NOT_VERIFIED } from "@/lib/auth-gate";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -46,6 +47,17 @@ function AdminLoginForm() {
   const [view, setView] = useState<"login" | "forgot">("login");
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /** Correct password, unconfirmed address — see the panel below the form. */
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  /**
+   * Confirmation for the resend, kept separate from `resetStatus`.
+   *
+   * `resetStatus` renders inside the forgot-password form, which is not on
+   * screen when this panel is — reusing it puts the confirmation somewhere
+   * the person cannot see.
+   */
+  const [resendSent, setResendSent] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetStatus, setResetStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -108,7 +120,13 @@ function AdminLoginForm() {
         basePath: "/api/admin/auth"
       });
 
-      if (result?.error) {
+      if (result?.error === EMAIL_NOT_VERIFIED) {
+        // The admin portal has no other way back in — there is no second
+        // administrator to ask, so the recovery has to be on this screen.
+        setUnverifiedEmail(data.email);
+        setResendSent(false);
+        refreshCaptcha();
+      } else if (result?.error) {
         setError(result.error);
         refreshCaptcha();
       } else {
@@ -370,6 +388,50 @@ function AdminLoginForm() {
                   {error && (
                     <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
                       {error}
+                    </div>
+                  )}
+
+                  {unverifiedEmail && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm">
+                      <p className="font-semibold text-amber-800">Confirm your email to continue</p>
+                      {resendSent ? (
+                        <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                          Sent to <span className="font-semibold">{unverifiedEmail}</span>. Open the
+                          link in that email, then sign in again. It is valid for 24 hours.
+                        </p>
+                      ) : (
+                        <>
+                          <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                            Your password was correct, but this address has not been verified. We
+                            will send a link to{" "}
+                            <span className="font-semibold">{unverifiedEmail}</span>.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              setResending(true);
+                              try {
+                                await resendVerification(unverifiedEmail);
+                                setResendSent(true);
+                              } catch {
+                                setError("Could not send the email. Please try again shortly.");
+                              } finally {
+                                setResending(false);
+                              }
+                            }}
+                            disabled={resending}
+                            className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-800 underline underline-offset-4 hover:opacity-70 disabled:opacity-50"
+                          >
+                            {resending ? (
+                              <>
+                                <Loader2 className="h-3 w-3 animate-spin" /> Sending
+                              </>
+                            ) : (
+                              "Resend verification email"
+                            )}
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
 

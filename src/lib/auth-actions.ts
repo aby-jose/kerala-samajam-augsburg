@@ -135,6 +135,66 @@ export async function registerUser(formData: any) {
   }
 }
 
+/**
+ * Send the verification email again.
+ *
+ * `registerUser` has always told people to "use the resend verification link"
+ * on a send failure, and there was no such link — which mattered little while
+ * an unverified account could sign in anyway, and matters a great deal now
+ * that it cannot. This is the only way back in for someone whose first email
+ * bounced, and for the admin portal, which has no other recovery route.
+ *
+ * The reply never varies. `requestPasswordReset` above is careful not to
+ * reveal whether an address has an account, and an endpoint that answered
+ * "already verified" for some addresses and "sent" for others would hand back
+ * exactly the same information this one line down.
+ */
+export async function resendVerification(email: string) {
+  const normalised = String(email ?? "").trim().toLowerCase();
+  const SILENT_OK = {
+    success: true,
+    message: "If that address needs verifying, we have sent a new link. It is valid for 24 hours.",
+  };
+
+  if (!normalised || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalised)) return SILENT_OK;
+
+  try {
+    // Counted per address, like the password reset. Without it this action is
+    // a free mail cannon: one unauthenticated call per request, addressed to
+    // anyone, from our sending domain and our reputation.
+    const { ok } = await persistentRateLimit(`verifyresend:${normalised}`, 3, 60 * 60 * 1000);
+    if (!ok) return SILENT_OK;
+
+    const user = await prisma.user.findUnique({ where: { email: normalised } });
+    if (!user || user.emailVerified) return SILENT_OK;
+
+    // Drop any earlier tokens for this address. They stay valid for 24 hours
+    // otherwise, so a mailbox that has accumulated three of them offers three
+    // live ways in long after the member used the newest.
+    await prisma.verificationToken.deleteMany({ where: { identifier: normalised } });
+
+    const token = nanoid(32);
+    await prisma.verificationToken.create({
+      data: { identifier: normalised, token, expires: new Date(Date.now() + 24 * 3600000) },
+    });
+
+    await sendMail({
+      template: "account.verify-email",
+      to: normalised,
+      entityId: user.id,
+      build: (ctx) =>
+        templates.account.verifyEmail(ctx, {
+          verifyLink: absoluteUrl(`/verify-email?token=${token}`),
+        }),
+    });
+
+    return SILENT_OK;
+  } catch (error) {
+    console.error("Resend verification error:", error);
+    return SILENT_OK;
+  }
+}
+
 export async function verifyEmail(token: string) {
   if (!token) return { error: "Missing token" };
 
