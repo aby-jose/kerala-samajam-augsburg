@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   LayoutDashboard,
+  Home,
   Users,
   CreditCard,
   ShieldCheck,
@@ -96,11 +97,26 @@ const NAV_GROUPS: {
         isActive: (p) => p === "/admin/membership/applications",
       },
       { href: "/admin/inquiries", label: "Inquiries", icon: Mail, permission: "inquiries.view", isActive: (p) => p.startsWith("/admin/inquiries") },
-      { href: "/admin/leadership", label: "Leadership", icon: ShieldCheck, permission: "content.leadership.edit", isActive: (p) => p.startsWith("/admin/leadership") },
+    ],
+  },
+  {
+    // The public site's own words, kept apart from the people-and-money screens
+    // above. These all answer to the `Content` permission group, and they are
+    // the screens someone edits when nothing is wrong — a different job, and a
+    // different frame of mind, from processing an application.
+    //
+    // Ordered as the public navigation orders the pages themselves, so the two
+    // read the same way round. Leadership sits with them because it edits the
+    // committee that renders on the home and About pages, not because it
+    // manages people.
+    label: "Site content",
+    items: [
+      { href: "/admin/home", label: "Home Page", icon: Home, permission: "content.home.edit", isActive: (p) => p.startsWith("/admin/home") },
       { href: "/admin/about", label: "About Page", icon: FileText, permission: "content.about.edit", isActive: (p) => p.startsWith("/admin/about") },
-      { href: "/admin/pages/contact", label: "Contact Page", icon: Mail, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/contact" },
-      { href: "/admin/pages/membership", label: "Membership Page", icon: Users, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/membership" },
       { href: "/admin/pages/listings", label: "Events & Gallery", icon: Calendar, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/listings" },
+      { href: "/admin/pages/membership", label: "Membership Page", icon: Users, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/membership" },
+      { href: "/admin/pages/contact", label: "Contact Page", icon: Mail, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/contact" },
+      { href: "/admin/leadership", label: "Leadership", icon: ShieldCheck, permission: "content.leadership.edit", isActive: (p) => p.startsWith("/admin/leadership") },
     ],
   },
   {
