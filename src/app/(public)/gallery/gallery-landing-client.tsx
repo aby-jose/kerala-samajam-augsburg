@@ -25,6 +25,8 @@ import {
 import ContributionHubModal from "@/components/gallery/contribution-hub-modal";
 import FaceSearchModal from "@/components/gallery/face-search-modal";
 import { cn } from "@/lib/utils";
+import type { ListingsContentT } from "@/lib/page-content/listings";
+import { withAccent } from "@/components/layout/with-accent";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -151,9 +153,11 @@ function AlbumCover({ album }: { album: Album }) {
 export default function GalleryLandingClient({
   albums,
   photoCount,
+  content,
 }: {
   albums: Album[];
   photoCount: number;
+  content: ListingsContentT;
 }) {
   const reduced = useReducedMotion();
   const { data: session } = useSession();
@@ -227,13 +231,9 @@ export default function GalleryLandingClient({
         <Container className="max-w-7xl">
           <motion.div initial="hidden" animate="visible" variants={rise}>
             <PageHeader
-              eyebrow="Gallery"
-              title={
-                <>
-                  Photo <Accent>Gallery</Accent>
-                </>
-              }
-              lead="Every sadhya, every stage and every picnic since 2012, sorted by album. Search by face to find the photos you are in."
+              eyebrow={content.galleryHero.eyebrow}
+              title={withAccent(content.galleryHero.title, content.galleryHero.accentWord)}
+              lead={content.galleryHero.lead}
             />
 
             {/* The lead promises a face search, so the tool sits right under it
@@ -282,11 +282,20 @@ export default function GalleryLandingClient({
         <Container className="max-w-7xl">
           <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <div className="max-w-xl">
-              <Eyebrow>Albums</Eyebrow>
+              <Eyebrow>{content.galleryAlbums.eyebrow}</Eyebrow>
               <SectionTitle className="mt-6">
-                Browse the <Accent>Archive</Accent>
+                {withAccent(content.galleryAlbums.title, content.galleryAlbums.accentWord)}
               </SectionTitle>
             </div>
+
+            {/* Empty by default — see lib/page-content/listings.ts. Rendered
+                only when an admin fills it in, so the layout stays exactly as
+                it is today until then. */}
+            {content.galleryAlbums.lead && (
+              <SectionLead className="max-w-sm md:text-right">
+                {content.galleryAlbums.lead}
+              </SectionLead>
+            )}
 
             {/* Only worth showing once there is more than one thing to filter.
                 Scrolls sideways on a phone rather than stacking into four rows
@@ -637,16 +646,14 @@ export default function GalleryLandingClient({
               whileInView="visible"
               viewport={{ once: true, margin: "-100px" }}
             >
-              <Eyebrow tone="dark">Contribute</Eyebrow>
+              <Eyebrow tone="dark">{content.galleryContribute.eyebrow}</Eyebrow>
 
               <SectionTitle tone="dark" className="mt-6">
-                Share Your <Accent>Photos</Accent>
+                {withAccent(content.galleryContribute.title, content.galleryContribute.accentWord)}
               </SectionTitle>
 
               <SectionLead tone="dark" className="mt-6 max-w-md">
-                Took pictures at one of our events? Send them in and they will
-                join the album, credited to you, once a moderator has had a
-                look.
+                {content.galleryContribute.lead}
               </SectionLead>
 
               <div className="mt-10 flex flex-col gap-3 sm:flex-row">

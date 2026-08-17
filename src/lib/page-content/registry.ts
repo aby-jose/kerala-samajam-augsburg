@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { contactContentSchema, DEFAULT_CONTACT } from "./contact";
 import { membershipContentSchema, DEFAULT_MEMBERSHIP } from "./membership";
+import { listingsContentSchema, DEFAULT_LISTINGS } from "./listings";
 
 /**
  * What each page slug means: the shape of its document, the copy to fall back
@@ -24,6 +25,12 @@ export const PAGE_CONTENT = {
     schema: membershipContentSchema,
     defaults: DEFAULT_MEMBERSHIP,
     revalidate: ["/membership"],
+  },
+  listings: {
+    label: "Events & Gallery",
+    schema: listingsContentSchema,
+    defaults: DEFAULT_LISTINGS,
+    revalidate: ["/events", "/gallery"],
   },
 } as const satisfies Record<string, PageEntry>;
 

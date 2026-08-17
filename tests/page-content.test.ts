@@ -3,6 +3,7 @@ import { isPageSlug, mergePageContent, PAGE_SLUGS } from "@/lib/page-content/reg
 import { parseInlineLinks } from "@/lib/page-content/section";
 import { contactContentSchema, DEFAULT_CONTACT } from "@/lib/page-content/contact";
 import { DEFAULT_MEMBERSHIP, membershipContentSchema } from "@/lib/page-content/membership";
+import { DEFAULT_LISTINGS, listingsContentSchema } from "@/lib/page-content/listings";
 import { splitOnAccent } from "@/lib/accent";
 
 describe("page content registry", () => {
@@ -200,6 +201,41 @@ describe("membership content", () => {
 
   it("keeps every accent word findable in its title", () => {
     for (const [name, section] of Object.entries(DEFAULT_MEMBERSHIP)) {
+      const { title, accentWord } = section as { title?: string; accentWord?: string };
+      if (!title || !accentWord) continue;
+
+      expect(title, name).toContain(accentWord);
+    }
+  });
+});
+
+describe("listings content", () => {
+  it("accepts its own defaults", () => {
+    expect(() => listingsContentSchema.parse(DEFAULT_LISTINGS)).not.toThrow();
+  });
+
+  it("covers both pages", () => {
+    expect(Object.keys(DEFAULT_LISTINGS).sort()).toEqual([
+      "eventsCalendar",
+      "eventsHero",
+      "eventsMembersBand",
+      "galleryAlbums",
+      "galleryContribute",
+      "galleryHero",
+    ]);
+  });
+
+  it("rejects an empty heading anywhere", () => {
+    expect(() =>
+      listingsContentSchema.parse({
+        ...DEFAULT_LISTINGS,
+        galleryHero: { ...DEFAULT_LISTINGS.galleryHero, title: "" },
+      })
+    ).toThrow();
+  });
+
+  it("keeps every accent word findable in its title", () => {
+    for (const [name, section] of Object.entries(DEFAULT_LISTINGS)) {
       const { title, accentWord } = section as { title?: string; accentWord?: string };
       if (!title || !accentWord) continue;
 

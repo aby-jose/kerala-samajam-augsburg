@@ -8,6 +8,8 @@ import { ContactContentEditor } from "@/components/admin/pages/contact-content-e
 import type { ContactContentT } from "@/lib/page-content/contact";
 import { MembershipContentEditor } from "@/components/admin/pages/membership-content-editor";
 import type { MembershipContentT } from "@/lib/page-content/membership";
+import { ListingsContentEditor } from "@/components/admin/pages/listings-content-editor";
+import type { ListingsContentT } from "@/lib/page-content/listings";
 
 export default async function AdminPageContent({
   params,
@@ -32,6 +34,9 @@ export default async function AdminPageContent({
       )}
       {slug === "membership" && (
         <MembershipContentEditor initialData={content as MembershipContentT} />
+      )}
+      {slug === "listings" && (
+        <ListingsContentEditor initialData={content as ListingsContentT} />
       )}
     </div>
   );
