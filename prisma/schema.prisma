@@ -34,7 +34,7 @@ model HomeContent {
 /// is the identity — see lib/page-content/registry.ts for what each means.
 model PageContent {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  slug      String   @unique // contact | membership | listings
+  slug      String   @unique // contact | membership | events | gallery
   value     Json
   updatedAt DateTime @updatedAt
 }

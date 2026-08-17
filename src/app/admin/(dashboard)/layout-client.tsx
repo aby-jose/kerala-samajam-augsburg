@@ -113,7 +113,8 @@ const NAV_GROUPS: {
     items: [
       { href: "/admin/home", label: "Home Page", icon: Home, permission: "content.home.edit", isActive: (p) => p.startsWith("/admin/home") },
       { href: "/admin/about", label: "About Page", icon: FileText, permission: "content.about.edit", isActive: (p) => p.startsWith("/admin/about") },
-      { href: "/admin/pages/listings", label: "Events & Gallery", icon: Calendar, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/listings" },
+      { href: "/admin/pages/events", label: "Events Page", icon: Calendar, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/events" },
+      { href: "/admin/pages/gallery", label: "Gallery Page", icon: ImageIcon, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/gallery" },
       { href: "/admin/pages/membership", label: "Membership Page", icon: Users, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/membership" },
       { href: "/admin/pages/contact", label: "Contact Page", icon: Mail, permission: "content.pages.edit", isActive: (p) => p === "/admin/pages/contact" },
       { href: "/admin/leadership", label: "Leadership", icon: ShieldCheck, permission: "content.leadership.edit", isActive: (p) => p.startsWith("/admin/leadership") },

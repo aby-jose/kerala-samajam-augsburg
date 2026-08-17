@@ -15,7 +15,20 @@ import {
   mergeMembershipContent,
 } from "@/lib/page-content/membership";
 import { MEMBERSHIP_SECTION_META } from "@/lib/page-content/membership-sections";
-import { DEFAULT_LISTINGS, listingsContentSchema } from "@/lib/page-content/listings";
+import {
+  DEFAULT_EVENTS,
+  eventsContentSchema,
+  EVENTS_SECTION_IDS,
+  mergeEventsContent,
+} from "@/lib/page-content/events";
+import { EVENTS_SECTION_META } from "@/lib/page-content/events-sections";
+import {
+  DEFAULT_GALLERY,
+  galleryContentSchema,
+  GALLERY_SECTION_IDS,
+  mergeGalleryContent,
+} from "@/lib/page-content/gallery";
+import { GALLERY_SECTION_META } from "@/lib/page-content/gallery-sections";
 import { repairLayout, resolveSections } from "@/lib/page-layout";
 import { splitOnAccent } from "@/lib/accent";
 
@@ -27,6 +40,11 @@ describe("page content registry", () => {
     expect(isPageSlug("")).toBe(false);
     expect(isPageSlug(undefined)).toBe(false);
     expect(isPageSlug(42)).toBe(false);
+  });
+
+  it("no longer recognises the old flat listings slug", () => {
+    // listings split into events and gallery — see events.ts/gallery.ts.
+    expect(isPageSlug("listings")).toBe(false);
   });
 
   it("accepts the defaults of every registered page", async () => {
@@ -48,63 +66,20 @@ describe("page content registry", () => {
 });
 
 /**
- * `listings` is the one slug still in the flat, pre-restructure shape (it
- * converts once it splits into `events`/`gallery`) — so it is the one used
- * here to exercise mergePageContent's flat branch. `contact` and
- * `membership` exercise the sectioned branch below.
- */
-describe("mergePageContent — flat pages", () => {
-  const slug = "listings" as const;
-
-  it("returns the defaults when nothing is stored", async () => {
-    const { PAGE_CONTENT } = await import("@/lib/page-content/registry");
-
-    expect(mergePageContent(slug, undefined)).toEqual(PAGE_CONTENT[slug].defaults);
-    expect(mergePageContent(slug, null)).toEqual(PAGE_CONTENT[slug].defaults);
-  });
-
-  it("keeps a stored section and fills the rest from defaults", async () => {
-    const { PAGE_CONTENT } = await import("@/lib/page-content/registry");
-    const defaults = PAGE_CONTENT[slug].defaults as Record<string, Record<string, unknown>>;
-    const [firstKey, secondKey] = Object.keys(defaults);
-
-    const merged = mergePageContent(slug, {
-      [firstKey]: { title: "Edited title" },
-    }) as Record<string, Record<string, unknown>>;
-
-    expect(merged[firstKey].title).toBe("Edited title");
-    // Sibling fields inside the edited section survive.
-    expect(merged[firstKey].lead).toBe(defaults[firstKey].lead);
-    // Untouched sections come through whole.
-    expect(merged[secondKey]).toEqual(defaults[secondKey]);
-  });
-
-  it("drops section keys it does not recognise", () => {
-    const merged = mergePageContent(slug, { nonsense: { title: "x" } }) as Record<string, unknown>;
-
-    expect(merged.nonsense).toBeUndefined();
-  });
-
-  it("produces something the schema still accepts", async () => {
-    const { PAGE_CONTENT } = await import("@/lib/page-content/registry");
-    const defaults = PAGE_CONTENT[slug].defaults as Record<string, unknown>;
-    const [firstKey] = Object.keys(defaults);
-
-    const merged = mergePageContent(slug, { [firstKey]: { title: "Edited title" } });
-
-    expect(() => PAGE_CONTENT[slug].schema.parse(merged)).not.toThrow();
-  });
-});
-
-/**
  * THE DISCRIMINATING FIXTURES. Every value below is deliberately DIFFERENT
- * from DEFAULT_CONTACT / DEFAULT_MEMBERSHIP — not a transcription of them.
- * If a fixture's values coincided with the defaults, a merge that discarded
- * the stored document and fell back to defaults would make every assertion
- * below pass anyway, and the test would prove nothing. See the file-level
- * verification note at the bottom of this file for how this was checked.
+ * from DEFAULT_CONTACT / DEFAULT_MEMBERSHIP / DEFAULT_EVENTS / DEFAULT_GALLERY
+ * — not a transcription of them. If a fixture's values coincided with the
+ * defaults, a merge that discarded the stored document and fell back to
+ * defaults would make every assertion below pass anyway, and the test would
+ * prove nothing. See the file-level verification note at the bottom of this
+ * file for how this was checked.
+ *
+ * Every page registered today (contact, membership, events, gallery) is
+ * sectioned — see registry.ts's FlatPageEntry comment for why the flat
+ * branch of mergePageContent() has no fixture here: there is no flat slug
+ * left to exercise it through the registry.
  */
-describe("mergePageContent — sectioned pages (contact, membership)", () => {
+describe("mergePageContent — sectioned pages (contact, membership, events, gallery)", () => {
   it("repairs layout and merges content for a stored contact document", () => {
     const merged = mergePageContent("contact", {
       layout: [
@@ -144,6 +119,52 @@ describe("mergePageContent — sectioned pages (contact, membership)", () => {
     expect(merged.layout[0]).toEqual({ id: "hero", visible: false });
     expect(merged.content.plans.title).toBe("Choose Your Tier");
     expect(merged.content.benefits).toEqual(DEFAULT_MEMBERSHIP.content.benefits);
+  });
+
+  it("repairs layout and merges content for a stored events document", () => {
+    const merged = mergePageContent("events", {
+      layout: [
+        { id: "membersBand", visible: false },
+        { id: "hero", visible: true },
+        { id: "calendar", visible: true },
+      ],
+      content: {
+        hero: { title: "This Season's Gatherings" },
+      },
+    }) as { layout: { id: string; visible: boolean }[]; content: Record<string, Record<string, unknown>> };
+
+    // hero is pinned to the top regardless of what the stored layout says.
+    expect(merged.layout[0]).toEqual({ id: "hero", visible: true });
+    expect(merged.layout.find((s) => s.id === "membersBand")).toEqual({
+      id: "membersBand",
+      visible: false,
+    });
+
+    expect(merged.content.hero.title).toBe("This Season's Gatherings");
+    // Sibling fields inside the edited section survive from defaults.
+    expect(merged.content.hero.lead).toBe(DEFAULT_EVENTS.content.hero.lead);
+    // Untouched sections come through whole.
+    expect(merged.content.membersBand).toEqual(DEFAULT_EVENTS.content.membersBand);
+  });
+
+  it("repairs layout and merges content for a stored gallery document", () => {
+    const merged = mergePageContent("gallery", {
+      layout: [
+        { id: "contribute", visible: true },
+        { id: "hero", visible: false },
+        { id: "albums", visible: true },
+      ],
+      content: {
+        albums: { title: "Every Album We Have" },
+      },
+    }) as { layout: { id: string; visible: boolean }[]; content: Record<string, Record<string, unknown>> };
+
+    expect(merged.layout[0]).toEqual({ id: "hero", visible: false });
+    expect(merged.content.albums.title).toBe("Every Album We Have");
+    // Sibling fields inside the edited section survive from defaults.
+    expect(merged.content.albums.eyebrow).toBe(DEFAULT_GALLERY.content.albums.eyebrow);
+    // Untouched sections come through whole.
+    expect(merged.content.hero).toEqual(DEFAULT_GALLERY.content.hero);
   });
 
   it("restores the default list when a stored contact faq array is empty", () => {
@@ -200,7 +221,7 @@ describe("parseInlineLinks", () => {
   });
 
   it("leaves malformed syntax as literal text rather than dropping it", () => {
-    // An admin typing a bracket must never make their sentence vanish.
+    // An administrator typing a bracket must never make their sentence vanish.
     expect(parseInlineLinks("A [bracket without a link.")).toEqual([
       { text: "A [bracket without a link." },
     ]);
@@ -415,38 +436,177 @@ describe("resolveSections applied to the real Membership section meta", () => {
   });
 });
 
-describe("listings content", () => {
+describe("events content schema", () => {
   it("accepts its own defaults", () => {
-    expect(() => listingsContentSchema.parse(DEFAULT_LISTINGS)).not.toThrow();
+    expect(() => eventsContentSchema.parse(DEFAULT_EVENTS)).not.toThrow();
   });
 
-  it("covers both pages", () => {
-    expect(Object.keys(DEFAULT_LISTINGS).sort()).toEqual([
-      "eventsCalendar",
-      "eventsHero",
-      "eventsMembersBand",
-      "galleryAlbums",
-      "galleryContribute",
-      "galleryHero",
-    ]);
+  it("opens with the hero and lists every section exactly once", () => {
+    expect(DEFAULT_EVENTS.layout[0].id).toBe("hero");
+    expect(DEFAULT_EVENTS.layout.map((s) => s.id).sort()).toEqual([...EVENTS_SECTION_IDS].sort());
   });
 
-  it("rejects an empty heading anywhere", () => {
+  it("rejects an empty title anywhere", () => {
     expect(() =>
-      listingsContentSchema.parse({
-        ...DEFAULT_LISTINGS,
-        galleryHero: { ...DEFAULT_LISTINGS.galleryHero, title: "" },
+      eventsContentSchema.parse({
+        ...DEFAULT_EVENTS,
+        content: {
+          ...DEFAULT_EVENTS.content,
+          calendar: { ...DEFAULT_EVENTS.content.calendar, title: "" },
+        },
       })
     ).toThrow();
   });
 
   it("keeps every accent word findable in its title", () => {
-    for (const [name, section] of Object.entries(DEFAULT_LISTINGS)) {
+    for (const [name, section] of Object.entries(DEFAULT_EVENTS.content)) {
       const { title, accentWord } = section as { title?: string; accentWord?: string };
       if (!title || !accentWord) continue;
 
       expect(title, name).toContain(accentWord);
     }
+  });
+});
+
+describe("mergeEventsContent", () => {
+  it("returns the defaults when nothing is stored", () => {
+    expect(mergeEventsContent(undefined)).toEqual(DEFAULT_EVENTS.content);
+  });
+
+  it("keeps stored fields and fills the rest from defaults", () => {
+    const merged = mergeEventsContent({ calendar: { title: "Every Date We Have" } });
+
+    expect(merged.calendar.title).toBe("Every Date We Have");
+    expect(merged.calendar.lead).toBe(DEFAULT_EVENTS.content.calendar.lead);
+    expect(merged.hero).toEqual(DEFAULT_EVENTS.content.hero);
+  });
+
+  it("ignores section keys it does not recognise", () => {
+    const merged = mergeEventsContent({ nonsense: { title: "x" } }) as Record<string, unknown>;
+    expect(merged.nonsense).toBeUndefined();
+  });
+});
+
+describe("resolveSections applied to the real Events section meta", () => {
+  it("reproduces the intended surface sequence, matching the pre-split page exactly at the default order", () => {
+    const resolved = resolveSections(
+      EVENTS_SECTION_META,
+      repairLayout(EVENTS_SECTION_IDS, EVENTS_SECTION_META, undefined)
+    );
+
+    expect(resolved.map((s) => [s.id, s.surface])).toEqual([
+      ["hero", "bg-surface-1"],
+      ["calendar", "bg-surface-2"],
+      ["membersBand", "bg-surface-deep"],
+    ]);
+
+    expect(resolved.find((s) => s.id === "hero")?.bordered).toBe(false);
+    expect(resolved.find((s) => s.id === "calendar")?.bordered).toBe(true);
+    expect(resolved.find((s) => s.id === "membersBand")?.tone).toBe("dark");
+  });
+
+  it("pins the hero to the top no matter what a stored layout says", () => {
+    const repaired = repairLayout(EVENTS_SECTION_IDS, EVENTS_SECTION_META, [
+      { id: "calendar", visible: true },
+      { id: "hero", visible: false },
+    ]);
+
+    expect(repaired[0]).toEqual({ id: "hero", visible: false });
+  });
+});
+
+describe("gallery content schema", () => {
+  it("accepts its own defaults", () => {
+    expect(() => galleryContentSchema.parse(DEFAULT_GALLERY)).not.toThrow();
+  });
+
+  it("opens with the hero and lists every section exactly once", () => {
+    expect(DEFAULT_GALLERY.layout[0].id).toBe("hero");
+    expect(DEFAULT_GALLERY.layout.map((s) => s.id).sort()).toEqual([...GALLERY_SECTION_IDS].sort());
+  });
+
+  it("ships no lead for the albums grid by default", () => {
+    // Load-bearing for gallery-landing-client.tsx: the lead only renders
+    // when an admin fills it in, and the row layout depends on it staying
+    // absent until then.
+    expect(DEFAULT_GALLERY.content.albums.lead).toBe("");
+  });
+
+  it("accepts an empty or missing lead on the albums section", () => {
+    expect(() =>
+      galleryContentSchema.parse({
+        ...DEFAULT_GALLERY,
+        content: { ...DEFAULT_GALLERY.content, albums: { ...DEFAULT_GALLERY.content.albums, lead: "" } },
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects an empty title anywhere", () => {
+    expect(() =>
+      galleryContentSchema.parse({
+        ...DEFAULT_GALLERY,
+        content: {
+          ...DEFAULT_GALLERY.content,
+          hero: { ...DEFAULT_GALLERY.content.hero, title: "" },
+        },
+      })
+    ).toThrow();
+  });
+
+  it("keeps every accent word findable in its title", () => {
+    for (const [name, section] of Object.entries(DEFAULT_GALLERY.content)) {
+      const { title, accentWord } = section as { title?: string; accentWord?: string };
+      if (!title || !accentWord) continue;
+
+      expect(title, name).toContain(accentWord);
+    }
+  });
+});
+
+describe("mergeGalleryContent", () => {
+  it("returns the defaults when nothing is stored", () => {
+    expect(mergeGalleryContent(undefined)).toEqual(DEFAULT_GALLERY.content);
+  });
+
+  it("keeps stored fields and fills the rest from defaults", () => {
+    const merged = mergeGalleryContent({ contribute: { title: "Send Us What You Took" } });
+
+    expect(merged.contribute.title).toBe("Send Us What You Took");
+    expect(merged.contribute.lead).toBe(DEFAULT_GALLERY.content.contribute.lead);
+    expect(merged.hero).toEqual(DEFAULT_GALLERY.content.hero);
+  });
+
+  it("ignores section keys it does not recognise", () => {
+    const merged = mergeGalleryContent({ nonsense: { title: "x" } }) as Record<string, unknown>;
+    expect(merged.nonsense).toBeUndefined();
+  });
+});
+
+describe("resolveSections applied to the real Gallery section meta", () => {
+  it("reproduces the intended surface sequence, matching the pre-split page exactly at the default order", () => {
+    const resolved = resolveSections(
+      GALLERY_SECTION_META,
+      repairLayout(GALLERY_SECTION_IDS, GALLERY_SECTION_META, undefined)
+    );
+
+    expect(resolved.map((s) => [s.id, s.surface])).toEqual([
+      ["hero", "bg-surface-1"],
+      ["albums", "bg-surface-2"],
+      ["contribute", "bg-surface-deep"],
+    ]);
+
+    expect(resolved.find((s) => s.id === "hero")?.bordered).toBe(false);
+    expect(resolved.find((s) => s.id === "albums")?.bordered).toBe(true);
+    expect(resolved.find((s) => s.id === "contribute")?.tone).toBe("dark");
+  });
+
+  it("pins the hero to the top no matter what a stored layout says", () => {
+    const repaired = repairLayout(GALLERY_SECTION_IDS, GALLERY_SECTION_META, [
+      { id: "albums", visible: true },
+      { id: "hero", visible: false },
+    ]);
+
+    expect(repaired[0]).toEqual({ id: "hero", visible: false });
   });
 });
 
@@ -481,28 +641,13 @@ describe("splitOnAccent", () => {
   });
 });
 
-describe("listings content — one document, two pages", () => {
-  it("revalidates both pages the document drives", async () => {
-    const { PAGE_CONTENT } = await import("@/lib/page-content/registry");
-
-    expect(PAGE_CONTENT.listings.revalidate).toContain("/events");
-    expect(PAGE_CONTENT.listings.revalidate).toContain("/gallery");
-  });
-
-  it("ships no lead for the albums grid by default", () => {
-    // Load-bearing for gallery-landing-client.tsx: the lead only renders
-    // when an admin fills it in, and the row layout depends on it staying
-    // absent until then.
-    expect(DEFAULT_LISTINGS.galleryAlbums.lead).toBe("");
-  });
-});
-
 /**
  * VERIFICATION NOTE (see task report for the full record): the discriminating
  * power of the fixtures above — "mergePageContent — sectioned pages" and
- * "mergeContactContent"/"mergeMembershipContent" — was checked by temporarily
- * making mergeContactContent/mergeMembershipContent ignore their `stored`
- * argument (returning DEFAULT_*.content unconditionally) and confirming every
- * test naming a distinct fixture value went red, then reverting the change.
- * A fixture whose values equal the defaults would not have caught this.
+ * "mergeContactContent"/"mergeMembershipContent"/"mergeEventsContent"/
+ * "mergeGalleryContent" — was checked by temporarily making each merge*Content
+ * function ignore its `stored` argument (returning DEFAULT_*.content
+ * unconditionally) and confirming every test naming a distinct fixture value
+ * went red, then reverting the change. A fixture whose values equal the
+ * defaults would not have caught this.
  */

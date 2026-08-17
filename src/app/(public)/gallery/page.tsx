@@ -2,7 +2,7 @@ import React from "react";
 import { prisma } from "@/lib/prisma";
 import { requireFeature } from "@/lib/feature-gate";
 import { getPageContent } from "@/lib/page-content/actions";
-import type { ListingsContentT } from "@/lib/page-content/listings";
+import type { GalleryContentT } from "@/lib/page-content/gallery";
 import GalleryLandingClient from "./gallery-landing-client";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export default async function GalleryPage() {
   // albums out of the database to then throw them away.
   await requireFeature("enableGallery");
 
-  const content = (await getPageContent("listings")) as ListingsContentT;
+  const content = (await getPageContent("gallery")) as GalleryContentT;
 
   const albums = await prisma.galleryAlbum.findMany({
     where: { isPublished: true },

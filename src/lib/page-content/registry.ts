@@ -15,7 +15,20 @@ import {
   mergeMembershipContent,
 } from "./membership";
 import { MEMBERSHIP_SECTION_META } from "./membership-sections";
-import { listingsContentSchema, DEFAULT_LISTINGS } from "./listings";
+import {
+  eventsContentSchema,
+  DEFAULT_EVENTS,
+  EVENTS_SECTION_IDS,
+  mergeEventsContent,
+} from "./events";
+import { EVENTS_SECTION_META } from "./events-sections";
+import {
+  galleryContentSchema,
+  DEFAULT_GALLERY,
+  GALLERY_SECTION_IDS,
+  mergeGalleryContent,
+} from "./gallery";
+import { GALLERY_SECTION_META } from "./gallery-sections";
 
 /**
  * What each page slug means: the shape of its document, the copy to fall back
@@ -25,20 +38,38 @@ import { listingsContentSchema, DEFAULT_LISTINGS } from "./listings";
  * Vitest's node environment — the actions that use it live next door in
  * actions.ts.
  *
- * Two document shapes coexist here. `contact` and `membership` carry
- * `{layout, content}` — orderable, hideable sections with position-derived
- * backgrounds, the same contract as the home and about pages (see
- * lib/page-layout.ts). `listings` is still the flat shape every page used
- * before section ordering existed; it moves to the same shape once it splits
- * into `events` and `gallery`. A `SectionedPageEntry` carries `sectionIds`/
- * `sectionMeta`/`mergeContent` so mergePageContent() below can tell the two
- * apart without a per-slug switch.
+ * Every registered page today carries `{layout, content}` — orderable,
+ * hideable sections with position-derived backgrounds, the same contract as
+ * the home and about pages (see lib/page-layout.ts). A `SectionedPageEntry`
+ * carries `sectionIds`/`sectionMeta`/`mergeContent` so mergePageContent()
+ * below can tell it apart from a flat page without a per-slug switch.
+ *
+ * `FlatPageEntry` is the shape every page used before section ordering
+ * existed (`listings`, since split into `events` and `gallery`, was the last
+ * one). Nothing registers one today — it is kept as a seam for a future page
+ * that genuinely has no reason to reorder, not because one is needed right
+ * now. See mergePageContent()'s flat branch for the same note.
  */
 
 interface FlatPageEntry {
   label: string;
   schema: z.ZodType<Record<string, unknown>>;
-  defaults: Record<string, unknown>;
+  // A `{layout, content}`-shaped defaults object belongs to a
+  // SectionedPageEntry, not this one. Without the `never`s below, a page
+  // whose schema is sectioned but whose author forgot to also add
+  // `sectionIds`/`sectionMeta`/`mergeContent` would still satisfy this
+  // interface — TypeScript has no reason to reject `defaults: Record<string,
+  // unknown>` just because two of its keys happen to be "layout" and
+  // "content". It would then fall into isSectioned() === false and hit
+  // mergePageContent()'s flat branch, which spreads over top-level keys as if
+  // they were section names: `layout` (an array) and `content` (an object)
+  // would each get merged as a "section", silently corrupting the layout
+  // array instead of repairing it. Declaring both keys `never` here turns
+  // that mistake into a compile error at the PAGE_CONTENT literal below,
+  // where the object no longer structurally matches FlatPageEntry and (for a
+  // page missing sectionIds/sectionMeta/mergeContent) doesn't match
+  // SectionedPageEntry either.
+  defaults: Record<string, unknown> & { layout?: never; content?: never };
   revalidate: readonly string[];
 }
 
@@ -75,11 +106,23 @@ export const PAGE_CONTENT = {
     sectionMeta: MEMBERSHIP_SECTION_META,
     mergeContent: mergeMembershipContent,
   },
-  listings: {
-    label: "Events & Gallery",
-    schema: listingsContentSchema,
-    defaults: DEFAULT_LISTINGS,
-    revalidate: ["/events", "/gallery"],
+  events: {
+    label: "Events",
+    schema: eventsContentSchema,
+    defaults: DEFAULT_EVENTS,
+    revalidate: ["/events"],
+    sectionIds: EVENTS_SECTION_IDS,
+    sectionMeta: EVENTS_SECTION_META,
+    mergeContent: mergeEventsContent,
+  },
+  gallery: {
+    label: "Gallery",
+    schema: galleryContentSchema,
+    defaults: DEFAULT_GALLERY,
+    revalidate: ["/gallery"],
+    sectionIds: GALLERY_SECTION_IDS,
+    sectionMeta: GALLERY_SECTION_META,
+    mergeContent: mergeGalleryContent,
   },
 } as const satisfies Record<string, PageEntry>;
 
@@ -96,15 +139,16 @@ export const isPageSlug = (value: unknown): value is PageSlug =>
  * section keys are dropped: a field removed from a schema must not survive in
  * storage and reappear if the name is ever reused.
  *
- * For a sectioned page (`contact`, `membership`) this repairs `layout` with
- * the generic page-layout.ts machinery and hands `content` off to the page's
- * own merge function — mirroring getAboutContent()'s read path, just wired
- * through the shared registry so `listings` (still flat) is untouched.
+ * For a sectioned page (every page registered today) this repairs `layout`
+ * with the generic page-layout.ts machinery and hands `content` off to the
+ * page's own merge function — mirroring getAboutContent()'s read path, just
+ * wired through the shared registry.
  *
- * The flat branch below is one level deep by design — sections are merged,
- * the fields inside them are replaced wholesale. An array of FAQ items is a
- * field, so an admin who deletes one gets a document with one fewer, not a
- * merge against the default list.
+ * The flat branch below has no callers today (see FlatPageEntry's comment
+ * above) and is one level deep by design — sections are merged, the fields
+ * inside them are replaced wholesale. An array of FAQ items is a field, so an
+ * admin who deletes one gets a document with one fewer, not a merge against
+ * the default list.
  */
 export function mergePageContent(slug: PageSlug, stored: unknown): Record<string, unknown> {
   const entry = PAGE_CONTENT[slug] as PageEntry;

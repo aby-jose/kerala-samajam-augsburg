@@ -8,8 +8,10 @@ import { ContactContentEditor } from "@/components/admin/pages/contact-content-e
 import type { ContactContentT } from "@/lib/page-content/contact";
 import { MembershipContentEditor } from "@/components/admin/pages/membership-content-editor";
 import type { MembershipContentT } from "@/lib/page-content/membership";
-import { ListingsContentEditor } from "@/components/admin/pages/listings-content-editor";
-import type { ListingsContentT } from "@/lib/page-content/listings";
+import { EventsContentEditor } from "@/components/admin/pages/events-content-editor";
+import type { EventsContentT } from "@/lib/page-content/events";
+import { GalleryContentEditor } from "@/components/admin/pages/gallery-content-editor";
+import type { GalleryContentT } from "@/lib/page-content/gallery";
 
 export default async function AdminPageContent({
   params,
@@ -35,8 +37,11 @@ export default async function AdminPageContent({
       {slug === "membership" && (
         <MembershipContentEditor initialData={content as MembershipContentT} />
       )}
-      {slug === "listings" && (
-        <ListingsContentEditor initialData={content as ListingsContentT} />
+      {slug === "events" && (
+        <EventsContentEditor initialData={content as EventsContentT} />
+      )}
+      {slug === "gallery" && (
+        <GalleryContentEditor initialData={content as GalleryContentT} />
       )}
     </div>
   );
