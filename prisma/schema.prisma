@@ -229,6 +229,39 @@ model FaceDetection {
   createdAt   DateTime     @default(now())
 }
 
+model InstagramReel {
+  id                     String    @id @default(auto()) @map("_id") @db.ObjectId
+  igMediaId              String    @unique
+  caption                String?
+  permalink              String
+  igThumbnailUrl         String?
+  igMediaUrl             String?
+  postedAt               DateTime
+  featured               Boolean   @default(false)
+  order                  Int       @default(0)
+  cloudinaryVideoUrl     String?
+  cloudinaryThumbnailUrl String?
+  cachedAt               DateTime?
+  cacheError             String?
+  syncedAt               DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
+}
+
+/// Live Instagram sync state — token, expiry, last-run status. One row,
+/// keyed "current", same shape as HomeContent/AboutContent. Not folded into
+/// Config: Config is in practice single-purpose (always SiteConfig).
+model InstagramSyncState {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  key                   String    @unique @default("current")
+  accessToken           String?
+  tokenExpiresAt        DateTime?
+  lastSyncAt            DateTime?
+  lastSyncError         String?
+  lastTokenRefreshAt    DateTime?
+  lastTokenRefreshError String?
+  updatedAt             DateTime  @updatedAt
+}
+
 model Account {
   id                String  @id @default(auto()) @map("_id") @db.ObjectId
   userId            String  @db.ObjectId
