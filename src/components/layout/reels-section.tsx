@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Instagram } from "lucide-react";
+import { ArrowUpRight, Instagram } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { Eyebrow, SectionLead, SectionTitle } from "@/components/layout/section-heading";
 import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
@@ -83,32 +83,58 @@ export function ReelsSection({
   );
 }
 
+/** The reel's own claim on the strip: a media frame with a fixed caption
+ *  plate underneath it, like a print underneath the photograph rather than
+ *  text burned into the image — so the same layout reads equally well for
+ *  a real video or a still-caching placeholder, and never turns into a
+ *  generic "gradient with white text stamped in the middle" card. */
 function ReelCardTile({ reel }: { reel: ReelCardData }) {
   return (
     <a
       href={reel.permalink}
       target="_blank"
       rel="noopener noreferrer"
-      className="group relative block h-[420px] w-[236px] overflow-hidden rounded-[1.75rem] border border-border/10 bg-muted"
+      className="group flex h-[420px] w-[236px] flex-col overflow-hidden rounded-[1.75rem] border border-border bg-surface-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_32px_-24px_rgba(0,0,0,0.25)] transition-shadow duration-300 hover:shadow-[0_2px_4px_rgba(0,0,0,0.06),0_24px_40px_-20px_rgba(0,0,0,0.3)]"
     >
-      {reel.cloudinaryVideoUrl ? (
-        <video
-          src={reel.cloudinaryVideoUrl}
-          poster={reel.cloudinaryThumbnailUrl ?? undefined}
-          muted
-          loop
-          playsInline
-          onMouseEnter={(e) => e.currentTarget.play()}
-          onMouseLeave={(e) => e.currentTarget.pause()}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-      ) : (
-        <GradientFallback caption={reel.caption} />
-      )}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 via-black/10 to-transparent p-4">
-        {reel.caption && (
-          <p className="line-clamp-2 text-xs font-medium text-white/90">{reel.caption}</p>
+      <div className="relative flex-1 overflow-hidden bg-muted">
+        {reel.cloudinaryVideoUrl ? (
+          <video
+            src={reel.cloudinaryVideoUrl}
+            poster={reel.cloudinaryThumbnailUrl ?? undefined}
+            muted
+            loop
+            playsInline
+            preload="none"
+            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+            onMouseLeave={(e) => e.currentTarget.pause()}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <GradientFallback />
         )}
+
+        {/* Same badge idiom the gallery already uses for its video tiles —
+            one visual language for "this is a reel," on top of either state. */}
+        <div className="absolute left-3 top-3 flex items-center gap-1 rounded-lg border border-white/15 bg-black/40 p-1.5 text-white backdrop-blur-md">
+          <Instagram className="h-3 w-3" strokeWidth={2} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Reel</span>
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-border px-4 py-3.5">
+        {reel.caption ? (
+          <p className="line-clamp-2 font-serif text-[13px] italic leading-snug text-foreground">
+            {reel.caption}
+          </p>
+        ) : (
+          <p className="text-[13px] italic leading-snug text-muted-foreground">
+            From the KSA feed
+          </p>
+        )}
+        <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors group-hover:text-primary">
+          View on Instagram
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+        </span>
       </div>
     </a>
   );
@@ -117,8 +143,10 @@ function ReelCardTile({ reel }: { reel: ReelCardData }) {
 /** Shown for a featured reel that hasn't finished caching yet, or whose cache
  *  attempt failed — an animated gradient built from the site's own primary
  *  and surface tokens, not a generic rainbow, so the strip never reads as
- *  broken mid-sync (spec D8). */
-function GradientFallback({ caption }: { caption: string | null }) {
+ *  broken mid-sync (spec D8). The caption lives in the plate below, not
+ *  stamped over the art, so this is free to just be the moving field of
+ *  color plus one quiet editorial mark. */
+function GradientFallback() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <motion.div
@@ -126,11 +154,22 @@ function GradientFallback({ caption }: { caption: string | null }) {
         animate={{ backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"] }}
         transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
       />
-      <div className="absolute inset-0 bg-black/35" />
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-        <Instagram className="h-8 w-8 text-white/90" strokeWidth={1.5} />
-        {caption && <p className="line-clamp-3 text-xs font-medium text-white/90">{caption}</p>}
-      </div>
+      {/* A faint dot field for texture, so the gradient reads as a made
+          surface rather than a flat CSS fill. */}
+      <div
+        className="absolute inset-0 opacity-[0.12]"
+        style={{
+          backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
+          backgroundSize: "14px 14px",
+          color: "white",
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-8 right-2 select-none font-serif text-[9rem] italic leading-none text-white/10"
+      >
+        "
+      </span>
     </div>
   );
 }
