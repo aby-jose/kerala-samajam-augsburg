@@ -60,7 +60,7 @@ export function repairLayout<Id extends string>(
   }
 
   for (const id of ids) {
-    if (!seen.has(id)) repaired.push({ id, visible: true });
+    if (!seen.has(id)) repaired.push({ id, visible: id !== "whatsappCta" });
   }
 
   // Pin every unmovable section to its canonical position in `ids`, keeping

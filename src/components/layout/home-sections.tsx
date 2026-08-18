@@ -8,6 +8,7 @@ import { ReelsSection } from "@/components/layout/reels-section";
 import { LeadershipRow } from "@/components/layout/leadership-row";
 import { JoinSteps } from "@/components/layout/join-steps";
 import { JoinCta } from "@/components/layout/join-cta";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 
 /** Which component renders each section id. The admin labels and surface
  *  modes live in lib/home-sections.ts, which stays free of imports like
@@ -21,4 +22,5 @@ export const HOME_SECTION_COMPONENTS: Record<HomeSectionId, ComponentType<any>> 
   committee: LeadershipRow,
   join: JoinSteps,
   cta: JoinCta,
+  whatsappCta: WhatsAppCta,
 };

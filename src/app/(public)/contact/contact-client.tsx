@@ -15,6 +15,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
   RefreshCw,
   Send,
@@ -23,6 +24,7 @@ import {
 import { Container } from "@/components/layout/container";
 import { Button } from "@/components/ui/button";
 import { useConfig } from "@/components/providers/config-provider";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 import { getContactCaptcha, submitContactForm } from "@/lib/contact-actions";
 import {
   Accent,
@@ -149,6 +151,19 @@ function ContactHeroSection({
           },
         ]
       : []),
+    ...(config.socials?.whatsapp
+      ? [
+          {
+            icon: MessageCircle,
+            label: "WhatsApp",
+            value: "Community Group",
+            note: "Join our WhatsApp community group directly to stay updated and chat with members.",
+            href: config.socials.whatsapp,
+            action: "Join Group",
+            external: true,
+          },
+        ]
+      : []),
     {
       icon: MapPin,
       label: "Where we are",
@@ -178,7 +193,11 @@ function ContactHeroSection({
           <motion.div
             className={cn(
               "grid grid-cols-1 gap-px overflow-hidden rounded-3xl border border-border bg-border",
-              channels.length > 2 ? "md:grid-cols-3" : "md:grid-cols-2"
+              channels.length === 4
+                ? "sm:grid-cols-2 lg:grid-cols-4"
+                : channels.length > 2
+                ? "md:grid-cols-3"
+                : "md:grid-cols-2"
             )}
             variants={stagger}
             initial="hidden"
@@ -723,6 +742,7 @@ const CONTACT_SECTION_COMPONENTS: Record<ContactSectionId, ComponentType<any>> =
   form: ContactFormSection,
   faq: ContactFaqSection,
   visit: ContactVisitSection,
+  whatsappCta: WhatsAppCta,
 };
 
 export function ContactClient({ content }: { content: ContactContentT }) {

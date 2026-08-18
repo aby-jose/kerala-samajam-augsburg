@@ -10,6 +10,7 @@ export interface SiteConfig {
     instagram?: string;
     twitter?: string;
     youtube?: string;
+    whatsapp?: string;
   };
   branding: {
     /**
@@ -219,6 +220,7 @@ export const defaultConfig: SiteConfig = {
   socials: {
     facebook: "https://facebook.com/ksaugsburg",
     instagram: "https://instagram.com/ksaugsburg",
+    whatsapp: "",
   },
   branding: {
     primaryColor: "#e11d48", // Rose 600

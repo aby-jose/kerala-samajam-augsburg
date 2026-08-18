@@ -29,7 +29,7 @@ export const MEMBERSHIP_ICONS = [
  * lib/page-layout.ts for the generic ordering rules shared with every other
  * page.
  */
-export const MEMBERSHIP_SECTION_IDS = ["hero", "plans", "benefits"] as const;
+export const MEMBERSHIP_SECTION_IDS = ["hero", "plans", "benefits", "whatsappCta"] as const;
 
 export type MembershipSectionId = (typeof MEMBERSHIP_SECTION_IDS)[number];
 
@@ -58,6 +58,8 @@ export const membershipBenefitsSectionSchema = z.object({
     .max(8),
 });
 
+export const membershipWhatsappCtaSectionSchema = z.object({ ...sectionHeadingFields });
+
 export const membershipContentSchema = z.object({
   layout: z
     .array(
@@ -71,6 +73,7 @@ export const membershipContentSchema = z.object({
     hero: membershipHeroSectionSchema,
     plans: membershipPlansSectionSchema,
     benefits: membershipBenefitsSectionSchema,
+    whatsappCta: membershipWhatsappCtaSectionSchema,
   }),
 });
 
@@ -83,6 +86,7 @@ export const DEFAULT_MEMBERSHIP: MembershipContentT = {
     { id: "hero", visible: true },
     { id: "plans", visible: true },
     { id: "benefits", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     hero: {
@@ -142,6 +146,12 @@ export const DEFAULT_MEMBERSHIP: MembershipContentT = {
             "Have your say in the organization's future through voting and participating in the General Body.",
         },
       ],
+    },
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
     },
   },
 };

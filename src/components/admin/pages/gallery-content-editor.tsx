@@ -15,7 +15,7 @@ import { savePageContent } from "@/lib/page-content/actions";
 import { GALLERY_SECTION_META } from "@/lib/page-content/gallery-sections";
 import { galleryContentSchema, type GalleryContentT, type GallerySectionId } from "@/lib/page-content/gallery";
 
-type HeadingSection = "hero" | "albums" | "contribute";
+type HeadingSection = "hero" | "albums" | "contribute" | "whatsappCta";
 
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({

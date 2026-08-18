@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Container } from "@/components/layout/container";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
 import { 
   X, 
   ChevronLeft, 
@@ -14,6 +14,10 @@ import {
   Play,
   Search,
   Camera,
+  ChevronRight,
+  CalendarDays,
+  Check,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +31,45 @@ import ContributionModal from "@/components/gallery/contribution-modal";
 import UploadProgressPill, { UploadTask } from "@/components/gallery/upload-progress-pill";
 import { searchMediaByFace, checkContributionEligibility, uploadImageAction, submitMediaContribution, submitBulkMediaContributions } from "@/lib/gallery-actions";
 import { useToast } from "@/components/ui/toast";
+import { Eyebrow, PageTitle } from "@/components/layout/section-heading";
+import type { LucideIcon } from "lucide-react";
+
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+const DOT_GRID: React.CSSProperties = {
+  backgroundImage:
+    "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.09) 1px, transparent 0)",
+  backgroundSize: "28px 28px",
+  maskImage: "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+  WebkitMaskImage:
+    "radial-gradient(ellipse 70% 60% at 50% 50%, black, transparent)",
+};
+
+function HeroMeta({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-primary sm:h-9 sm:w-9">
+        <Icon className="h-4 w-4" strokeWidth={1.8} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45">
+          {label}
+        </p>
+        <p className="mt-1 break-words font-sans text-sm font-bold tracking-[-0.015em] text-white">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function AlbumDetailClient({ album }: { album: any }) {
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
@@ -38,6 +81,33 @@ export default function AlbumDetailClient({ album }: { album: any }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { loading, dismiss, success, error } = useToast();
+  const [copied, setCopied] = useState(false);
+
+  const reduced = useReducedMotion();
+  const rise: Variants = {
+    hidden: { opacity: 0, y: reduced ? 0 : 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.7, ease: EASE } },
+  };
+
+  const stagger: Variants = {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
+  };
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: album.title, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // ignore
+    }
+  };
 
   // Background Upload State
   const [uploadQueue, setUploadQueue] = useState<UploadTask[]>([]);
@@ -136,161 +206,278 @@ export default function AlbumDetailClient({ album }: { album: any }) {
 
   return (
     <main className="min-h-screen flex flex-col bg-background selection:bg-primary/5 pb-32">
-      {/* Header */}
-      <section className="pt-40 pb-16 border-b border-border/5">
-        <Container className="max-w-7xl">
-           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-              <div className="space-y-6">
-                <Link 
-                  href="/gallery" 
-                  className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground hover:text-primary flex items-center gap-2 transition-all mb-4 group"
-                >
-                  <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" /> 
-                  Back to Collection
-                </Link>
-                <div className="space-y-3">
-                  <h1 className="text-4xl md:text-6xl font-serif font-medium leading-[1.1] tracking-tight text-foreground text-balance">
-                    {searchResults ? "Search Results" : album.title}
-                  </h1>
-                  <div className="flex flex-wrap items-center gap-4 pt-2">
-                    {album.event && !searchResults && (
-                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-primary">
-                        <Calendar className="w-4 h-4" />
-                        {new Date(album.event.date).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                      </div>
-                    )}
-                    {searchResults && (
-                      <Button 
-                        variant="link" 
-                        onClick={() => setSearchResults(null)}
-                        className="p-0 h-auto text-[10px] font-bold uppercase tracking-widest text-primary"
-                      >
-                        Reset Search
-                      </Button>
-                    )}
-                    <span className="h-4 w-px bg-border/50 hidden md:block" />
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      {displayMedia.length} Moments
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4 pt-4">
-                   <p className="text-lg text-muted-foreground max-w-2xl font-light leading-relaxed">
-                     {searchResults ? "Showing all photos matching the selected face." : (album.description || "Photographs from this gathering, contributed by the people who were there.")}
-                   </p>
-                   {!searchResults && (
-                     <div className="flex flex-col space-y-1">
-                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Have photos from this event?</p>
-                        <p className="text-[11px] text-muted-foreground max-w-sm">Send them in and they will join this album, credited to you, once a moderator has had a look.</p>
-                     </div>
-                   )}
-                </div>
+      {/* ============ 1. Hero — the cover, at full volume ============ */}
+      <section className="relative isolate overflow-hidden bg-surface-deep pb-14 pt-24 sm:pt-28 md:pb-28 md:pt-36">
+        {album.coverImage && (
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <img
+              src={album.coverImage}
+              alt=""
+              aria-hidden
+              className="h-full w-full scale-125 object-cover opacity-40 blur-[80px]"
+            />
+          </div>
+        )}
+
+        {/* Scrims */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/75 via-black/70 to-black/92"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-40 left-1/4 h-[520px] w-[680px] -translate-x-1/2 rounded-full bg-primary/20 blur-[130px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.3]"
+          style={DOT_GRID}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.12] mix-blend-overlay"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+          }}
+        />
+
+        <Container className="relative max-w-7xl">
+          <nav className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">
+            <Link
+              href="/gallery"
+              className="transition-colors duration-300 hover:text-white"
+            >
+              Gallery
+            </Link>
+            <ChevronRight className="h-3 w-3 text-white/35" strokeWidth={2.5} />
+            <span className="text-white/90">{album.category || "Collection"}</span>
+          </nav>
+
+          <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={stagger}
+            className="mt-6 grid grid-cols-1 gap-x-16 gap-y-8 sm:mt-8 sm:gap-y-10 md:mt-10 lg:grid-cols-12 lg:items-center"
+          >
+            {/* ---------------- The details ---------------- */}
+            <motion.div variants={rise} className="lg:col-span-7">
+              <Eyebrow tone="dark">{searchResults ? "Search Matches" : "Photo Album"}</Eyebrow>
+
+              <PageTitle tone="dark" className="mt-5 sm:mt-7">
+                {searchResults ? "Search Results" : album.title}
+              </PageTitle>
+
+              <div className="mt-6 flex flex-wrap items-start gap-x-6 gap-y-4 border-y border-white/10 py-5 sm:mt-8 sm:gap-x-10 sm:py-6 md:mt-9 md:py-7">
+                {album.event && !searchResults && (
+                  <HeroMeta
+                    icon={CalendarDays}
+                    label="Event Date"
+                    value={new Date(album.event.date).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  />
+                )}
+                <HeroMeta
+                  icon={ImageIcon}
+                  label="Moments"
+                  value={`${displayMedia.length} Photos & Videos`}
+                />
               </div>
 
-              {!searchResults && (
-                <div className="flex items-center gap-3">
-                  <Button 
-                    onClick={() => {
-                      if (!session) {
-                        router.push(`${pathname}?auth=login`);
-                      } else {
-                        setIsFaceSearchOpen(true);
-                      }
-                    }}
-                    className="h-14 px-8 rounded-2xl bg-secondary/80 hover:bg-secondary text-foreground font-bold uppercase tracking-[0.2em] text-[10px] transition-all flex items-center gap-2 border border-border/40"
-                  >
-                    <Search className="w-4 h-4" />
-                    {session ? "Find My Photos" : "Sign in to find photos"}
-                  </Button>
-                  <Button 
-                    onClick={async () => {
-                      if (!session) {
-                        router.push(`${pathname}?auth=login`);
-                        return;
-                      }
-                      
-                      const tid = loading("Checking eligibility...");
-                      try {
-                        const { eligible, message } = await checkContributionEligibility(album.id);
-                        if (eligible) {
-                          setIsContributionOpen(true);
-                        } else {
-                          error(message || "You are not eligible to contribute to this album.");
-                        }
-                      } catch (err) {
-                        error("Failed to verify eligibility.");
-                      } finally {
-                        dismiss(tid);
-                      }
-                    }}
-                    className="h-14 px-8 rounded-2xl bg-primary text-primary-foreground font-bold uppercase tracking-[0.2em] text-[10px] shadow-lg shadow-primary/20 transition-all flex items-center gap-2"
-                  >
-                    <Camera className="w-4 h-4" />
-                    Share your Perspective
-                  </Button>
-                  <Button className="h-14 w-14 rounded-2xl bg-secondary/80 hover:bg-secondary text-foreground flex items-center justify-center border border-border/40">
-                    <Share2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              )}
-           </div>
-        </Container>
-      </section>
-
-      {/* Masonry Grid */}
-      <section className="py-20 bg-background">
-        <Container className="max-w-7xl">
-          <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
-            {displayMedia.map((media: any) => (
-              <motion.div
-                key={media.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                className="break-inside-avoid group relative rounded-[2rem] overflow-hidden bg-muted border border-border/10 transition-[transform,opacity,box-shadow] duration-500 hover:shadow-2xl cursor-zoom-in"
-                onClick={() => setSelectedMedia(media)}
-              >
-                {media.type === "IMAGE" ? (
-                  <img 
-                    src={media.url} 
-                    alt={media.caption || ""}
-                    className="w-full h-full object-cover transition-transform duration-2000 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="relative group/video">
-                    <video 
-                      src={media.url}
-                      muted
-                      loop
-                      playsInline
-                      onMouseEnter={(e) => e.currentTarget.play()}
-                      onMouseLeave={(e) => e.currentTarget.pause()}
-                      className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-[filter,transform] duration-500"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
-                      <div className="h-14 w-14 rounded-full bg-black/20 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
-                        <Play className="w-6 h-6 fill-white" />
-                      </div>
-                    </div>
-                    <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md p-1.5 rounded-lg border border-white/10 text-white flex items-center gap-1">
-                      <VideoIcon className="w-3 h-3" />
-                      <span className="text-[8px] font-black uppercase tracking-widest">Video</span>
-                    </div>
+              <div className="mt-6 space-y-4">
+                <p className="text-[15px] leading-relaxed md:text-base text-white/80 max-w-2xl font-light">
+                  {searchResults ? "Showing all photos matching the selected face." : (album.description || "Photographs from this gathering, contributed by the people who were there.")}
+                </p>
+                {!searchResults && (
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Have photos from this event?</p>
+                    <p className="text-xs text-white/60 max-w-sm">Send them in and they will join this album, credited to you, once a moderator has approved.</p>
                   </div>
                 )}
+              </div>
 
-                {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 truncate mr-4">
-                      {media.caption || "View Moment"}
-                    </p>
-                    <Maximize2 className="w-4 h-4 text-white" />
+              <div className="mt-7 flex flex-col gap-3 sm:mt-10 sm:flex-row">
+                {!searchResults && (
+                  <>
+                    <Button 
+                      onClick={() => {
+                        if (!session) {
+                          router.push(`${pathname}?auth=login`);
+                        } else {
+                          setIsFaceSearchOpen(true);
+                        }
+                      }}
+                      className="h-12 sm:h-14 px-6 sm:px-8 rounded-full bg-white/[0.06] hover:bg-white/15 text-white font-bold uppercase tracking-[0.2em] text-[10px] transition-all flex items-center justify-center gap-2 border border-white/10 w-full sm:w-auto shrink-0"
+                    >
+                      <Search className="w-4 h-4" />
+                      {session ? "Find My Photos" : "Sign in to find photos"}
+                    </Button>
+                    <Button 
+                      onClick={async () => {
+                        if (!session) {
+                          router.push(`${pathname}?auth=login`);
+                          return;
+                        }
+                        
+                        const tid = loading("Checking eligibility...");
+                        try {
+                          const { eligible, message } = await checkContributionEligibility(album.id);
+                          if (eligible) {
+                            setIsContributionOpen(true);
+                          } else {
+                            error(message || "You are not eligible to contribute to this album.");
+                          }
+                        } catch (err) {
+                          error("Failed to verify eligibility.");
+                        } finally {
+                          dismiss(tid);
+                        }
+                      }}
+                      className="h-12 sm:h-14 px-6 sm:px-8 rounded-full bg-primary hover:bg-primary/90 text-white font-bold uppercase tracking-[0.2em] text-[10px] shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 w-full sm:w-auto shrink-0"
+                    >
+                      <Camera className="w-4 h-4" />
+                      Share your Perspective
+                    </Button>
+                    <Button 
+                      onClick={handleShare}
+                      className="h-12 sm:h-14 w-full sm:w-14 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center border border-white/10 backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 shrink-0"
+                    >
+                      {copied ? (
+                        <Check className="w-4 h-4 text-emerald-400 animate-pulse" strokeWidth={2.4} />
+                      ) : (
+                        <Share2 className="w-4 h-4" strokeWidth={2.2} />
+                      )}
+                    </Button>
+                  </>
+                )}
+                {searchResults && (
+                  <Button 
+                    onClick={() => setSearchResults(null)}
+                    className="h-12 sm:h-14 px-6 sm:px-8 rounded-full bg-secondary hover:bg-secondary/90 text-foreground font-bold uppercase tracking-[0.2em] text-[10px] transition-all w-full sm:w-auto"
+                  >
+                    Reset Search
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+
+            {/* ---------------- The cover artwork ---------------- */}
+            <motion.div variants={rise} className="lg:col-span-5">
+              <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/60 aspect-4/3 flex items-center justify-center">
+                {album.coverImage ? (
+                  <img
+                    src={album.coverImage}
+                    alt={album.title}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <ImageIcon className="h-20 w-20 text-white/10" strokeWidth={1} />
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        </Container>
+      </section>      {/* Masonry Grid */}
+      <section className="py-20 bg-background flex-grow flex items-center justify-center">
+        <Container className="max-w-7xl w-full">
+          {displayMedia.length === 0 ? (
+            <div className="mx-auto max-w-md text-center py-16 px-4 space-y-6">
+              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-muted-foreground" strokeWidth={1.5} />
+              </div>
+              <div className="space-y-2">
+                <h3 className="font-sans text-xl font-bold tracking-[-0.02em] text-foreground">
+                  {searchResults ? "No Matches Found" : "No Moments Yet"}
+                </h3>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {searchResults 
+                    ? "We couldn't find any photos matching this face. Try searching for a different person." 
+                    : "No one has shared any photos from this event yet. If you have some, share your perspective!"}
+                </p>
+              </div>
+              {!searchResults && (
+                <Button 
+                  onClick={async () => {
+                    if (!session) {
+                      router.push(`${pathname}?auth=login`);
+                      return;
+                    }
+                    const tid = loading("Checking eligibility...");
+                    try {
+                      const { eligible, message } = await checkContributionEligibility(album.id);
+                      if (eligible) {
+                        setIsContributionOpen(true);
+                      } else {
+                        error(message || "You are not eligible to contribute to this album.");
+                      }
+                    } catch (err) {
+                      error("Failed to verify eligibility.");
+                    } finally {
+                      dismiss(tid);
+                    }
+                  }}
+                  className="rounded-full h-11 px-6 bg-primary hover:bg-primary/90 text-white font-semibold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all"
+                >
+                  Upload the First Photo
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6">
+              {displayMedia.map((media: any) => (
+                <motion.div
+                  key={media.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  className="break-inside-avoid group relative rounded-[2rem] overflow-hidden bg-muted border border-border/10 transition-[transform,opacity,box-shadow] duration-500 hover:shadow-2xl cursor-zoom-in"
+                  onClick={() => setSelectedMedia(media)}
+                >
+                  {media.type === "IMAGE" ? (
+                    <img 
+                      src={media.url} 
+                      alt={media.caption || ""}
+                      className="w-full h-full object-cover transition-transform duration-2000 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="relative group/video">
+                      <video 
+                        src={media.url}
+                        muted
+                        loop
+                        playsInline
+                        onMouseEnter={(e) => e.currentTarget.play()}
+                        onMouseLeave={(e) => e.currentTarget.pause()}
+                        className="w-full h-full object-cover grayscale-[0.2] group-hover:grayscale-0 transition-[filter,transform] duration-500"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity">
+                        <div className="h-14 w-14 rounded-full bg-black/20 backdrop-blur-md border border-white/20 flex items-center justify-center text-white">
+                          <Play className="w-6 h-6 fill-white" />
+                        </div>
+                      </div>
+                      <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-md p-1.5 rounded-lg border border-white/10 text-white flex items-center gap-1">
+                        <VideoIcon className="w-3 h-3" />
+                        <span className="text-[8px] font-black uppercase tracking-widest">Video</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-linear-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col justify-end p-6">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 truncate mr-4">
+                        {media.caption || "View Moment"}
+                      </p>
+                      <Maximize2 className="w-4 h-4 text-white" />
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
         </Container>
       </section>
 

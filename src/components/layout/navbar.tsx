@@ -37,12 +37,23 @@ function AuthQueryHandler({ onLoginRequested }: { onLoginRequested: () => void }
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const hasOpenedRef = React.useRef(false);
 
   // Handle auto-opening login modal from query params
   React.useEffect(() => {
-    if (searchParams.get("auth") === "login" && status === "unauthenticated") {
+    const authParam = searchParams.get("auth");
+    if (authParam === "login" && status === "unauthenticated" && !hasOpenedRef.current) {
+      hasOpenedRef.current = true;
       onLoginRequested();
-      // Clean up the URL to prevent opening on refresh
+      // Clean up the URL synchronously using browser history API to prevent race conditions
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        params.delete("auth");
+        const cleanSearch = params.toString();
+        const newUrl = cleanSearch ? `${window.location.pathname}?${cleanSearch}` : window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+      }
+      // Also notify Next.js router to update its internal state
       const params = new URLSearchParams(searchParams.toString());
       params.delete("auth");
       const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
@@ -50,11 +61,20 @@ function AuthQueryHandler({ onLoginRequested }: { onLoginRequested: () => void }
     }
   }, [searchParams, status, pathname, router, onLoginRequested]);
 
+  // Reset the ref only when the parameter is cleared
+  React.useEffect(() => {
+    if (searchParams.get("auth") !== "login") {
+      hasOpenedRef.current = false;
+    }
+  }, [searchParams]);
+
   return null;
 }
 
 export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProps) {
   const config = useConfig();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [isOpen, setIsOpen] = React.useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
   const [scrolled, setScrolled] = React.useState(false);
@@ -98,7 +118,7 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
   // over them while it is still transparent, so its type has to invert until
   // the solid background takes over on scroll. `/events` itself is light — only
   // a single event page below it is dark.
-  const hasDarkTop = isHomePage || /^\/events\/[^/]+$/.test(pathname);
+  const hasDarkTop = isHomePage || /^\/events\/[^/]+$/.test(pathname) || /^\/gallery\/[^/]+$/.test(pathname);
   const useLightText = forceLightText || (hasDarkTop && !scrolled && !isOpen);
 
   const isActive = (href: string) =>
@@ -390,7 +410,21 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
           )}
         </AnimatePresence>
       </header>
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => {
+          setIsLoginModalOpen(false);
+          if (typeof window !== "undefined") {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get("auth") === "login") {
+              urlParams.delete("auth");
+              const cleanSearch = urlParams.toString();
+              const newUrl = cleanSearch ? `${window.location.pathname}?${cleanSearch}` : window.location.pathname;
+              router.replace(newUrl, { scroll: false });
+            }
+          }
+        }} 
+      />
     </>
   );
 }

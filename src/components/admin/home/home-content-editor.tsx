@@ -16,6 +16,7 @@ import { ReelsFields } from "@/components/admin/home/reels-fields";
 import { CommitteeFields } from "@/components/admin/home/committee-fields";
 import { JoinFields } from "@/components/admin/home/join-fields";
 import { CtaFields } from "@/components/admin/home/cta-fields";
+import { HeadingFields } from "@/components/admin/home/heading-fields";
 import { saveHomeContent } from "@/lib/home-actions";
 import { homeContentSchema, type HomeContentT } from "@/lib/home-schema";
 import { HOME_SECTION_META } from "@/lib/home-sections";
@@ -114,6 +115,9 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
               <JoinFields control={control} register={register} errors={errors} />
             )}
             {entry.id === "cta" && <CtaFields register={register} errors={errors} />}
+            {entry.id === "whatsappCta" && (
+              <HeadingFields register={register} errors={errors} section="whatsappCta" />
+            )}
           </SectionCard>
         );
       })}

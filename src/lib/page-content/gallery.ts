@@ -15,7 +15,7 @@ import { sectionHeadingFields } from "./section";
  * verbatim from the old `galleryHero`/`galleryAlbums`/`galleryContribute`
  * sections; this file renames keys, it does not rewrite copy.
  */
-export const GALLERY_SECTION_IDS = ["hero", "albums", "contribute"] as const;
+export const GALLERY_SECTION_IDS = ["hero", "albums", "contribute", "whatsappCta"] as const;
 
 export type GallerySectionId = (typeof GALLERY_SECTION_IDS)[number];
 
@@ -33,6 +33,7 @@ export const galleryAlbumsSectionSchema = z.object({
 });
 
 export const galleryContributeSectionSchema = section;
+export const galleryWhatsappCtaSectionSchema = section;
 
 export const galleryContentSchema = z.object({
   layout: z
@@ -47,6 +48,7 @@ export const galleryContentSchema = z.object({
     hero: galleryHeroSectionSchema,
     albums: galleryAlbumsSectionSchema,
     contribute: galleryContributeSectionSchema,
+    whatsappCta: galleryWhatsappCtaSectionSchema,
   }),
 });
 
@@ -59,6 +61,7 @@ export const DEFAULT_GALLERY: GalleryContentT = {
     { id: "hero", visible: true },
     { id: "albums", visible: true },
     { id: "contribute", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     hero: {
@@ -82,6 +85,12 @@ export const DEFAULT_GALLERY: GalleryContentT = {
       title: "Share Your Photos",
       accentWord: "Photos",
       lead: "Took pictures at one of our events? Send them in and they will join the album, credited to you, once a moderator has had a look.",
+    },
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
     },
   },
 };

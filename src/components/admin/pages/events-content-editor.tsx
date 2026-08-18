@@ -15,7 +15,7 @@ import { savePageContent } from "@/lib/page-content/actions";
 import { EVENTS_SECTION_META } from "@/lib/page-content/events-sections";
 import { eventsContentSchema, type EventsContentT, type EventsSectionId } from "@/lib/page-content/events";
 
-type HeadingSection = "hero" | "calendar" | "membersBand";
+type HeadingSection = "hero" | "calendar" | "membersBand" | "whatsappCta";
 
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({

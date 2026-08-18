@@ -21,7 +21,7 @@ import {
   type MembershipSectionId,
 } from "@/lib/page-content/membership";
 
-type HeadingSection = "hero" | "plans" | "benefits";
+type HeadingSection = "hero" | "plans" | "benefits" | "whatsappCta";
 
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({
@@ -133,7 +133,7 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
               meta.movable && index < fields.length - 1 ? () => move(index, index + 1) : undefined
             }
           >
-            {(entry.id === "hero" || entry.id === "plans") && (
+            {(entry.id === "hero" || entry.id === "plans" || entry.id === "whatsappCta") && (
               <HeadingFields register={register} errors={errors} section={entry.id} />
             )}
 

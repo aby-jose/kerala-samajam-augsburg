@@ -53,6 +53,7 @@ const settingsSchema = z.object({
     instagram: z.string().url().optional().or(z.literal("")),
     twitter: z.string().url().optional().or(z.literal("")),
     youtube: z.string().url().optional().or(z.literal("")),
+    whatsapp: z.string().url().optional().or(z.literal("")),
   }),
   email: z.object({
     fromName: z.string().min(2),
@@ -1045,6 +1046,10 @@ function SettingsPageContent() {
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">YouTube channel</Label>
                         <Input {...register("socials.youtube")} placeholder="https://youtube.com/..." className="h-9 rounded-lg" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">WhatsApp Group invite link</Label>
+                        <Input {...register("socials.whatsapp")} placeholder="https://chat.whatsapp.com/..." className="h-9 rounded-lg" />
                       </div>
                     </div>
                   </div>

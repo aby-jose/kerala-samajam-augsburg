@@ -5,6 +5,7 @@ import { Container } from "@/components/layout/container";
 import { motion, Variants } from "framer-motion";
 import { EventsBand } from "@/components/layout/events-band";
 import { LeadershipRow } from "@/components/layout/leadership-row";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 import {
   Eyebrow,
   PageHeader,
@@ -171,6 +172,7 @@ const ABOUT_SECTION_COMPONENTS: Record<AboutSectionId, ComponentType<any>> = {
   story: AboutStorySection,
   committee: AboutCommitteeSection,
   closing: AboutClosingSection,
+  whatsappCta: WhatsAppCta,
 };
 
 export function AboutPageClient({ content }: { content: AboutContentT }) {

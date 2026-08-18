@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/admin/ui/field";
 import type { HomeContentT } from "@/lib/home-schema";
 
-type HeadingSection = "events" | "gallery" | "committee" | "join" | "cta";
+type HeadingSection = "events" | "gallery" | "committee" | "join" | "cta" | "whatsappCta";
 
 /**
  * Eyebrow, title, accent word and lead — the four fields every section past

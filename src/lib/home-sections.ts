@@ -67,6 +67,12 @@ export const HOME_SECTION_META: Record<HomeSectionId, SectionMeta> = {
     surfaceMode: "deep",
     movable: true,
   },
+  whatsappCta: {
+    label: "WhatsApp CTA",
+    description: "The band inviting people to join the WhatsApp group.",
+    surfaceMode: "rotate",
+    movable: true,
+  },
 };
 
 /** Section ids in the order the editor lists them when nothing is stored. */

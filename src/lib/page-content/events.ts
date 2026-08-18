@@ -15,7 +15,7 @@ import { sectionHeadingFields } from "./section";
  * verbatim from the old `eventsHero`/`eventsCalendar`/`eventsMembersBand`
  * sections; this file renames keys, it does not rewrite copy.
  */
-export const EVENTS_SECTION_IDS = ["hero", "calendar", "membersBand"] as const;
+export const EVENTS_SECTION_IDS = ["hero", "calendar", "membersBand", "whatsappCta"] as const;
 
 export type EventsSectionId = (typeof EVENTS_SECTION_IDS)[number];
 
@@ -24,6 +24,7 @@ const section = z.object({ ...sectionHeadingFields });
 export const eventsHeroSectionSchema = section;
 export const eventsCalendarSectionSchema = section;
 export const eventsMembersBandSectionSchema = section;
+export const eventsWhatsappCtaSectionSchema = section;
 
 export const eventsContentSchema = z.object({
   layout: z
@@ -38,6 +39,7 @@ export const eventsContentSchema = z.object({
     hero: eventsHeroSectionSchema,
     calendar: eventsCalendarSectionSchema,
     membersBand: eventsMembersBandSectionSchema,
+    whatsappCta: eventsWhatsappCtaSectionSchema,
   }),
 });
 
@@ -50,6 +52,7 @@ export const DEFAULT_EVENTS: EventsContentT = {
     { id: "hero", visible: true },
     { id: "calendar", visible: true },
     { id: "membersBand", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     hero: {
@@ -69,6 +72,12 @@ export const DEFAULT_EVENTS: EventsContentT = {
       title: "Hear About Dates Before Anyone Else",
       accentWord: "Before",
       lead: "New dates usually go up a few weeks ahead, and members get the invitation first. Join, or just ask us what is being planned.",
+    },
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
     },
   },
 };

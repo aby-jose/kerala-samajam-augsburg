@@ -40,6 +40,12 @@ export const MEMBERSHIP_SECTION_META: Record<MembershipSectionId, SectionMeta> =
     surfaceMode: "rotate",
     movable: true,
   },
+  whatsappCta: {
+    label: "WhatsApp CTA",
+    description: "The band inviting people to join the WhatsApp group.",
+    surfaceMode: "rotate",
+    movable: true,
+  },
 };
 
 /** Section ids in the order the editor lists them when nothing is stored. */

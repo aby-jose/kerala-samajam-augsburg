@@ -292,9 +292,10 @@ describe("mergePageContent — legacy flat documents (pre-migration shape)", () 
     expect(merged.content.visit.title).toBe("Or Walk Right In");
 
     // A legacy document never had a layout — falls back to the default
-    // order, hero pinned first, everything visible.
+    // order, hero pinned first, everything visible except whatsappCta.
     expect(merged.layout.map((s) => s.id)).toEqual([...CONTACT_SECTION_IDS]);
-    expect(merged.layout.every((s) => s.visible)).toBe(true);
+    expect(merged.layout.filter((s) => s.id !== "whatsappCta").every((s) => s.visible)).toBe(true);
+    expect(merged.layout.find((s) => s.id === "whatsappCta")?.visible).toBe(false);
 
     // What mergePageContent produces must still satisfy the page's own
     // schema — the read path hands this straight to the public page.

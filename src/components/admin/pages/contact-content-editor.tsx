@@ -15,7 +15,7 @@ import { savePageContent } from "@/lib/page-content/actions";
 import { CONTACT_SECTION_META } from "@/lib/page-content/contact-sections";
 import { contactContentSchema, type ContactContentT, type ContactSectionId } from "@/lib/page-content/contact";
 
-type HeadingSection = "hero" | "form" | "faq" | "visit";
+type HeadingSection = "hero" | "form" | "faq" | "visit" | "whatsappCta";
 
 /** Eyebrow, title, accent and lead — the four fields every section shares. */
 function HeadingFields({
@@ -125,7 +125,7 @@ export function ContactContentEditor({ initialData }: { initialData: ContactCont
               meta.movable && index < fields.length - 1 ? () => move(index, index + 1) : undefined
             }
           >
-            {(entry.id === "hero" || entry.id === "form" || entry.id === "visit") && (
+            {(entry.id === "hero" || entry.id === "form" || entry.id === "visit" || entry.id === "whatsappCta") && (
               <HeadingFields register={register} errors={errors} section={entry.id} />
             )}
 

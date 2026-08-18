@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { resolveSections } from "@/lib/page-layout";
 import { GALLERY_SECTION_META } from "@/lib/page-content/gallery-sections";
 import { DEFAULT_GALLERY, type GalleryContentT } from "@/lib/page-content/gallery";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 import { withAccent } from "@/components/layout/with-accent";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -779,7 +780,7 @@ export default function GalleryLandingClient({
 
   return (
     <>
-      {sections.map(({ id, surface, bordered }) => {
+      {sections.map(({ id, surface, tone, bordered }) => {
         if (id === "hero") {
           return (
             <GalleryHeroSection
@@ -802,6 +803,18 @@ export default function GalleryLandingClient({
               bordered={bordered}
               albums={albums}
               onAddPhotos={requireSession(() => setIsContributionModalOpen(true))}
+            />
+          );
+        }
+
+        if (id === "whatsappCta") {
+          return (
+            <WhatsAppCta
+              key={id}
+              content={content.content.whatsappCta}
+              surface={surface}
+              tone={tone}
+              bordered={bordered}
             />
           );
         }

@@ -13,6 +13,42 @@ import { AboutStoryFields } from "@/components/admin/about/story-fields";
 import { saveAboutContent } from "@/lib/about-actions";
 import { aboutContentSchema, type AboutContentT } from "@/lib/about-schema";
 import { ABOUT_SECTION_META } from "@/lib/about-sections";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Field } from "@/components/admin/ui/field";
+import type { UseFormRegister, FieldErrors } from "react-hook-form";
+
+function AboutHeadingFields({
+  section,
+  register,
+  errors,
+}: {
+  section: "whatsappCta";
+  register: UseFormRegister<AboutContentT>;
+  errors: FieldErrors<AboutContentT>;
+}) {
+  const e = errors.content?.[section];
+
+  return (
+    <div className="space-y-5">
+      <Field label="Eyebrow" error={e?.eyebrow?.message}>
+        <Input {...register(`content.${section}.eyebrow`)} className="h-9 rounded-lg" />
+      </Field>
+      <Field label="Title" error={e?.title?.message}>
+        <Input {...register(`content.${section}.title`)} className="h-9 rounded-lg" />
+      </Field>
+      <Field label="Highlighted word/phrase in title" error={e?.accentWord?.message}>
+        <Input {...register(`content.${section}.accentWord`)} className="h-9 rounded-lg" />
+        <p className="text-xs text-muted-foreground">
+          Must match text within the title above exactly. Leave blank for no highlight.
+        </p>
+      </Field>
+      <Field label="Lead" error={e?.lead?.message}>
+        <Textarea {...register(`content.${section}.lead`)} rows={3} />
+      </Field>
+    </div>
+  );
+}
 
 export function AboutContentEditor({ initialData }: { initialData: AboutContentT }) {
   const { success, error: toastError } = useToast();
@@ -103,6 +139,9 @@ export function AboutContentEditor({ initialData }: { initialData: AboutContentT
               <p className="text-sm text-muted-foreground">
                 This section has no editable text — it lists upcoming events, live.
               </p>
+            )}
+            {entry.id === "whatsappCta" && (
+              <AboutHeadingFields register={register} errors={errors} section="whatsappCta" />
             )}
           </SectionCard>
         );

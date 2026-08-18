@@ -20,6 +20,7 @@ import { resolveSections } from "@/lib/page-layout";
 import { EVENTS_SECTION_META } from "@/lib/page-content/events-sections";
 import { DEFAULT_EVENTS, type EventsContentT } from "@/lib/page-content/events";
 import { withAccent } from "@/components/layout/with-accent";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -263,7 +264,7 @@ export function EventsClient({ content }: { content: EventsContentT }) {
 
   return (
     <main className="flex min-h-screen flex-col bg-background selection:bg-primary/5">
-      {sections.map(({ id, surface, bordered }) => {
+      {sections.map(({ id, surface, tone, bordered }) => {
         if (id === "hero") {
           return (
             <EventsHeroSection
@@ -285,6 +286,18 @@ export function EventsClient({ content }: { content: EventsContentT }) {
               surface={surface}
               bordered={bordered}
               events={rest}
+            />
+          );
+        }
+
+        if (id === "whatsappCta") {
+          return (
+            <WhatsAppCta
+              key={id}
+              content={content.content.whatsappCta}
+              surface={surface}
+              tone={tone}
+              bordered={bordered}
             />
           );
         }

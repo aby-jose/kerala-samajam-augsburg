@@ -79,7 +79,10 @@ describe("repairLayout", () => {
     // DEFAULT_HOME_CONTENT when no document is stored, so the defaults, not
     // this path, decide what a never-saved home page renders.
     expect(repairLayout(undefined)).toEqual(
-      DEFAULT_HOME_CONTENT.layout.map((s) => ({ ...s, visible: true }))
+      DEFAULT_HOME_CONTENT.layout.map((s) => ({
+        ...s,
+        visible: s.id === "whatsappCta" ? false : true,
+      }))
     );
   });
 
@@ -92,7 +95,7 @@ describe("repairLayout", () => {
     expect(repaired.map((s) => s.id)).toContain("gallery");
     expect(repaired.find((s) => s.id === "gallery")?.visible).toBe(true);
     expect(repaired.find((s) => s.id === "cta")?.visible).toBe(false);
-    expect(repaired).toHaveLength(8);
+    expect(repaired).toHaveLength(9);
   });
 
   it("drops ids it does not recognise and collapses duplicates", () => {

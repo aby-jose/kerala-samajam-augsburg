@@ -7,7 +7,7 @@ import { z } from "zod";
  * lib/about-sections.ts for what each id renders as and lib/page-layout.ts
  * for the generic ordering rules shared with every other page.
  */
-export const ABOUT_SECTION_IDS = ["hero", "story", "committee", "closing"] as const;
+export const ABOUT_SECTION_IDS = ["hero", "story", "committee", "closing", "whatsappCta"] as const;
 
 export type AboutSectionId = (typeof ABOUT_SECTION_IDS)[number];
 
@@ -78,6 +78,12 @@ export const aboutContentSchema = z.object({
     story: aboutStorySectionSchema,
     committee: aboutCommitteeSectionSchema,
     closing: aboutClosingSectionSchema,
+    whatsappCta: z.object({
+      eyebrow: z.string().min(1, "Required").max(60),
+      title: z.string().min(1, "Required").max(160),
+      accentWord: z.string().max(60).optional().or(z.literal("")),
+      lead: z.string().min(1, "Required").max(500),
+    }),
   }),
 });
 
@@ -94,6 +100,7 @@ export const DEFAULT_ABOUT_CONTENT: AboutContentT = {
     { id: "story", visible: true },
     { id: "committee", visible: true },
     { id: "closing", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     hero: {
@@ -130,6 +137,12 @@ export const DEFAULT_ABOUT_CONTENT: AboutContentT = {
     },
     committee: {},
     closing: {},
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
+    },
   },
 };
 

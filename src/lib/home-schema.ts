@@ -15,6 +15,7 @@ export const HOME_SECTION_IDS = [
   "committee",
   "join",
   "cta",
+  "whatsappCta",
 ] as const;
 
 export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
@@ -164,6 +165,12 @@ export const homeContentSchema = z.object({
     committee: committeeSectionSchema,
     join: joinSectionSchema,
     cta: ctaSectionSchema,
+    whatsappCta: z.object({
+      eyebrow: z.string().min(1, "Required").max(60),
+      title: z.string().min(1, "Required").max(160),
+      accentWord: z.string().max(60).optional().or(z.literal("")),
+      lead: z.string().min(1, "Required").max(500),
+    }),
   }),
 });
 
@@ -185,6 +192,7 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
     { id: "committee", visible: true },
     { id: "join", visible: true },
     { id: "cta", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     // from components/layout/hero.tsx
@@ -326,6 +334,12 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
       lead: "Join the families who keep this going — and get every invitation, every class and every celebration for the year ahead.",
       primaryCta: { label: "Apply for Membership", href: "/membership" },
       secondaryCta: { label: "Ask a Question First", href: "/contact" },
+    },
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
     },
   },
 };

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Cookie, Facebook, Instagram, Mail, MapPin } from "lucide-react";
+import { Cookie, Facebook, Instagram, Mail, MapPin, MessageCircle } from "lucide-react";
 import { useConfig } from "../providers/config-provider";
 import { Container } from "./container";
 import { LEGAL_DOCS_ORDERED, type LegalSlug } from "@/lib/legal-schema";
@@ -55,7 +55,8 @@ export function Footer() {
               {[
                 { icon: Facebook, href: config.socials.facebook },
                 { icon: Instagram, href: config.socials.instagram },
-              ].map((social, i) => (
+                { icon: MessageCircle, href: config.socials.whatsapp },
+              ].filter(s => !!s.href).map((social, i) => (
                 <a
                   key={i}
                   href={social.href}

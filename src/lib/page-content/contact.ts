@@ -9,7 +9,7 @@ import { sectionHeadingFields } from "./section";
  * for what each id renders as and lib/page-layout.ts for the generic
  * ordering rules shared with every other page.
  */
-export const CONTACT_SECTION_IDS = ["hero", "form", "faq", "visit"] as const;
+export const CONTACT_SECTION_IDS = ["hero", "form", "faq", "visit", "whatsappCta"] as const;
 
 export type ContactSectionId = (typeof CONTACT_SECTION_IDS)[number];
 
@@ -37,6 +37,7 @@ export const contactFaqSectionSchema = z.object({
 });
 
 export const contactVisitSectionSchema = z.object({ ...sectionHeadingFields });
+export const contactWhatsappCtaSectionSchema = z.object({ ...sectionHeadingFields });
 
 export const contactContentSchema = z.object({
   layout: z
@@ -52,6 +53,7 @@ export const contactContentSchema = z.object({
     form: contactFormSectionSchema,
     faq: contactFaqSectionSchema,
     visit: contactVisitSectionSchema,
+    whatsappCta: contactWhatsappCtaSectionSchema,
   }),
 });
 
@@ -65,6 +67,7 @@ export const DEFAULT_CONTACT: ContactContentT = {
     { id: "form", visible: true },
     { id: "faq", visible: true },
     { id: "visit", visible: true },
+    { id: "whatsappCta", visible: false },
   ],
   content: {
     hero: {
@@ -112,6 +115,12 @@ export const DEFAULT_CONTACT: ContactContentT = {
       title: "Come Say Hello In Person",
       accentWord: "In Person",
       lead: "Most of our events are open to everyone, and the easiest introduction is to walk in and eat with us. No message required.",
+    },
+    whatsappCta: {
+      eyebrow: "Community Chat",
+      title: "Join our WhatsApp Group",
+      accentWord: "Group",
+      lead: "Get every invitation, every class and every celebration directly in your chat. Stay updated and connected.",
     },
   },
 };

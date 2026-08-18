@@ -35,6 +35,7 @@ import {
   type MembershipSectionId,
 } from "@/lib/page-content/membership";
 import { MEMBERSHIP_ICON_MAP } from "@/lib/page-content/membership-icons";
+import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -464,6 +465,7 @@ const MEMBERSHIP_SECTION_COMPONENTS: Record<MembershipSectionId, ComponentType<a
   hero: MembershipHeroSection,
   plans: MembershipPlansSection,
   benefits: MembershipBenefitsSection,
+  whatsappCta: WhatsAppCta,
 };
 
 export default function MembershipClient({
