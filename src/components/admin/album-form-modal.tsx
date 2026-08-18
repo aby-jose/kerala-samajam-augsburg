@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import ImageUpload from "./image-upload";
 import { createAlbum, updateAlbum } from "@/lib/gallery-actions";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 import { heroSurface } from "@/components/admin/ui/surface";
 
 const albumSchema = z.object({
@@ -49,6 +50,7 @@ export default function AlbumFormModal({
   availableEvents
 }: AlbumFormModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { success, error: toastError } = useToast();
 
   const {
     register,
@@ -112,9 +114,11 @@ export default function AlbumFormModal({
       } else {
         await createAlbum(payload);
       }
+      success(id ? "Album updated." : "Album created.");
       onClose();
-    } catch (error) {
-      console.error("Failed to save album:", error);
+    } catch (err: any) {
+      console.error("Failed to save album:", err);
+      toastError(err.message || "Failed to save album. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

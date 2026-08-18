@@ -115,15 +115,36 @@ export async function getGalleryHighlights(limit = 5) {
   };
 }
 
+/**
+ * Rejects an eventId already claimed by another album, with a message the
+ * admin can act on. The DB's partial unique index (see
+ * prisma/fix-gallery-album-index.ts) is what actually guarantees this — this
+ * check just turns the P2002 it would otherwise throw into something readable
+ * before the write, since eventId is no longer @unique in schema.prisma.
+ */
+async function assertEventNotAlreadyLinked(eventId: string, excludeAlbumId?: string) {
+  const existing = await prisma.galleryAlbum.findFirst({
+    where: { eventId, ...(excludeAlbumId ? { id: { not: excludeAlbumId } } : {}) },
+    select: { id: true, title: true },
+  });
+  if (existing) {
+    throw new Error(`"${existing.title}" is already linked to this event. Unlink it first, or choose a different event.`);
+  }
+}
+
 export async function createAlbum(data: {
   title: string;
   description?: string;
   category?: string;
-  eventId?: string; 
+  eventId?: string;
   coverImage?: string;
   isPublished?: boolean;
 }) {
   await requirePermission("gallery.albums.edit");
+
+  if (data.eventId) {
+    await assertEventNotAlreadyLinked(data.eventId);
+  }
 
   const album = await prisma.galleryAlbum.create({
     data: {
@@ -144,6 +165,10 @@ export async function updateAlbum(id: string, data: {
   isPublished?: boolean;
 }) {
   await requirePermission("gallery.albums.edit");
+
+  if (data.eventId) {
+    await assertEventNotAlreadyLinked(data.eventId, id);
+  }
 
   const album = await prisma.galleryAlbum.update({
     where: { id },

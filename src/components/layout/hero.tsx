@@ -115,13 +115,13 @@ export function Hero({
           {/* Eyebrow */}
           <motion.div
             {...fade(0.25)}
-            className="inline-flex items-center gap-2.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-1.5 backdrop-blur-md"
+            className="inline-flex items-center gap-3 rounded-full border border-white/15 bg-white/[0.06] px-4 py-2 backdrop-blur-md"
           >
-            <span className="relative flex h-1.5 w-1.5">
+            <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/75">
+            <span className="text-xs font-semibold uppercase tracking-[0.22em] text-white/75">
               {content.badge}
             </span>
           </motion.div>

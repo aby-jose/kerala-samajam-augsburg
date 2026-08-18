@@ -137,10 +137,11 @@ export async function runPostEventThankYou(): Promise<JobResult> {
     const recipients = attended.length ? attended : event.registrations;
     if (!recipients.length) continue;
 
+    // galleryAlbum is an array only because Prisma requires that shape for
+    // the relation (see the schema comment) — there is at most one per event.
+    const album = event.galleryAlbum[0];
     const galleryUrl =
-      event.galleryAlbum?.isPublished && event.galleryAlbum.id
-        ? `/gallery?album=${event.galleryAlbum.id}`
-        : null;
+      album?.isPublished && album.id ? `/gallery?album=${album.id}` : null;
 
     const outcome = await sendMailBatch(
       recipients.map((registration) => ({

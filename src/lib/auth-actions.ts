@@ -228,7 +228,11 @@ export async function verifyEmail(token: string) {
       });
     }
 
-    return { success: true };
+    // The role, so the page can send an administrator back to `/admin/login`
+    // instead of the public sign-in it defaults to. An admin who just
+    // reverified a changed address (`updateProfile`) signs in on a different
+    // portal, with a different session cookie, from every other member.
+    return { success: true, role: user.role };
   } catch (error) {
     console.error("Email verification error:", error);
     return { error: "Failed to verify email" };

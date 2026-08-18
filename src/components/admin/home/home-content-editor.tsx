@@ -12,6 +12,7 @@ import { HeroFields } from "@/components/admin/home/hero-fields";
 import { AboutFields } from "@/components/admin/home/about-fields";
 import { EventsFields } from "@/components/admin/home/events-fields";
 import { GalleryFields } from "@/components/admin/home/gallery-fields";
+import { ReelsFields } from "@/components/admin/home/reels-fields";
 import { CommitteeFields } from "@/components/admin/home/committee-fields";
 import { JoinFields } from "@/components/admin/home/join-fields";
 import { CtaFields } from "@/components/admin/home/cta-fields";
@@ -107,6 +108,7 @@ export function HomeContentEditor({ initialData }: { initialData: HomeContentT }
             )}
             {entry.id === "events" && <EventsFields register={register} errors={errors} />}
             {entry.id === "gallery" && <GalleryFields register={register} errors={errors} />}
+            {entry.id === "reels" && <ReelsFields register={register} errors={errors} />}
             {entry.id === "committee" && <CommitteeFields register={register} errors={errors} />}
             {entry.id === "join" && (
               <JoinFields control={control} register={register} errors={errors} />

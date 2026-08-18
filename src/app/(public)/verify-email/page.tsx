@@ -20,7 +20,15 @@ type Status = "checking" | "verified" | "failed";
  * the usual icon-in-a-box. The rule is the one that does the real work: it
  * sweeps while we wait, fills on success, and stops short on failure.
  */
-function VerifyEmailView({ status, reason }: { status: Status; reason?: string }) {
+function VerifyEmailView({
+  status,
+  reason,
+  isAdmin,
+}: {
+  status: Status;
+  reason?: string;
+  isAdmin?: boolean;
+}) {
   const reduced = useReducedMotion();
 
   const rise = (delay: number) =>
@@ -129,8 +137,9 @@ function VerifyEmailView({ status, reason }: { status: Status; reason?: string }
             {status === "checking" && <p>This takes a second. Keep the tab open while we confirm your address.</p>}
             {status === "verified" && (
               <p>
-                Your address is confirmed. Sign in and your member portal is ready — events,
-                registrations and your membership details all live there.
+                {isAdmin
+                  ? "Your address is confirmed. Sign in to the admin portal to continue."
+                  : "Your address is confirmed. Sign in and your member portal is ready — events, registrations and your membership details all live there."}
               </p>
             )}
             {status === "failed" && (
@@ -149,7 +158,10 @@ function VerifyEmailView({ status, reason }: { status: Status; reason?: string }
               {...rise(0.45)}
               className="mt-10 flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6"
             >
-              <Link href="/?auth=login" className="group w-full sm:w-auto">
+              <Link
+                href={isAdmin ? "/admin/login" : "/?auth=login"}
+                className="group w-full sm:w-auto"
+              >
                 <Button className="h-12 w-full rounded-full px-8 text-[14px] font-bold shadow-lg shadow-primary/25 transition-all duration-500 hover:-translate-y-0.5 hover:shadow-primary/35 sm:w-auto">
                   Sign in
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform duration-500 group-hover:translate-x-1" />
@@ -175,6 +187,7 @@ function VerifyEmailContent() {
 
   const [status, setStatus] = useState<Status>("checking");
   const [reason, setReason] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     if (!token) {
@@ -191,6 +204,7 @@ function VerifyEmailContent() {
       .then((result) => {
         if (!active) return;
         if (result.success) {
+          setIsAdmin(result.role === "ADMIN");
           setStatus("verified");
           return;
         }
@@ -212,7 +226,7 @@ function VerifyEmailContent() {
     };
   }, [token]);
 
-  return <VerifyEmailView status={status} reason={reason} />;
+  return <VerifyEmailView status={status} reason={reason} isAdmin={isAdmin} />;
 }
 
 // useSearchParams() opts the route into client-side rendering, so it needs a

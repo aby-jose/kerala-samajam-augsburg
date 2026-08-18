@@ -68,3 +68,9 @@ errors*.txt
 # project configuration under that directory stays tracked.
 .claude/worktrees/
 .superpowers/
+
+# DB backups (contains user data - never commit)
+/backups/
+
+# Local email-render previews (see superpowers:email-review-by-rendering)
+/.email-preview/

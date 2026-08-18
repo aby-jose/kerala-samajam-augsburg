@@ -140,7 +140,12 @@ model Event {
   cancelledAt        DateTime?
 
   registrations  Registration[]
-  galleryAlbum   GalleryAlbum?
+  // Array, not GalleryAlbum?: Prisma requires @unique on the defining side of
+  // a one-to-one relation, and eventId can't be @unique (see the comment on
+  // GalleryAlbum.eventId). In practice this is still one album per event —
+  // enforced by the partial DB index and the app-level check — so callers
+  // should treat this as holding at most one element.
+  galleryAlbum   GalleryAlbum[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 }
@@ -191,7 +196,14 @@ model GalleryAlbum {
   title       String
   description String?
   category    String?        @default("Events")
-  eventId     String?        @db.ObjectId @unique
+  // Not @unique here: Prisma's MongoDB connector has no partial/sparse index
+  // attribute, and a plain unique index treats every album with no event as
+  // a duplicate null, so only one standalone album could ever be created.
+  // One-album-per-event is instead enforced by a partial unique index
+  // created outside the schema (see prisma/fix-gallery-album-index.ts) that
+  // ignores documents where eventId doesn't exist, plus the
+  // application-level check in createAlbum/updateAlbum.
+  eventId     String?        @db.ObjectId
   event       Event?         @relation(fields: [eventId], references: [id])
   coverImage  String?        // Cloudinary URL
   media       GalleryMedia[]

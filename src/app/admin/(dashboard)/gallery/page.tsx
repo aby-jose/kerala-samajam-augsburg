@@ -22,7 +22,7 @@ export default async function AdminGalleryPage() {
 
   const events = await prisma.event.findMany({
     where: {
-      galleryAlbum: { is: null }, // Only events without an album
+      galleryAlbum: { none: {} }, // Only events without an album
     },
     select: {
       id: true,
