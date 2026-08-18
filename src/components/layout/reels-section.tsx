@@ -42,8 +42,9 @@ export function ReelsSection({
         bordered && "border-y border-border"
       )}
     >
-      {/* Bounded to 80% of the viewport rather than the page's usual content
-          width — the strip reads as an inset editorial column. */}
+      {/* Header stays in the same 80%-wide inset column as before. The
+          marquee track below deliberately breaks out of it — a marquee
+          reads as a marquee only if it actually runs to the screen edge. */}
       <div className="mx-auto w-[80%]">
         {/* Same header shape as GalleryStrip, the sibling section this one
             most resembles: heading on the left, a count-free "view all" link
@@ -75,48 +76,20 @@ export function ReelsSection({
             <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
           </a>
         </motion.div>
+      </div>
 
-        {/* Masonry, kept genuinely compact: small fixed-size tiles (not
-            stretched to fill a grid track), staggered by nudging alternate
-            columns down half a card — so the wall stays short regardless of
-            how many columns fit, instead of growing with the container. */}
-        <motion.div
-          className="flex gap-3 overflow-x-auto pb-2 sm:gap-4"
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-60px" }}
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
-        >
-          {columnsOf(reels, 5).map((column, colIndex) => (
-            <div
-              key={colIndex}
-              className={cn("flex shrink-0 flex-col gap-3 sm:gap-4", colIndex % 2 === 1 && "mt-10")}
-            >
-              {column.map((reel, i) => (
-                <motion.div
-                  key={reel.id}
-                  variants={{
-                    hidden: { opacity: 0, y: 20 },
-                    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
-                  }}
-                >
-                  <ReelTile reel={reel} tone={(colIndex + i) % 2 === 0 ? "primary" : "dark"} />
-                </motion.div>
-              ))}
-            </div>
+      {/* The row is rendered twice back to back and the whole thing scrolls
+          by exactly -50%, so the loop has no visible seam. Same tile, same
+          size, same tone alternation as before — only the layout changed. */}
+      <div className="overflow-hidden">
+        <div className="flex w-max animate-marquee gap-3 motion-reduce:animate-none sm:gap-4 hover:[animation-play-state:paused]">
+          {[...reels, ...reels].map((reel, i) => (
+            <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   );
-}
-
-/** Round-robins items into `count` columns, so a masonry grid can be built
- *  with plain flex columns instead of a JS layout library. */
-function columnsOf<T>(items: T[], count: number): T[][] {
-  const columns: T[][] = Array.from({ length: count }, () => []);
-  items.forEach((item, i) => columns[i % count].push(item));
-  return columns;
 }
 
 /**
