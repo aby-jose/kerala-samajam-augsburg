@@ -11,6 +11,7 @@ export const HOME_SECTION_IDS = [
   "about",
   "events",
   "gallery",
+  "reels",
   "committee",
   "join",
   "cta",
@@ -114,6 +115,12 @@ export const gallerySectionSchema = z.object({
   link: linkSchema,
 });
 
+export const reelsSectionSchema = z.object({
+  heading: z.string().min(1, "Required").max(160),
+  subheading: z.string().max(300).optional().or(z.literal("")),
+  maxCount: z.number().int().min(1).max(20),
+});
+
 export const committeeSectionSchema = z.object({
   ...headingFields,
   limit: z.number().int().min(1).max(24),
@@ -153,6 +160,7 @@ export const homeContentSchema = z.object({
     about: aboutSectionSchema,
     events: eventsSectionSchema,
     gallery: gallerySectionSchema,
+    reels: reelsSectionSchema,
     committee: committeeSectionSchema,
     join: joinSectionSchema,
     cta: ctaSectionSchema,
@@ -173,6 +181,7 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
     { id: "about", visible: true },
     { id: "events", visible: true },
     { id: "gallery", visible: true },
+    { id: "reels", visible: true },
     { id: "committee", visible: true },
     { id: "join", visible: true },
     { id: "cta", visible: true },
@@ -271,6 +280,13 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
       accentWord: "Gallery",
       lead: "Every sadhya, every stage and every picnic since 2012 — photographed by whoever had a camera that day. Search by face to find yourself in there.",
       link: { label: "View all albums", href: "/gallery" },
+    },
+    // from components/layout/reels-section.tsx — auto-hides until reels are
+    // synced and featured, so this is safe to ship visible by default
+    reels: {
+      heading: "From Instagram",
+      subheading: "The latest reels — tap any clip to watch it on Instagram.",
+      maxCount: 8,
     },
     // from components/layout/leadership-row.tsx
     committee: {

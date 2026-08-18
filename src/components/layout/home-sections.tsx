@@ -4,6 +4,7 @@ import { Hero } from "@/components/layout/hero";
 import { AboutIntro } from "@/components/layout/about-intro";
 import { EventsBandSection } from "@/components/layout/events-band-section";
 import { GalleryStrip } from "@/components/layout/gallery-strip";
+import { ReelsSection } from "@/components/layout/reels-section";
 import { LeadershipRow } from "@/components/layout/leadership-row";
 import { JoinSteps } from "@/components/layout/join-steps";
 import { JoinCta } from "@/components/layout/join-cta";
@@ -16,6 +17,7 @@ export const HOME_SECTION_COMPONENTS: Record<HomeSectionId, ComponentType<any>> 
   about: AboutIntro,
   events: EventsBandSection,
   gallery: GalleryStrip,
+  reels: ReelsSection,
   committee: LeadershipRow,
   join: JoinSteps,
   cta: JoinCta,

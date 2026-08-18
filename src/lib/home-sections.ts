@@ -43,6 +43,12 @@ export const HOME_SECTION_META: Record<HomeSectionId, SectionMeta> = {
     surfaceMode: "rotate",
     movable: true,
   },
+  reels: {
+    label: "Instagram reels",
+    description: "Featured reels synced from Instagram. Curated from the Reels admin screen.",
+    surfaceMode: "rotate",
+    movable: true,
+  },
   committee: {
     label: "Committee",
     description: "This year's committee members.",

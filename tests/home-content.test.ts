@@ -49,6 +49,13 @@ describe("mergeHomeContent", () => {
     expect(merged.join.steps).toEqual(DEFAULT_HOME_CONTENT.content.join.steps);
   });
 
+  it("keeps a stored reels heading and fills the rest from defaults", () => {
+    const merged = mergeHomeContent({ reels: { heading: "Latest Clips" } });
+
+    expect(merged.reels.heading).toBe("Latest Clips");
+    expect(merged.reels.maxCount).toBe(DEFAULT_HOME_CONTENT.content.reels.maxCount);
+  });
+
   it("ignores section keys it does not recognise", () => {
     const merged = mergeHomeContent({ nonsense: { title: "x" } }) as Record<string, unknown>;
     expect(merged.nonsense).toBeUndefined();
@@ -76,7 +83,7 @@ describe("repairLayout", () => {
     expect(repaired.map((s) => s.id)).toContain("gallery");
     expect(repaired.find((s) => s.id === "gallery")?.visible).toBe(true);
     expect(repaired.find((s) => s.id === "cta")?.visible).toBe(false);
-    expect(repaired).toHaveLength(7);
+    expect(repaired).toHaveLength(8);
   });
 
   it("drops ids it does not recognise and collapses duplicates", () => {
@@ -112,14 +119,16 @@ describe("resolveSections", () => {
       ["about", "bg-surface-1"],
       ["events", "bg-surface-2"],
       ["gallery", "bg-surface-1"],
-      ["committee", "bg-surface-3"],
-      ["join", "bg-surface-1"],
+      ["reels", "bg-surface-3"],
+      ["committee", "bg-surface-1"],
+      ["join", "bg-surface-2"],
       ["cta", "bg-surface-deep"],
     ]);
 
     expect(resolved.filter((s) => s.bordered).map((s) => s.id)).toEqual([
       "events",
-      "committee",
+      "reels",
+      "join",
     ]);
   });
 
@@ -144,7 +153,7 @@ describe("resolveSections", () => {
   });
 
   it("never puts two identical surfaces next to each other, in any order", () => {
-    const movable = ["about", "events", "gallery", "committee", "join", "cta"] as const;
+    const movable = ["about", "events", "gallery", "reels", "committee", "join", "cta"] as const;
 
     const permute = <T,>(items: readonly T[]): T[][] =>
       items.length <= 1
