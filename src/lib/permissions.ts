@@ -65,6 +65,10 @@ export const PERMISSIONS = {
   "gallery.contributions.view": { group: "Gallery", label: "View member contributions", mutates: false },
   "gallery.contributions.moderate": { group: "Gallery", label: "Approve and reject contributions", mutates: true },
 
+  // --- Reels ---
+  "reels.view": { group: "Reels", label: "View synced Instagram reels", mutates: false },
+  "reels.manage": { group: "Reels", label: "Feature, reorder and sync reels", mutates: true },
+
   // --- Content ---
   "content.home.edit": { group: "Content", label: "Edit the Home page", mutates: true },
   "content.about.edit": { group: "Content", label: "Edit the About page", mutates: true },
@@ -108,7 +112,7 @@ export const ALL_PERMISSIONS = Object.keys(PERMISSIONS) as Permission[];
 /** Display order for the permission matrix. */
 export const PERMISSION_GROUPS = [
   "Overview", "Events", "Registrations", "Payments", "Members", "Membership",
-  "Gallery", "Content", "Inquiries", "Legal", "Email", "System", "Team & Access",
+  "Gallery", "Reels", "Content", "Inquiries", "Legal", "Email", "System", "Team & Access",
 ] as const;
 
 export function isPermission(value: string): value is Permission {
