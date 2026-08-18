@@ -62,6 +62,18 @@ export async function setReelFeatured(reelId: string, featured: boolean) {
       where: { id: reelId },
       data: { featured: false, order: 0 },
     });
+
+    // Renumber the remaining featured reels to close the gap this leaves,
+    // so a later feature doesn't collide with an existing order value.
+    const remaining = await prisma.instagramReel.findMany({
+      where: { featured: true },
+      orderBy: { order: "asc" },
+    });
+    await Promise.all(
+      remaining.map((r, index) =>
+        prisma.instagramReel.update({ where: { id: r.id }, data: { order: index } })
+      )
+    );
   }
 
   revalidatePath("/admin/reels");
