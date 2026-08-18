@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Instagram } from "lucide-react";
+import { Container } from "@/components/layout/container";
 import { Eyebrow, SectionLead, SectionTitle } from "@/components/layout/section-heading";
 import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { getFeaturedReels, type ReelCardData } from "@/lib/instagram-actions";
@@ -42,10 +43,12 @@ export function ReelsSection({
         bordered && "border-y border-border"
       )}
     >
-      {/* Header stays in the same 80%-wide inset column as before. The
-          marquee track below deliberately breaks out of it — a marquee
-          reads as a marquee only if it actually runs to the screen edge. */}
-      <div className="mx-auto w-[80%]">
+      {/* Same Container the Committee section (and every other non-marquee
+          section) uses — max-w-screen-2xl, not a viewport-percentage width —
+          so the heading lines up with the rest of the page. The marquee
+          track below still breaks out of it: a marquee only reads as one if
+          it actually runs to the screen edge. */}
+      <Container>
         {/* Same header shape as GalleryStrip, the sibling section this one
             most resembles: heading on the left, a count-free "view all" link
             on the right, both anchored to the row's baseline. */}
@@ -76,7 +79,7 @@ export function ReelsSection({
             <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
           </a>
         </motion.div>
-      </div>
+      </Container>
 
       {/* Four copies of the row, back to back — with only a handful of
           reels, two copies can run out of content before a wide screen has
