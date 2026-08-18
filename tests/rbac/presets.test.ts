@@ -31,6 +31,7 @@ const EXPECTED_READ_ONLY = [
   "membership.applications.view",
   "membership.plans.view",
   "payments.view",
+  "reels.view",
   "registrations.view",
   "roles.view",
   "staff.view",
