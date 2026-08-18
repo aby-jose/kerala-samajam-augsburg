@@ -1,5 +1,7 @@
 "use server";
 
+import path from "path";
+
 import { NOT_REVOKED, prisma } from "./prisma";
 import cloudinary from "./cloudinary";
 import { enforceRateLimit } from "./rate-limit";
@@ -8,7 +10,7 @@ import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { can, requireAnyUser, requirePermission, requireUser } from "./guards";
 import { assertFeature } from "./feature-gate";
-import { resolveUploadFolder } from "./rbac/upload-folder";
+import { CONTRIBUTION_FOLDER_PREFIX, resolveUploadFolder } from "./rbac/upload-folder";
 import { validateUpload } from "./upload-validation";
 import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
@@ -384,6 +386,53 @@ function euclideanDistance(arr1: number[], arr2: number[]) {
   );
 }
 
+/**
+ * Confirms a contribution's `publicId` is a real Cloudinary asset that was
+ * actually uploaded through the member contribution path — not merely an id
+ * the caller happens to know (a published gallery photo, the org's branding
+ * logo, another member's profile picture). `submitMediaContribution` and
+ * `submitBulkMediaContributions` are directly callable server actions that
+ * used to accept `publicId`/`url` as free-form client input; a rejected
+ * contribution deletes its `publicId` from Cloudinary
+ * (`moderateContribution` → `deleteImage`), so trusting that value let any
+ * signed-in member get an arbitrary asset destroyed by having it "declined".
+ *
+ * Two checks, both fail-closed:
+ *  - The (normalized, traversal-collapsed) publicId must live under the
+ *    shared contribution folder `resolveUploadFolder` sandboxes ordinary
+ *    uploads into — assets outside it were never part of this flow.
+ *  - It must not already back a live `GalleryMedia` row, so a member can't
+ *    resubmit an already-published photo's publicId to get it deleted out
+ *    from under its existing gallery entry.
+ *
+ * The client-submitted `url` is never trusted for what gets stored — the
+ * canonical URL Cloudinary itself reports for the asset is used instead,
+ * which also confirms the asset genuinely exists before it enters moderation.
+ */
+async function resolveContributionAsset(publicId: string, type: "IMAGE" | "VIDEO") {
+  const normalized = path.posix.normalize(publicId);
+  if (!normalized.startsWith(CONTRIBUTION_FOLDER_PREFIX)) {
+    throw new Error("This file wasn't uploaded through the contribution flow.");
+  }
+
+  const alreadyLive = await prisma.galleryMedia.findUnique({
+    where: { publicId: normalized },
+    select: { id: true },
+  });
+  if (alreadyLive) {
+    throw new Error("This photo has already been added to the gallery.");
+  }
+
+  try {
+    const resource = await cloudinary.api.resource(normalized, {
+      resource_type: type === "VIDEO" ? "video" : "image",
+    });
+    return { publicId: normalized, url: resource.secure_url as string };
+  } catch {
+    throw new Error("We couldn't find that upload. Please try uploading again.");
+  }
+}
+
 export async function submitMediaContribution(data: {
   albumId: string;
   url: string;
@@ -401,9 +450,13 @@ export async function submitMediaContribution(data: {
   const album = await prisma.galleryAlbum.findUnique({ where: { id: data.albumId } });
   if (!album) throw new Error("Album not found");
 
+  const asset = await resolveContributionAsset(data.publicId, data.type);
+
   const contribution = await prisma.mediaContribution.create({
     data: {
       ...data,
+      publicId: asset.publicId,
+      url: asset.url,
       userId: session.user.id as string,
       status: "PENDING"
     }
@@ -444,9 +497,19 @@ export async function submitBulkMediaContributions(albumId: string, items: {
   const album = await prisma.galleryAlbum.findUnique({ where: { id: albumId } });
   if (!album) throw new Error("Album not found");
 
+  // Every item is validated before any row is written — one bad publicId
+  // fails the whole batch rather than silently dropping it, matching the
+  // fail-closed behaviour of the single-item path.
+  const resolvedItems = await Promise.all(
+    items.map(async (item) => {
+      const asset = await resolveContributionAsset(item.publicId, item.type);
+      return { ...item, publicId: asset.publicId, url: asset.url };
+    })
+  );
+
   const userId = session.user.id;
   const contributions = await prisma.mediaContribution.createMany({
-    data: items.map(item => ({
+    data: resolvedItems.map(item => ({
       ...item,
       userId,
       albumId,

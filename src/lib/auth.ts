@@ -225,11 +225,18 @@ const baseOptions: Omit<NextAuthOptions, "providers"> = {
         select: { role: true, emailVerified: true, passwordChangedAt: true },
       });
 
-      // Deleted or suspended: strip the role so every guard downstream fails.
-      // The token stays otherwise intact so next-auth can still expire it
-      // normally rather than throwing mid-request.
+      // Deleted or suspended: clear both role and id, matching the
+      // password-changed branch below. Clearing only the role is not enough —
+      // `isSuspended()` in guards.ts is a *negative* check (does the role
+      // start with "SUSPENDED_"), and `undefined` fails that check too, so a
+      // role-only clear leaves `getCurrentUser()` treating the session as a
+      // valid, unsuspended signed-in user for as long as the token lives.
+      // Clearing `id` as well is what actually makes `getCurrentUser()`
+      // (`!user?.id`) reject it, the same way an evicted-by-password-reset
+      // session is rejected.
       if (!current || current.role.startsWith("SUSPENDED_")) {
         token.role = undefined;
+        token.id = undefined as unknown as string;
         token.roleCheckedAt = Date.now();
         return token;
       }

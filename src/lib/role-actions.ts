@@ -43,20 +43,32 @@ export async function upsertRole(input: {
   description?: string;
   permissions: string[];
 }) {
-  await requirePermission("roles.edit");
+  const ctx = await requirePermission("roles.edit");
 
   const name = input.name.trim();
   if (!name) return { error: "A role needs a name." };
 
   // Unknown keys are dropped rather than stored, so a renamed permission
   // cannot linger in a role row and satisfy a future check by accident.
-  const permissions = input.permissions.filter(isPermission);
+  const requested = input.permissions.filter(isPermission);
 
   try {
     if (input.id) {
       const existing = await prisma.role.findUnique({ where: { id: input.id } });
       if (!existing) return { error: "Role not found." };
       assertRoleEditable(existing);
+
+      // `roles.edit` alone must not let its holder grant a permission they
+      // don't themselves have — otherwise a "role architect" scoped to just
+      // roles.view + roles.edit could edit the very role their own account
+      // holds and hand it every permission in the catalogue, escalating on
+      // their own next request (`getStaffContext` re-resolves from the DB).
+      // A permission the role already carried stays, even if the actor no
+      // longer/never held it personally — this only blocks *adding new* ones.
+      const existingPermissions = new Set(resolvePermissions(existing));
+      const permissions = requested.filter(
+        (p) => ctx.has(p) || existingPermissions.has(p)
+      );
 
       await prisma.role.update({
         where: { id: input.id },
@@ -69,6 +81,10 @@ export async function upsertRole(input: {
         metadata: { permissions },
       });
     } else {
+      // A brand-new role has no prior permissions to grandfather in — every
+      // granted permission must be one the creator already holds.
+      const permissions = requested.filter((p) => ctx.has(p));
+
       const created = await prisma.role.create({
         data: { name, description: input.description?.trim() || null, permissions },
       });

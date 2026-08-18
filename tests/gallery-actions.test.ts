@@ -11,7 +11,10 @@ vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ publicAuthOptions: {} }));
-vi.mock("@/lib/cloudinary", () => ({ default: {}, uploadToCloudinary: vi.fn() }));
+vi.mock("@/lib/cloudinary", () => ({
+  default: { api: { resource: vi.fn() } },
+  uploadToCloudinary: vi.fn(),
+}));
 vi.mock("@/lib/rate-limit", () => ({ enforceRateLimit: vi.fn() }));
 vi.mock("@/lib/guards", () => ({
   can: vi.fn(),
@@ -20,7 +23,10 @@ vi.mock("@/lib/guards", () => ({
   requirePermission: vi.fn(),
   requireUser: vi.fn(),
 }));
-vi.mock("@/lib/rbac/upload-folder", () => ({ resolveUploadFolder: vi.fn() }));
+vi.mock("@/lib/rbac/upload-folder", () => ({
+  resolveUploadFolder: vi.fn(),
+  CONTRIBUTION_FOLDER_PREFIX: "kerala-samajam/contributions/",
+}));
 vi.mock("@/lib/upload-validation", () => ({ validateUpload: vi.fn() }));
 vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), templates: {} }));
 vi.mock("@/lib/config-utils", () => ({ getConfig: vi.fn() }));
@@ -30,12 +36,14 @@ vi.mock("@/lib/prisma", () => ({
   NOT_REVOKED: {},
   prisma: {
     galleryAlbum: { findUnique: vi.fn() },
+    galleryMedia: { findUnique: vi.fn() },
     mediaContribution: { create: vi.fn() },
   },
 }));
 
 import { getServerSession } from "next-auth";
 import { prisma } from "@/lib/prisma";
+import cloudinary from "@/lib/cloudinary";
 import { getConfig } from "@/lib/config-utils";
 import { featureDisabledMessage } from "@/lib/feature-gate";
 import { submitMediaContribution } from "@/lib/gallery-actions";
@@ -43,12 +51,17 @@ import { submitMediaContribution } from "@/lib/gallery-actions";
 const mockedGetConfig = vi.mocked(getConfig);
 const mockedGetServerSession = vi.mocked(getServerSession);
 const mockedFindAlbum = vi.mocked(prisma.galleryAlbum.findUnique);
+const mockedFindMedia = vi.mocked(prisma.galleryMedia.findUnique);
 const mockedCreateContribution = vi.mocked(prisma.mediaContribution.create);
+const mockedResource = vi.mocked(cloudinary.api.resource);
 
+// A real contribution's publicId lives under the sandboxed upload folder and
+// resolves to a genuine Cloudinary asset — see resolveContributionAsset in
+// gallery-actions.ts, which now verifies both before accepting a submission.
 const CONTRIBUTION = {
   albumId: "album-1",
   url: "https://example.org/a.jpg",
-  publicId: "a",
+  publicId: "kerala-samajam/contributions/misc/a",
   type: "IMAGE" as const,
 };
 
@@ -69,6 +82,10 @@ beforeEach(() => {
     user: { id: "member-1", name: "Asha" },
   } as never);
   mockedFindAlbum.mockResolvedValue({ id: "album-1", title: "Onam" } as never);
+  mockedFindMedia.mockResolvedValue(null as never);
+  mockedResource.mockResolvedValue({
+    secure_url: "https://res.cloudinary.com/demo/image/upload/a.jpg",
+  } as never);
   mockedCreateContribution.mockResolvedValue({ id: "contrib-1" } as never);
 });
 
