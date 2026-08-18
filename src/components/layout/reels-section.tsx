@@ -76,37 +76,35 @@ export function ReelsSection({
           </a>
         </motion.div>
 
-        {/* Same mosaic GalleryStrip uses — one hero tile carrying four
-            smaller ones — so the two "recent content" sections on this page
-            read as one family instead of two different components. */}
+        {/* Masonry: three columns of unequal width, each reel keeping its
+            real 9:16 shape. The stagger comes from the columns themselves
+            (different widths, different item counts), not from stretching
+            any individual card out of proportion — so it reads as a wall of
+            actual reels, not a photo grid wearing a reel's clothes. */}
         <motion.div
-          className={cn(
-            "grid grid-cols-2 gap-3 md:gap-4",
-            reels.length >= 4 ? "md:grid-cols-4" : "md:grid-cols-3"
-          )}
+          className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_1.2fr_0.9fr]"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
-          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
         >
-          {reels.slice(0, 5).map((reel, i) => (
-            <motion.div
-              key={reel.id}
-              variants={{
-                hidden: { opacity: 0, y: 20 },
-                visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
-              }}
-              className={cn(
-                "group relative aspect-square overflow-hidden rounded-2xl",
-                i === 0 && reels.length >= 5 && "col-span-2 row-span-2"
-              )}
+          {columnsOf(reels, 3).map((column, colIndex) => (
+            <div
+              key={colIndex}
+              className={cn("flex flex-col gap-4", colIndex === 2 && "hidden sm:flex")}
             >
-              <ReelTile
-                reel={reel}
-                isHero={i === 0 && reels.length >= 5}
-                tone={i % 2 === 0 ? "primary" : "dark"}
-              />
-            </motion.div>
+              {column.map((reel, i) => (
+                <motion.div
+                  key={reel.id}
+                  variants={{
+                    hidden: { opacity: 0, y: 20 },
+                    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
+                  }}
+                >
+                  <ReelTile reel={reel} tone={(colIndex + i) % 2 === 0 ? "primary" : "dark"} />
+                </motion.div>
+              ))}
+            </div>
           ))}
         </motion.div>
       </div>
@@ -114,29 +112,30 @@ export function ReelsSection({
   );
 }
 
+/** Round-robins items into `count` columns, so a masonry grid can be built
+ *  with plain flex columns instead of a JS layout library. */
+function columnsOf<T>(items: T[], count: number): T[][] {
+  const columns: T[][] = Array.from({ length: count }, () => []);
+  items.forEach((item, i) => columns[i % count].push(item));
+  return columns;
+}
+
 /**
  * A solid field of the site's own primary or near-black — never a stand-in
  * photo — carrying the caption directly, the way a press clipping carries a
- * pull quote. Real cached video plays in the same tile once it exists,
- * with the identical icon-top/caption-bottom shell over a scrim, so the
- * mosaic doesn't visually reshuffle itself the day Instagram connects.
+ * pull quote. Fixed at the real 9:16 reel ratio. Real cached video plays in
+ * the same card once it exists, with the identical icon-top/caption-bottom
+ * shell over a scrim, so the wall doesn't visually reshuffle itself the day
+ * Instagram connects.
  */
-function ReelTile({
-  reel,
-  isHero,
-  tone,
-}: {
-  reel: ReelCardData;
-  isHero: boolean;
-  tone: "primary" | "dark";
-}) {
+function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark" }) {
   return (
     <a
       href={reel.permalink}
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "absolute inset-0 flex flex-col justify-between p-5 transition-transform duration-500 md:group-hover:-translate-y-1",
+        "group relative flex aspect-[9/16] w-full flex-col justify-between overflow-hidden rounded-2xl p-5 transition-transform duration-500 hover:-translate-y-1",
         reel.cloudinaryVideoUrl || tone === "dark" ? "bg-surface-deep" : "bg-primary"
       )}
     >
@@ -160,12 +159,7 @@ function ReelTile({
       <Instagram className="relative h-5 w-5 text-white/75" strokeWidth={2} />
 
       <div className="relative">
-        <p
-          className={cn(
-            "font-serif italic leading-snug text-white line-clamp-4",
-            isHero ? "text-2xl" : "text-base"
-          )}
-        >
+        <p className="line-clamp-5 font-serif text-base italic leading-snug text-white">
           {reel.caption || "From the KSA feed"}
         </p>
         <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
