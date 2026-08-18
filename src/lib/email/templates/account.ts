@@ -131,7 +131,7 @@ export const passwordChanged = (
           ]),
           notice(t, {
             title: "If this wasn't you",
-            body: `Your account may be compromised. Reset your password immediately, then write to <a href="mailto:${esc(ctx.contactEmail)}" style="color:${t.primaryDeep};font-weight:700;">${esc(ctx.contactEmail)}</a>.`,
+            body: `Your account may be compromised. Reset your password immediately, then write to <a href="mailto:${esc(ctx.contactEmail)}" class="tk-accent" style="color:${t.primaryDeep};font-weight:700;">${esc(ctx.contactEmail)}</a>.`,
           }),
         ],
       },
@@ -181,7 +181,7 @@ export const emailChanged = (
           toOld
             ? notice(t, {
                 title: "If you did not make this change",
-                body: `Contact us straight away at <a href="mailto:${esc(ctx.contactEmail)}" style="color:${t.primaryDeep};font-weight:700;">${esc(ctx.contactEmail)}</a>. This is the last message we can send to this address.`,
+                body: `Contact us straight away at <a href="mailto:${esc(ctx.contactEmail)}" class="tk-accent" style="color:${t.primaryDeep};font-weight:700;">${esc(ctx.contactEmail)}</a>. This is the last message we can send to this address.`,
               })
             : paragraph(t, "Sign in with this address from now on. Your password is unchanged."),
         ],

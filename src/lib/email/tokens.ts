@@ -71,6 +71,14 @@ export interface EmailTheme {
   deepMuted: string;
   deepHairline: string;
   deepEdge: string;
+  /**
+   * A step above `deep` — the same neutral the closing band's pill and ghost
+   * button already sit on. Reused as the dark-mode fill for section panels and
+   * chips on the light surface, so a message rendered in a dark-aware client
+   * looks like one more layer of the same closing band rather than a second,
+   * invented dark palette.
+   */
+  deepPanel: string;
 
   sans: string;
   mono: string;
@@ -228,6 +236,7 @@ export function buildTheme(branding?: EmailBranding): EmailTheme {
     deepHairline: "#262626",
     /** white/15 — `border-white/15` on the eyebrow pill and the ghost button. */
     deepEdge: "#333333",
+    deepPanel: "#1d1d1d",
 
     // One face, matching the site.
     //

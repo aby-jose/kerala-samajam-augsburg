@@ -104,9 +104,15 @@ describe("email templates", () => {
         expect(doc.sections.length).toBeLessThanOrEqual(MAX_SECTIONS);
       });
 
-      it("declares light-only and ships no dark-mode rule", () => {
-        expect(html).toContain('name="color-scheme" content="light"');
-        expect(html).not.toContain("@media (prefers-color-scheme");
+      it("declares light and dark, and ships a dark-mode rule that repaints text as well as backgrounds", () => {
+        expect(html).toContain('name="color-scheme" content="light dark"');
+        expect(html).toContain('name="supported-color-schemes" content="light dark"');
+        expect(html).toContain("@media (prefers-color-scheme: dark)");
+        // The bug this design replaced: backgrounds went dark while text
+        // stayed inlined at its light value. Guard both halves, not just the
+        // background rule, so that regression can't come back unnoticed.
+        expect(html).toContain(".tk-ink { color:");
+        expect(html).toContain(".card { background-color:");
       });
     });
   }

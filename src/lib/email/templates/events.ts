@@ -137,7 +137,7 @@ export const registrationRemovedByAdmin = (
           eventFacts(t, data.event),
           notice(t, {
             title: "Not expecting this?",
-            body: `Get in touch — reply to this email or write to <a href="mailto:${esc(ctx.contactEmail)}" style="color:${t.primaryDeep};font-weight:600;">${esc(ctx.contactEmail)}</a> and we will sort it out. Anything already paid will be refunded.`,
+            body: `Get in touch — reply to this email or write to <a href="mailto:${esc(ctx.contactEmail)}" class="tk-accent" style="color:${t.primaryDeep};font-weight:600;">${esc(ctx.contactEmail)}</a> and we will sort it out. Anything already paid will be refunded.`,
           }),
         ],
       },
@@ -269,7 +269,7 @@ export const eventRescheduled = (
             ? facts(t, [
                 {
                   label: "Was",
-                  value: `<span style="text-decoration:line-through;color:${t.muted};font-weight:500;">${esc(data.previousLocation!)}</span>`,
+                  value: `<span class="tk-muted" style="text-decoration:line-through;color:${t.muted};font-weight:500;">${esc(data.previousLocation!)}</span>`,
                 },
                 { label: "Now", value: esc(data.event.location), emphasis: true },
               ])

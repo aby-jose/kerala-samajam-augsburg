@@ -182,7 +182,7 @@ const masthead = (t: EmailTheme, ctx: MessageContext): string => `
   <td class="pad" align="center" style="padding:${PAD.masthead}px ${PAD.gutter}px 26px;background-color:${t.surface};text-align:center;">
     <a href="${escUrl(siteOrigin())}" style="text-decoration:none;">
       <img src="${esc(resolveLogo(ctx.branding.logoUrl))}" alt="${esc(ctx.siteName)}" width="52" height="52" style="width:52px;height:52px;display:block;margin:0 auto 10px;border:0;outline:none;" />
-      <span style="display:block;font-family:${t.sans};font-size:17px;font-weight:800;line-height:1.3;color:${t.ink};letter-spacing:-0.025em;">${esc(ctx.siteName)}</span>
+      <span class="tk-ink" style="display:block;font-family:${t.sans};font-size:17px;font-weight:800;line-height:1.3;color:${t.ink};letter-spacing:-0.025em;">${esc(ctx.siteName)}</span>
     </a>
   </td>
 </tr>`;
@@ -201,7 +201,7 @@ const hero = (t: EmailTheme, m: Message): string => `
     ${pill(t, m.eyebrow)}
     <div style="height:24px;line-height:24px;font-size:0;">&nbsp;</div>
     ${headline(t, m.title, m.accentWord)}
-    ${m.lead ? `<p style="margin:16px auto 0;max-width:430px;font-family:${t.sans};font-size:15px;line-height:1.7;color:${t.body};">${m.lead}</p>` : ""}
+    ${m.lead ? `<p class="tk-body" style="margin:16px auto 0;max-width:430px;font-family:${t.sans};font-size:15px;line-height:1.7;color:${t.body};">${m.lead}</p>` : ""}
   </td>
 </tr>`;
 
@@ -241,8 +241,8 @@ const section = (t: EmailTheme, s: MessageSection, index: number): string => {
 
   return `
 <tr>
-  <td class="inset ${bandClass(index)}" style="padding:${PAD.gap}px ${PAD.inset}px;background-color:${t.surface};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${bandFor(t, index)};border:1px solid ${t.hairline};border-radius:${t.radius};">
+  <td class="pad inset ${bandClass(index)}" style="padding:${PAD.gap}px ${PAD.inset}px;background-color:${t.surface};">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="panel-fill" style="background-color:${bandFor(t, index)};border:1px solid ${t.hairline};border-radius:${t.radius};">
       <tr>
         <td class="panel" style="padding:${PAD.panelY}px ${PAD.panelX}px;">
           ${s.label ? `${sectionLabel(t, s.label)}<div style="height:20px;line-height:20px;font-size:0;">&nbsp;</div>` : ""}
@@ -268,7 +268,7 @@ const close = (t: EmailTheme, c: MessageClose): string => {
     c.eyebrow ? pill(t, c.eyebrow) : "",
     c.title ? headline(t, c.title, c.accentWord, "light", 22) : "",
     c.lead
-      ? `<p style="margin:0 auto;max-width:400px;font-family:${t.sans};font-size:14px;line-height:1.6;color:${t.body};">${c.lead}</p>`
+      ? `<p class="tk-body" style="margin:0 auto;max-width:400px;font-family:${t.sans};font-size:14px;line-height:1.6;color:${t.body};">${c.lead}</p>`
       : "",
     c.button ? button(t, c.button.label, c.button.href) : "",
     c.note ? `<div style="max-width:400px;margin:0 auto;">${note(t, c.note)}</div>` : "",
@@ -284,7 +284,7 @@ const close = (t: EmailTheme, c: MessageClose): string => {
   // to the footer alone, and the action stays with the message.
   return `
 <tr>
-  <td class="pad" align="center" style="padding:${PAD.close}px ${PAD.gutter}px;background-color:${t.surface};border-top:1px solid ${t.hairline};text-align:center;">
+  <td class="pad tk-hr" align="center" style="padding:${PAD.close}px ${PAD.gutter}px;background-color:${t.surface};border-top:1px solid ${t.hairline};text-align:center;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
       ${parts
         .map(
@@ -474,24 +474,28 @@ export function renderMessage(ctx: MessageContext, m: Message): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="x-apple-disable-message-reformatting" />
   <!--
-    Light only, declared — matching the site, which has no theme switcher and
-    never applies a dark class.
+    Light and dark, both declared and both actually painted.
 
-    The previous version declared "light dark" and shipped a prefers-color-scheme
-    block that repainted the backgrounds dark while leaving every text colour
-    inlined at its light value. The result was #1c1a19 ink on a #212127 band:
-    an invisible receipt. Completing the dark palette would not have fixed it
-    either, because Gmail drops the style block on forward and several
-    corporate filters strip it outright — so the half-inverted state would
-    still have reached a good share of recipients.
+    An earlier pass declared "light dark" and shipped a prefers-color-scheme
+    block that only repainted backgrounds — every text colour stayed inlined
+    at its light value, so the result was #1c1a19 ink on a #212127 band: an
+    invisible receipt. The fix that followed declared light-only instead and
+    let force-inverting clients (Gmail app, Outlook.com) run their own
+    inversion, which is legible but generic — a message that no longer looks
+    like this one.
 
-    Declared light-only, clients that honour it leave the message alone, and
-    the ones that force-invert regardless (Gmail app, Outlook.com) run their
-    own inversion, which flips foreground and background together and stays
-    legible.
+    Every colour below has a class alongside its inline value (tk-ink,
+    tk-body, tk-hr, panel-fill, …), and the dark block a few lines down sets
+    each with !important, so a dark-aware client repaints the whole message
+    with this palette rather than guessing at one — the same deepInk /
+    deepBody / deepPanel the closing band already uses, so the rest of the
+    message reads as one more layer of it instead of a second, invented dark
+    theme. Only the fully inline clients that also strip the style block
+    (Gmail's non-app forward path, some corporate filters) fall back to the
+    light values — which is also the light design, not a broken one.
   -->
-  <meta name="color-scheme" content="light" />
-  <meta name="supported-color-schemes" content="light" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
   <title>${esc(m.subject)}</title>
   <!--[if mso]>
   <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
@@ -524,6 +528,29 @@ export function renderMessage(ctx: MessageContext, m: Message): string {
       .panel { padding-left:${PAD.panelXMobile}px !important; padding-right:${PAD.panelXMobile}px !important; }
       .shell { padding:0 !important; }
       h1 { font-size:25px !important; }
+    }
+
+    /*
+      Dark palette, reused wholesale from the closing band (deepInk / deepBody
+      / deepPanel / deepHairline) — see the head comment above. .pad also
+      matches the closing band's own cell, but it is already deep there, so
+      the rule is a no-op on it rather than a special case to carve out.
+    */
+    @media (prefers-color-scheme: dark) {
+      .bg, .shell { background-color:${t.deep} !important; }
+      .card { background-color:${t.deep} !important; border-color:${t.deepHairline} !important; }
+      .pad { background-color:${t.deep} !important; }
+      .panel-fill { background-color:${t.deepPanel} !important; border-color:${t.deepHairline} !important; }
+      .tk-chip { background-color:${t.deepPanel} !important; }
+      .tk-hr { border-color:${t.deepHairline} !important; }
+      .tk-hr-bg { background-color:${t.deepHairline} !important; }
+      .tk-ink { color:${t.deepInk} !important; }
+      .tk-body { color:${t.deepBody} !important; }
+      .tk-muted { color:${t.deepBody} !important; }
+      /* primaryDeep is darkened for contrast on white and unreadable on
+         black — the flat brand colour is the one inkFor already uses for
+         surface: deep, so this matches rather than invents a third accent. */
+      .tk-accent { color:${t.primary} !important; }
     }
   </style>
 </head>

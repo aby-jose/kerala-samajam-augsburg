@@ -114,7 +114,7 @@ export const stack = (
 };
 
 export const rule = (t: EmailTheme, surface: Surface = "light"): string =>
-  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:1px;line-height:1px;font-size:0;background-color:${inkFor(t, surface).hairline};">&nbsp;</td></tr></table>`;
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="${surface === "deep" ? "" : "tk-hr-bg"}" style="height:1px;line-height:1px;font-size:0;background-color:${inkFor(t, surface).hairline};">&nbsp;</td></tr></table>`;
 
 export const spacer = (height: number): string =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="height:${height}px;line-height:${height}px;font-size:0;">&nbsp;</td></tr></table>`;
@@ -137,13 +137,17 @@ export const pill = (
 ): string => {
   const deep = surface === "deep";
   const border = deep ? t.deepEdge : t.hairline;
-  const bg = deep ? "#1d1d1d" : t.surface;
+  const bg = deep ? t.deepPanel : t.surface;
   const fg = deep ? t.deepBody : t.muted;
+  // Already dark on the closing band — only the light surface needs a hook to
+  // repaint under `prefers-color-scheme: dark`.
+  const cls = deep ? "" : " tk-chip tk-hr";
+  const fgCls = deep ? "" : " tk-muted";
 
   return `
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;">
   <tr>
-    <td style="padding:6px 14px;background-color:${bg};border:1px solid ${border};border-radius:999px;">
+    <td class="${cls.trim()}" style="padding:6px 14px;background-color:${bg};border:1px solid ${border};border-radius:999px;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0">
         <tr>
           <td width="6" style="width:6px;padding-right:9px;">
@@ -151,7 +155,7 @@ export const pill = (
               <tr><td width="6" height="6" style="width:6px;height:6px;line-height:6px;font-size:0;background-color:${t.primary};border-radius:3px;">&nbsp;</td></tr>
             </table>
           </td>
-          <td style="font-family:${t.sans};font-size:10px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${fg};white-space:nowrap;">${esc(text)}</td>
+          <td class="${fgCls.trim()}" style="font-family:${t.sans};font-size:10px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${fg};white-space:nowrap;">${esc(text)}</td>
         </tr>
       </table>
     </td>
@@ -179,14 +183,17 @@ export const headline = (
   size = 27
 ): string => {
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
   const style = `margin:0;font-family:${t.sans};font-size:${size}px;line-height:1.15;font-weight:800;color:${c.ink};letter-spacing:-0.035em;`;
+  const inkCls = deep ? "" : ' class="tk-ink"';
+  const accentCls = deep ? "" : ' class="tk-accent"';
 
   const at = accentWord ? title.indexOf(accentWord) : -1;
   if (!accentWord || at === -1) {
-    return `<h1 style="${style}">${esc(title)}</h1>`;
+    return `<h1${inkCls} style="${style}">${esc(title)}</h1>`;
   }
 
-  return `<h1 style="${style}">${esc(title.slice(0, at))}<span style="color:${c.accent};">${esc(accentWord)}</span>${esc(title.slice(at + accentWord.length))}</h1>`;
+  return `<h1${inkCls} style="${style}">${esc(title.slice(0, at))}<span${accentCls} style="color:${c.accent};">${esc(accentWord)}</span>${esc(title.slice(at + accentWord.length))}</h1>`;
 };
 
 /** The small tracked label that opens a section. Rendered by the shell. */
@@ -195,7 +202,7 @@ export const sectionLabel = (
   text: string,
   surface: Surface = "light"
 ): string =>
-  `<p style="margin:0;font-family:${t.sans};font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:${inkFor(t, surface).muted};">${esc(text)}</p>`;
+  `<p${surface === "deep" ? "" : ' class="tk-muted"'} style="margin:0;font-family:${t.sans};font-size:11px;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;color:${inkFor(t, surface).muted};">${esc(text)}</p>`;
 
 /** Body copy. `html` is inserted as-is — escape at the call site. */
 export const paragraph = (
@@ -211,11 +218,12 @@ export const paragraph = (
 ): string => {
   const c = inkFor(t, opts.surface);
   const size = opts.lead ? 15 : opts.small ? 12.5 : 14.5;
-  return `<p style="margin:0;font-family:${t.sans};font-size:${size}px;line-height:1.6;color:${opts.muted ? c.muted : c.body};text-align:${opts.align || "left"};">${html}</p>`;
+  const cls = opts.surface === "deep" ? "" : ` class="${opts.muted ? "tk-muted" : "tk-body"}"`;
+  return `<p${cls} style="margin:0;font-family:${t.sans};font-size:${size}px;line-height:1.6;color:${opts.muted ? c.muted : c.body};text-align:${opts.align || "left"};">${html}</p>`;
 };
 
 export const strong = (t: EmailTheme, text: string, surface: Surface = "light"): string =>
-  `<strong style="color:${inkFor(t, surface).ink};font-weight:700;">${text}</strong>`;
+  `<strong${surface === "deep" ? "" : ' class="tk-ink"'} style="color:${inkFor(t, surface).ink};font-weight:700;">${text}</strong>`;
 
 export const link = (
   t: EmailTheme,
@@ -223,11 +231,11 @@ export const link = (
   href: string,
   surface: Surface = "light"
 ): string =>
-  `<a href="${escUrl(href)}" style="color:${inkFor(t, surface).accent};text-decoration:underline;font-weight:600;">${label}</a>`;
+  `<a href="${escUrl(href)}"${surface === "deep" ? "" : ' class="tk-accent"'} style="color:${inkFor(t, surface).accent};text-decoration:underline;font-weight:600;">${label}</a>`;
 
 /** Fine print — the closing line under a call to action. */
 export const note = (t: EmailTheme, html: string, surface: Surface = "light"): string =>
-  `<p style="margin:0;font-family:${t.sans};font-size:12.5px;line-height:1.55;color:${inkFor(t, surface).muted};">${html}</p>`;
+  `<p${surface === "deep" ? "" : ' class="tk-muted"'} style="margin:0;font-family:${t.sans};font-size:12.5px;line-height:1.55;color:${inkFor(t, surface).muted};">${html}</p>`;
 
 // --- Buttons ----------------------------------------------------------------
 
@@ -252,9 +260,14 @@ export const button = (
   const deep = opts.surface === "deep";
   const ghost = opts.variant === "ghost";
 
-  const bg = ghost ? (deep ? "#1d1d1d" : t.surface) : t.primary;
+  const bg = ghost ? (deep ? t.deepPanel : t.surface) : t.primary;
   const fg = ghost ? (deep ? t.deepInk : t.ink) : t.onPrimary;
   const border = ghost ? (deep ? t.deepEdge : "#d5d5d8") : t.primary;
+
+  // Only the ghost variant on the light surface needs to repaint in dark
+  // mode — the primary (brand-filled) button already carries the same
+  // contrast on either background.
+  const cls = ghost && !deep ? ' class="tk-chip tk-hr tk-ink"' : "";
 
   const w = 258;
   const h = 46;
@@ -269,7 +282,7 @@ export const button = (
     </v:roundrect>
     <![endif]-->
     <!--[if !mso]><!-- -->
-    <a href="${url}" style="display:inline-block;padding:14px 30px;background-color:${bg};color:${fg};border:1px solid ${border};text-decoration:none;border-radius:999px;font-family:${t.sans};font-weight:700;font-size:14px;line-height:1;letter-spacing:0.01em;mso-hide:all;">${label}</a>
+    <a href="${url}"${cls} style="display:inline-block;padding:14px 30px;background-color:${bg};color:${fg};border:1px solid ${border};text-decoration:none;border-radius:999px;font-family:${t.sans};font-weight:700;font-size:14px;line-height:1;letter-spacing:0.01em;mso-hide:all;">${label}</a>
     <!--<![endif]-->
   </td></tr>
 </table>`;
@@ -310,15 +323,19 @@ export const facts = (
   const list = visible(rows);
   if (!list.length) return "";
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
 
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${list
     .map((r, i) => {
       const last = i === list.length - 1;
+      const hrCls = deep || last ? "" : " tk-hr";
       const cell = `padding:${i === 0 ? 0 : 14}px 0 ${last ? 0 : 14}px;${last ? "" : `border-bottom:1px solid ${c.hairline};`}`;
+      const labelCls = (deep ? "" : "tk-muted") + hrCls;
+      const valueCls = (deep ? "" : "tk-ink") + hrCls;
       return `
     <tr>
-      <td style="${cell}padding-right:14px;font-family:${t.sans};font-size:12.5px;line-height:1.4;color:${c.muted};vertical-align:top;white-space:nowrap;">${esc(r.label)}</td>
-      <td style="${cell}font-family:${r.mono ? t.mono : t.sans};font-size:${r.emphasis ? 15 : 13.5}px;line-height:1.4;font-weight:${r.emphasis ? 700 : 600};color:${c.ink};text-align:right;vertical-align:top;word-break:break-word;">${r.value}</td>
+      <td class="${labelCls.trim()}" style="${cell}padding-right:14px;font-family:${t.sans};font-size:12.5px;line-height:1.4;color:${c.muted};vertical-align:top;white-space:nowrap;">${esc(r.label)}</td>
+      <td class="${valueCls.trim()}" style="${cell}font-family:${r.mono ? t.mono : t.sans};font-size:${r.emphasis ? 15 : 13.5}px;line-height:1.4;font-weight:${r.emphasis ? 700 : 600};color:${c.ink};text-align:right;vertical-align:top;word-break:break-word;">${r.value}</td>
     </tr>`;
     })
     .join("")}</table>`;
@@ -343,14 +360,15 @@ export const amount = (
   }
 ): string => {
   const c = inkFor(t, opts.surface);
+  const deep = opts.surface === "deep";
   const symbol = !opts.currency || opts.currency === "EUR" ? "€" : `${esc(opts.currency)} `;
 
   return `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${c.hairline};border-bottom:1px solid ${c.hairline};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="${deep ? "" : "tk-hr"}" style="border-top:1px solid ${c.hairline};border-bottom:1px solid ${c.hairline};">
   <tr><td style="padding:30px 0;text-align:center;">
-    <p style="margin:0 0 12px;font-family:${t.sans};font-size:10px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${c.accent};">${esc(opts.caption)}</p>
-    <p style="margin:0;font-family:${t.sans};font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-0.04em;color:${c.ink};font-variant-numeric:tabular-nums;">${symbol}${opts.amount.toFixed(2)}</p>
-    ${opts.sub ? `<p style="margin:14px auto 0;max-width:390px;font-family:${t.sans};font-size:12.5px;line-height:1.6;color:${c.body};">${opts.sub}</p>` : ""}
+    <p${deep ? "" : ' class="tk-accent"'} style="margin:0 0 12px;font-family:${t.sans};font-size:10px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${c.accent};">${esc(opts.caption)}</p>
+    <p${deep ? "" : ' class="tk-ink"'} style="margin:0;font-family:${t.sans};font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-0.04em;color:${c.ink};font-variant-numeric:tabular-nums;">${symbol}${opts.amount.toFixed(2)}</p>
+    ${opts.sub ? `<p${deep ? "" : ' class="tk-body"'} style="margin:14px auto 0;max-width:390px;font-family:${t.sans};font-size:12.5px;line-height:1.6;color:${c.body};">${opts.sub}</p>` : ""}
   </td></tr>
 </table>`;
 };
@@ -358,10 +376,11 @@ export const amount = (
 /** A one-time code, spaced so it can be read off a screen and typed. */
 export const code = (t: EmailTheme, value: string, surface: Surface = "light"): string => {
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
   return `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid ${c.hairline};border-bottom:1px solid ${c.hairline};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="${deep ? "" : "tk-hr"}" style="border-top:1px solid ${c.hairline};border-bottom:1px solid ${c.hairline};">
   <tr><td style="padding:34px 0;text-align:center;">
-    <p style="margin:0;font-family:${t.mono};font-size:32px;line-height:1;font-weight:700;letter-spacing:0.26em;color:${c.accent};text-indent:0.26em;">${esc(value)}</p>
+    <p${deep ? "" : ' class="tk-accent"'} style="margin:0;font-family:${t.mono};font-size:32px;line-height:1;font-weight:700;letter-spacing:0.26em;color:${c.accent};text-indent:0.26em;">${esc(value)}</p>
   </td></tr>
 </table>`;
 };
@@ -373,7 +392,8 @@ export const statusPill = (
   surface: Surface = "light"
 ): string => {
   const c = inkFor(t, surface);
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:6px 13px;border:1px solid ${c.hairline};border-radius:999px;font-family:${t.sans};font-size:10px;font-weight:700;color:${c.accent};letter-spacing:0.18em;text-transform:uppercase;white-space:nowrap;">${esc(label)}</td></tr></table>`;
+  const deep = surface === "deep";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td class="${deep ? "" : "tk-hr tk-accent"}" style="padding:6px 13px;border:1px solid ${c.hairline};border-radius:999px;font-family:${t.sans};font-size:10px;font-weight:700;color:${c.accent};letter-spacing:0.18em;text-transform:uppercase;white-space:nowrap;">${esc(label)}</td></tr></table>`;
 };
 
 // --- Interruptions ----------------------------------------------------------
@@ -390,13 +410,14 @@ export const notice = (
   opts: { title?: string; body: string; surface?: Surface }
 ): string => {
   const c = inkFor(t, opts.surface);
+  const deep = opts.surface === "deep";
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
     <td width="3" style="width:3px;background-color:${t.primary};font-size:0;line-height:0;">&nbsp;</td>
     <td style="padding:2px 0 2px 16px;">
-      ${opts.title ? `<p style="margin:0 0 5px;font-family:${t.sans};font-size:12.5px;font-weight:800;color:${c.accent};">${esc(opts.title)}</p>` : ""}
-      <p style="margin:0;font-family:${t.sans};font-size:12.5px;line-height:1.6;color:${c.body};">${opts.body}</p>
+      ${opts.title ? `<p${deep ? "" : ' class="tk-accent"'} style="margin:0 0 5px;font-family:${t.sans};font-size:12.5px;font-weight:800;color:${c.accent};">${esc(opts.title)}</p>` : ""}
+      <p${deep ? "" : ' class="tk-body"'} style="margin:0;font-family:${t.sans};font-size:12.5px;line-height:1.6;color:${c.body};">${opts.body}</p>
     </td>
   </tr>
 </table>`;
@@ -405,11 +426,12 @@ export const notice = (
 /** Quoted user-supplied prose — a rejection reason, a contact message. */
 export const quote = (t: EmailTheme, text: string, surface: Surface = "light"): string => {
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   <tr>
-    <td width="3" style="width:3px;background-color:${c.hairline};font-size:0;line-height:0;">&nbsp;</td>
-    <td style="padding:1px 0 1px 16px;font-family:${t.sans};font-size:13.5px;line-height:1.6;color:${c.body};white-space:pre-wrap;">${esc(text)}</td>
+    <td width="3" class="${deep ? "" : "tk-hr-bg"}" style="width:3px;background-color:${c.hairline};font-size:0;line-height:0;">&nbsp;</td>
+    <td${deep ? "" : ' class="tk-body"'} style="padding:1px 0 1px 16px;font-family:${t.sans};font-size:13.5px;line-height:1.6;color:${c.body};white-space:pre-wrap;">${esc(text)}</td>
   </tr>
 </table>`;
 };
@@ -422,13 +444,14 @@ export const bulletList = (
   surface: Surface = "light"
 ): string => {
   const c = inkFor(t, surface);
+  const bodyCls = surface === "deep" ? "" : ' class="tk-body"';
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${items
     .map(
       (item, i) => `<tr>
     <td width="18" style="width:18px;padding:${i === 0 ? 0 : 9}px 0 0 0;font-family:${t.sans};font-size:14.5px;line-height:1.6;color:${t.primary};vertical-align:top;">&bull;</td>
-    <td style="padding:${i === 0 ? 0 : 9}px 0 0 0;font-family:${t.sans};font-size:14.5px;line-height:1.6;color:${c.body};">${item}</td>
+    <td${bodyCls} style="padding:${i === 0 ? 0 : 9}px 0 0 0;font-family:${t.sans};font-size:14.5px;line-height:1.6;color:${c.body};">${item}</td>
   </tr>`
     )
     .join("")}
@@ -449,13 +472,14 @@ export const steps = (
   surface: Surface = "light"
 ): string => {
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
   ${items
     .map(
       (item, i) => `<tr>
-    <td width="36" style="width:36px;padding:${i === 0 ? 0 : 17}px 0 0 0;font-family:${t.mono};font-size:10px;letter-spacing:0.2em;color:${c.accent};vertical-align:top;line-height:1.95;">${String(i + 1).padStart(2, "0")}</td>
-    <td style="padding:${i === 0 ? 0 : 17}px 0 0 0;font-family:${t.sans};font-size:13.5px;line-height:1.65;color:${c.body};">${item}</td>
+    <td width="36"${deep ? "" : ' class="tk-accent"'} style="width:36px;padding:${i === 0 ? 0 : 17}px 0 0 0;font-family:${t.mono};font-size:10px;letter-spacing:0.2em;color:${c.accent};vertical-align:top;line-height:1.95;">${String(i + 1).padStart(2, "0")}</td>
+    <td${deep ? "" : ' class="tk-body"'} style="padding:${i === 0 ? 0 : 17}px 0 0 0;font-family:${t.sans};font-size:13.5px;line-height:1.65;color:${c.body};">${item}</td>
   </tr>`
     )
     .join("")}
@@ -499,6 +523,7 @@ export const eventFacts = (
   const time = [e.startTime, e.endTime].filter(Boolean).join(" – ");
   const mapQuery = encodeURIComponent(`${e.location}${e.address ? `, ${e.address}` : ""}`);
   const c = inkFor(t, surface);
+  const deep = surface === "deep";
 
   return stack(
     [
@@ -508,7 +533,7 @@ export const eventFacts = (
           e.previousDate
             ? {
                 label: "Was",
-                value: `<span style="text-decoration:line-through;color:${c.muted};font-weight:500;">${esc(formatDate(e.previousDate))}</span>`,
+                value: `<span${deep ? "" : ' class="tk-muted"'} style="text-decoration:line-through;color:${c.muted};font-weight:500;">${esc(formatDate(e.previousDate))}</span>`,
               }
             : null,
           { label: e.previousDate ? "Now" : "Date", value: esc(formatDate(e.date)), emphasis: true },
@@ -518,7 +543,7 @@ export const eventFacts = (
         ],
         surface
       ),
-      `<a href="https://www.google.com/maps/search/?api=1&amp;query=${mapQuery}" style="font-family:${t.sans};font-size:12.5px;color:${c.accent};text-decoration:underline;font-weight:600;">Open in Maps &rarr;</a>`,
+      `<a href="https://www.google.com/maps/search/?api=1&amp;query=${mapQuery}"${deep ? "" : ' class="tk-accent"'} style="font-family:${t.sans};font-size:12.5px;color:${c.accent};text-decoration:underline;font-weight:600;">Open in Maps &rarr;</a>`,
     ],
     12
   );
