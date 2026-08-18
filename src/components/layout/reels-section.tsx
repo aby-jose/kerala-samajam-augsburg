@@ -43,11 +43,10 @@ export function ReelsSection({
         bordered && "border-y border-border"
       )}
     >
-      {/* Same Container the Committee section (and every other non-marquee
-          section) uses — max-w-screen-2xl, not a viewport-percentage width —
-          so the heading lines up with the rest of the page. The marquee
-          track below still breaks out of it: a marquee only reads as one if
-          it actually runs to the screen edge. */}
+      {/* Same Container the Committee section (and every other section)
+          uses — max-w-screen-2xl, not a viewport-percentage width or the
+          full screen — so this section's width matches the rest of the
+          page, marquee included. */}
       <Container>
         {/* Same header shape as GalleryStrip, the sibling section this one
             most resembles: heading on the left, a count-free "view all" link
@@ -81,17 +80,17 @@ export function ReelsSection({
         </motion.div>
       </Container>
 
-      {/* Four copies of the row, back to back — with only a handful of
-          reels, two copies can run out of content before a wide screen has
-          scrolled far enough to loop, leaving a visible gap. Pauses on
-          hover so a caption can actually be read. */}
-      <div className="overflow-hidden">
-        <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5 hover:[animation-play-state:paused]">
-          {[...reels, ...reels, ...reels, ...reels].map((reel, i) => (
-            <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
-          ))}
+      {/* Same Container as the header — the marquee now clips at the page's
+          normal content width instead of bleeding to the screen edge. */}
+      <Container>
+        <div className="overflow-hidden">
+          <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5 hover:[animation-play-state:paused]">
+            {[...reels, ...reels, ...reels, ...reels].map((reel, i) => (
+              <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
+            ))}
+          </div>
         </div>
-      </div>
+      </Container>
     </section>
   );
 }
