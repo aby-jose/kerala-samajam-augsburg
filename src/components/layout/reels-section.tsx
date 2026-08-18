@@ -78,12 +78,13 @@ export function ReelsSection({
         </motion.div>
       </div>
 
-      {/* The row is rendered twice back to back and the whole thing scrolls
-          by exactly -50%, so the loop has no visible seam — and it never
-          pauses, including on hover, so it reads as genuinely continuous. */}
+      {/* Four copies of the row, back to back — with only a handful of
+          reels, two copies can run out of content before a wide screen has
+          scrolled far enough to loop, leaving a visible gap. Pauses on
+          hover so a caption can actually be read. */}
       <div className="overflow-hidden">
-        <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5">
-          {[...reels, ...reels].map((reel, i) => (
+        <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5 hover:[animation-play-state:paused]">
+          {[...reels, ...reels, ...reels, ...reels].map((reel, i) => (
             <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
           ))}
         </div>
