@@ -8,13 +8,25 @@
  * any module reach straight for a provider and drop the result on the floor.
  */
 
-export { sendMail, sendMailBatch, getEmailContext, buildFrom, wasRedactedForStorage } from "./send";
-export type { SendMailOptions, SendMailResult, TemplateOutput, EmailCategory } from "./send";
-export type { EmailContext, EmailDocument } from "./layout";
-export { renderEmail } from "./layout";
+export {
+  sendMail,
+  sendMailBatch,
+  getEmailContext,
+  buildFrom,
+  wasRedactedForStorage,
+} from "./send";
+export type {
+  SendMailOptions,
+  SendMailResult,
+  TemplateOutput,
+  EmailCategory,
+  EmailContext,
+} from "./send";
+export { renderMessage } from "./shell";
+export type { Message, MessageContext, MessageSection, MessageClose } from "./shell";
 export { deliver, transportStatus } from "./transport";
 export { absoluteUrl, siteOrigin, buildTheme } from "./tokens";
-export { esc } from "./components";
+export { esc } from "./blocks";
 
 import * as account from "./templates/account";
 import * as events from "./templates/events";

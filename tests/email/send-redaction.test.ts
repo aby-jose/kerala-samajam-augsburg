@@ -17,12 +17,31 @@ vi.mock("@/lib/config-utils", () => ({
   getConfig: vi.fn(),
 }));
 
-vi.mock("@/lib/email/layout", () => ({
-  // A trivial "shell": just enough structure that the token shows up once
-  // (in the action link) and the rest of the message is still recognisable.
-  renderEmail: vi.fn(
-    (_ctx: unknown, doc: { title: string; action?: string }) =>
-      `<html><body><h1>${doc.title}</h1>${doc.action ?? ""}</body></html>`
+vi.mock("@/lib/email/shell", () => ({
+  themed: vi.fn(() => ({})),
+  // A trivial shell: just enough structure that the call-to-action link shows
+  // up and the rest of the message is still recognisable.
+  //
+  // The href is emitted **twice** on purpose, mirroring the real `button()` —
+  // once inside the MSO-only VML `roundrect`, once as the anchor every other
+  // client sees. A redaction that only replaced the first occurrence would
+  // leave a live credential in the Outlook fallback, and the assertions below
+  // count occurrences to prove it does not.
+  renderMessage: vi.fn(
+    (
+      _ctx: unknown,
+      doc: { title: string; close?: { button?: { label: string; href: string } } }
+    ) => {
+      const b = doc.close?.button;
+      const action = b
+        ? `<!--[if mso]>` +
+          `<v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${b.href}" style="width:250px;">` +
+          `<center>${b.label}</center></v:roundrect>` +
+          `<![endif]-->` +
+          `<a href="${b.href}">${b.label}</a>`
+        : "";
+      return `<html><body><h1>${doc.title}</h1>${action}</body></html>`;
+    }
   ),
 }));
 
@@ -68,22 +87,21 @@ const VERIFY_TOKEN = "H3nUo1Ck7Ls5Rp0Ta-Yb9Xd_Ge2mVfQz";
 const INVITE_LINK = `https://example.org/admin/invite/${RAW_TOKEN}`;
 
 /**
- * The invite button's actual shape (`button()` in `components.ts`): the same
- * href rendered twice — once inside the MSO-only VML `roundrect`, once as the
- * real `<a>` every other client sees. A redaction that only replaced the
- * first occurrence would leave a live credential in the Outlook fallback.
+ * The invitation, as the template now builds it.
+ *
+ * `close.button` is structured — a label and an href — rather than a blob of
+ * pre-rendered HTML, so the double-emission that matters here lives in the
+ * shell mock above rather than in the fixture.
  */
-function inviteButtonHtml(href: string): string {
-  return `
-    <!--[if mso]>
-    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="${href}" style="width:250px;">
-      <center>Set up your access</center>
-    </v:roundrect>
-    <![endif]-->
-    <!--[if !mso]><!-- -->
-    <a href="${href}">Set up your access</a>
-    <!--<![endif]-->`;
-}
+const inviteMessage = () => ({
+  subject: "You've been invited",
+  previewText: "Set up your access.",
+  eyebrow: "Invitation",
+  title: "Set up your access",
+  accentWord: "access",
+  sections: [],
+  close: { button: { label: "Set up your access", href: INVITE_LINK } },
+});
 
 describe("sendMail — redactForStorage", () => {
   it("keeps the raw token out of the stored EmailLog.html while still delivering a working link", async () => {
@@ -92,13 +110,7 @@ describe("sendMail — redactForStorage", () => {
       to: "invitee@example.org",
       redactForStorage: (html) =>
         html.split(RAW_TOKEN).join("[invite link — token withheld from the stored copy]"),
-      build: () => ({
-        subject: "You've been invited",
-        previewText: "Set up your access.",
-        eyebrow: "Invitation",
-        title: "Set up your access",
-        action: inviteButtonHtml(INVITE_LINK),
-      }),
+      build: inviteMessage,
     });
 
     expect(result.ok).toBe(true);
@@ -135,13 +147,7 @@ describe("sendMail — redactForStorage", () => {
     await sendMail({
       template: "staff.invite.resend",
       to: "invitee@example.org",
-      build: () => ({
-        subject: "You've been invited",
-        previewText: "Set up your access.",
-        eyebrow: "Invitation",
-        title: "Set up your access",
-        action: inviteButtonHtml(INVITE_LINK),
-      }),
+      build: inviteMessage,
     });
 
     const storedHtml = mockedLogCreate.mock.calls[0][0]?.data.html as string;
@@ -165,7 +171,9 @@ describe("sendMail — redactForStorage", () => {
         previewText: "A link to set a new password.",
         eyebrow: "Security",
         title: "Set a new password",
-        action: `<a href="${resetLink}">Choose a new password</a>`,
+        accentWord: "new",
+        sections: [],
+        close: { button: { label: "Choose a new password", href: resetLink } },
       }),
     });
 
@@ -190,7 +198,9 @@ describe("sendMail — redactForStorage", () => {
         previewText: "Confirm your account.",
         eyebrow: "Confirm your account",
         title: "Confirm your email address",
-        action: `<a href="${verifyLink}">Verify my email</a>`,
+        accentWord: "Confirm",
+        sections: [],
+        close: { button: { label: "Verify my email", href: verifyLink } },
       }),
     });
 
@@ -216,7 +226,9 @@ describe("sendMail — redactForStorage", () => {
         previewText: "It's live in the gallery.",
         eyebrow: "Gallery",
         title: "Your photo is live",
-        action: `<a href="${galleryLink}">View gallery</a>`,
+        accentWord: "live",
+        sections: [],
+        close: { button: { label: "View gallery", href: galleryLink } },
       }),
     });
 
@@ -238,13 +250,7 @@ describe("sendMail — redactForStorage", () => {
       to: "invitee@example.org",
       redactForStorage: (html) =>
         html.split(RAW_TOKEN).join("[invite link — token withheld from the stored copy]"),
-      build: () => ({
-        subject: "You've been invited",
-        previewText: "Set up your access.",
-        eyebrow: "Invitation",
-        title: "Set up your access",
-        action: inviteButtonHtml(INVITE_LINK),
-      }),
+      build: inviteMessage,
     });
 
     expect(result.ok).toBe(true);
@@ -268,13 +274,7 @@ describe("sendMail — redactForStorage", () => {
       to: "invitee@example.org",
       redactForStorage: (html) =>
         html.split(RAW_TOKEN).join("[invite link — token withheld from the stored copy]"),
-      build: () => ({
-        subject: "You've been invited",
-        previewText: "Set up your access.",
-        eyebrow: "Invitation",
-        title: "Set up your access",
-        action: inviteButtonHtml(INVITE_LINK),
-      }),
+      build: inviteMessage,
     });
 
     const [deliverArgs] = mockedDeliver.mock.calls;
@@ -283,7 +283,7 @@ describe("sendMail — redactForStorage", () => {
     const storedHtml = logCreateArgs[0]?.data.html as string;
 
     // `deliver()` is called with the plain render — the same string that
-    // `renderEmail` produced — never the redacted one written to storage.
+    // `renderMessage` produced — never the redacted one written to storage.
     expect(deliveredHtml).toContain(INVITE_LINK);
     expect(deliveredHtml).not.toContain("token withheld");
     expect(deliveredHtml).not.toBe(storedHtml);
@@ -300,7 +300,9 @@ describe("sendMail — redactForStorage", () => {
         previewText: "A link to set a new password.",
         eyebrow: "Security",
         title: "Set a new password",
-        action: `<a href="${resetLink}">Choose a new password</a>`,
+        accentWord: "new",
+        sections: [],
+        close: { button: { label: "Choose a new password", href: resetLink } },
       }),
     });
 

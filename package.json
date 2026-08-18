@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed:roles": "tsx prisma/seed-roles.ts",
-    "fix:gallery-album-index": "tsx prisma/fix-gallery-album-index.ts"
+    "fix:gallery-album-index": "tsx prisma/fix-gallery-album-index.ts",
+    "email:preview": "tsx scripts/email-preview.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",

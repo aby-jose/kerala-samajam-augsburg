@@ -13,8 +13,17 @@ import { nanoid } from "nanoid";
 import { prisma } from "../prisma";
 import { getConfig } from "../config-utils";
 import type { NotificationEmailConfig } from "../config-schema";
-import type { EmailContext, EmailDocument } from "./layout";
-import { renderEmail } from "./layout";
+import type { Message, MessageContext } from "./shell";
+import { renderMessage } from "./shell";
+
+/**
+ * The rendering context handed to every template.
+ *
+ * Kept as an alias so callers outside this module — `getEmailContext`'s
+ * consumers, the cron jobs — did not all have to be renamed when the old shell
+ * was retired.
+ */
+export type EmailContext = MessageContext;
 import { deliver, type TransportAttachment } from "./transport";
 import { siteOrigin } from "./tokens";
 
@@ -58,10 +67,10 @@ const NOTIFICATION_TOGGLE: Record<string, keyof NotificationEmailConfig> = {
 /**
  * What a template returns.
  *
- * An alias for `EmailDocument`: templates describe the message — eyebrow,
- * title, lead, blocks — and the layout decides how it is framed.
+ * Templates describe the message — eyebrow, title, lead, panels — and the
+ * shell decides how it is framed.
  */
-export type TemplateOutput = EmailDocument;
+export type TemplateOutput = Message;
 
 /**
  * What kind of mail this is, which decides whether a member can turn it off.
@@ -351,7 +360,7 @@ export async function sendMail(options: SendMailOptions): Promise<SendMailResult
   let html: string;
   try {
     built = options.build(ctx);
-    html = renderEmail(ctx, built);
+    html = renderMessage(ctx, built);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[email] ${options.template} failed to render:`, error);

@@ -72,5 +72,6 @@ errors*.txt
 # DB backups (contains user data - never commit)
 /backups/
 
-# Local email-render previews (see superpowers:email-review-by-rendering)
+# Rendered email gallery from `npm run email:preview`. Regenerated on demand
+# and large enough to bury a real diff.
 /.email-preview/
