@@ -347,7 +347,10 @@ export async function resetPassword(token: string, password: string) {
         templates.account.passwordChanged(ctx, { name: user.name || "there", changedAt }),
     });
 
-    return { success: true };
+    // The role, so the page can send an administrator back to `/admin/login`
+    // instead of the public sign-in it defaults to — the same reason
+    // `verifyEmail` returns it above.
+    return { success: true, role: user.role };
   } catch (error) {
     console.error("Password reset error:", error);
     return { error: "Failed to reset password" };

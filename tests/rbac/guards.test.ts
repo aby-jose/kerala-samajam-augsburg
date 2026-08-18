@@ -33,7 +33,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/rbac/audit";
-import { can, requirePermission, requirePermissionPage } from "@/lib/guards";
+import { can, getStaffContext, requirePermission, requirePermissionPage } from "@/lib/guards";
 
 const mockedGetServerSession = vi.mocked(getServerSession);
 const mockedRedirect = vi.mocked(redirect);
@@ -56,8 +56,9 @@ function signedInAs(opts: {
   sessionRole?: string;
   dbRole?: string | null;
   staffRole?: StaffRoleRow;
+  image?: string | null;
 }) {
-  const { sessionRole, dbRole, staffRole = null } = opts;
+  const { sessionRole, dbRole, staffRole = null, image = null } = opts;
 
   if (sessionRole === undefined) {
     mockedGetServerSession.mockResolvedValue(null);
@@ -76,6 +77,7 @@ function signedInAs(opts: {
       name: "Staff Member",
       role: dbRole,
       staffRole,
+      image,
     } as never);
   }
 }
@@ -203,6 +205,29 @@ describe("requirePermissionPage", () => {
     await expect(requirePermissionPage("dashboard.view")).rejects.toThrow(
       "REDIRECT:/admin/no-access"
     );
+  });
+});
+
+describe("getStaffContext", () => {
+  it("surfaces the account's profile image, for the account page's avatar", async () => {
+    signedInAs({
+      sessionRole: "ADMIN",
+      dbRole: "ADMIN",
+      staffRole: ORDINARY_ROLE,
+      image: "https://res.cloudinary.com/demo/image/upload/profile_pics/staff-1.jpg",
+    });
+
+    const ctx = await getStaffContext();
+
+    expect(ctx?.image).toBe("https://res.cloudinary.com/demo/image/upload/profile_pics/staff-1.jpg");
+  });
+
+  it("is null when the account has no photo set", async () => {
+    signedInAs({ sessionRole: "ADMIN", dbRole: "ADMIN", staffRole: ORDINARY_ROLE });
+
+    const ctx = await getStaffContext();
+
+    expect(ctx?.image).toBeNull();
   });
 });
 

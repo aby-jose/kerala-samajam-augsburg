@@ -30,11 +30,13 @@ import {
   PanelLeft,
   ChevronRight,
   X,
+  UserCircle,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import NextTopLoader from "nextjs-toploader";
 
 import type { Permission } from "@/lib/permissions";
+import { filterNavGroups } from "@/lib/admin-nav";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { useConfig } from "@/components/providers/config-provider";
 import {
@@ -66,7 +68,12 @@ const NAV_GROUPS: {
     href: string;
     label: string;
     icon: React.ElementType;
-    permission: Permission;
+    /**
+     * Omit for an item every signed-in staff member should see regardless of
+     * role — e.g. "My account". Every other item names a real permission;
+     * this is the only sanctioned way to opt one out of that check.
+     */
+    permission?: Permission;
     isActive: (pathname: string) => boolean;
   }[];
 }[] = [
@@ -177,6 +184,15 @@ const NAV_GROUPS: {
       { href: "/admin/settings", label: "Settings", icon: Settings, permission: "settings.edit", isActive: (p) => p === "/admin/settings" },
     ],
   },
+  {
+    // Deliberately last, and deliberately not permission-gated — this is
+    // personal to whoever is signed in, not administrative, so it sits apart
+    // from every section above it instead of folded into "System".
+    label: "Account",
+    items: [
+      { href: "/admin/account", label: "My account", icon: UserCircle, isActive: (p) => p.startsWith("/admin/account") },
+    ],
+  },
 ];
 
 // Sidebar, topbar and the main panel stay plain black/white — no color
@@ -204,6 +220,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
   roles: "Roles",
   settings: "Settings",
   staff: "Team",
+  account: "My account",
   "check-in": "Check-in",
   legal: "Legal",
   consents: "Consents",
@@ -280,15 +297,7 @@ function AdminContent({
 
   if (!session) return null;
 
-  // Nav filtering is cosmetic only — every admin page still enforces its own
-  // permission via `requirePermissionPage`. A group whose items are all
-  // hidden disappears entirely, heading included.
-  const visibleGroups = NAV_GROUPS
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => allowedPermissions.includes(item.permission)),
-    }))
-    .filter((group) => group.items.length > 0);
+  const visibleGroups = filterNavGroups(NAV_GROUPS, allowedPermissions);
 
   const crumbs = pathname
     .split("/")
@@ -447,6 +456,13 @@ function AdminContent({
                     {userEmail && <p className="truncate text-xs text-muted-foreground">{userEmail}</p>}
                   </div>
                 </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="rounded-lg">
+                  <Link href="/admin/account">
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    My account
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={(e) => handleLogout(e as Event)}

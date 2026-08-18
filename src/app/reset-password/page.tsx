@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Container } from "@/components/layout/container";
 import { resetPassword } from "@/lib/auth-actions";
+import { postAuthRedirect } from "@/lib/post-auth-redirect";
 import { cn } from "@/lib/utils";
 
 function ResetPasswordForm() {
@@ -49,7 +50,7 @@ function ResetPasswordForm() {
       if (result.success) {
         setSuccess(true);
         setTimeout(() => {
-          router.push("/");
+          router.push(postAuthRedirect(result.role));
         }, 3000);
       } else {
         setError(result.error || "Failed to reset password.");

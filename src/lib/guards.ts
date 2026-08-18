@@ -109,6 +109,7 @@ export interface StaffContext {
   id: string;
   email: string;
   name: string | null;
+  image: string | null;
   roleName: string;
   permissions: ReadonlySet<Permission>;
   has(permission: Permission): boolean;
@@ -135,6 +136,7 @@ export const getStaffContext = cache(async (): Promise<StaffContext | null> => {
       id: true,
       email: true,
       name: true,
+      image: true,
       role: true,
       staffRole: { select: { name: true, permissions: true, isSystem: true } },
     },
@@ -149,6 +151,7 @@ export const getStaffContext = cache(async (): Promise<StaffContext | null> => {
     id: row.id,
     email: row.email ?? "",
     name: row.name,
+    image: row.image ?? null,
     roleName: row.staffRole.name,
     permissions,
     has: (permission: Permission) => permissions.has(permission),
