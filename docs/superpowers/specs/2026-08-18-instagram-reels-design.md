@@ -242,9 +242,11 @@ hidden (zero featured reels).
   it always renders the last successfully cached featured reels.
 - Token refresh failure: email alert to `ADMIN_EMAIL`; sync continues
   working on the old token until it actually expires.
-- Per-reel cache failure: `cacheError` recorded on that row, reel excluded
-  from home display (falls back to the gradient placeholder in the admin
-  preview list too) until an admin retries by re-toggling "Featured".
+- Per-reel cache failure: `cacheError` recorded on that row. The reel stays
+  featured and still renders on the home page — as the gradient placeholder
+  from D8, same as a reel still mid-cache — rather than disappearing from
+  the strip. The admin screen surfaces the error text on that row so it can
+  be retried (re-toggling "Featured" retries the cache attempt).
 
 ## 13. Testing
 
