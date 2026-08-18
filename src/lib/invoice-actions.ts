@@ -33,6 +33,7 @@ async function buildInvoice(subscriptionId: string, status: InvoiceStatus) {
     date: new Date(),
     dueDate: paymentDueDate(sub.createdAt, config.legal.paymentTermsDays),
     status,
+    primaryColor: config.branding.primaryColor,
     paidOn: sub.startDate ?? undefined,
     issuer: {
       name: config.legal.entityName,
