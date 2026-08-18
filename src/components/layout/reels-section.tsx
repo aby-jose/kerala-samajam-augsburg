@@ -108,7 +108,7 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "group relative flex aspect-[9/16] w-40 shrink-0 flex-col justify-between overflow-hidden rounded-2xl p-4 transition-transform duration-500 hover:-translate-y-1 sm:w-48 sm:p-5",
+        "group relative flex aspect-[9/16] w-48 shrink-0 flex-col justify-between overflow-hidden rounded-2xl p-5 transition-transform duration-500 hover:-translate-y-1 sm:w-60 sm:p-6",
         reel.cloudinaryVideoUrl || tone === "dark" ? "bg-surface-deep" : "bg-primary"
       )}
     >
@@ -129,15 +129,15 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
       )}
 
-      <Instagram className="relative h-4 w-4 text-white/75 sm:h-5 sm:w-5" strokeWidth={2} />
+      <Instagram className="relative h-5 w-5 text-white/75 sm:h-6 sm:w-6" strokeWidth={2} />
 
       <div className="relative">
-        <p className="line-clamp-5 font-serif text-sm italic leading-snug text-white sm:text-base">
+        <p className="line-clamp-5 font-serif text-base italic leading-snug text-white sm:text-lg">
           {reel.caption || "From the KSA feed"}
         </p>
-        <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:mt-2.5 sm:text-[10px]">
+        <span className="mt-2.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:mt-3 sm:text-[11px]">
           Watch
-          <ArrowUpRight className="h-2.5 w-2.5" strokeWidth={2.5} />
+          <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
         </span>
       </div>
     </a>
