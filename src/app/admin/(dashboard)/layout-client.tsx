@@ -8,6 +8,7 @@ import {
   BarChart3,
   Calendar,
   Image as ImageIcon,
+  Film,
   Settings,
   LogOut,
   LayoutDashboard,
@@ -129,6 +130,13 @@ const NAV_GROUPS: {
         icon: ImageIcon,
         permission: "gallery.view",
         isActive: (p) => p.startsWith("/admin/gallery") && !p.includes("/contributions"),
+      },
+      {
+        href: "/admin/reels",
+        label: "Reels",
+        icon: Film,
+        permission: "reels.view",
+        isActive: (p) => p.startsWith("/admin/reels"),
       },
       {
         href: "/admin/gallery/contributions",
