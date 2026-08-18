@@ -79,10 +79,10 @@ export function ReelsSection({
       </div>
 
       {/* The row is rendered twice back to back and the whole thing scrolls
-          by exactly -50%, so the loop has no visible seam. Same tile, same
-          size, same tone alternation as before — only the layout changed. */}
+          by exactly -50%, so the loop has no visible seam — and it never
+          pauses, including on hover, so it reads as genuinely continuous. */}
       <div className="overflow-hidden">
-        <div className="flex w-max animate-marquee gap-3 motion-reduce:animate-none sm:gap-4 hover:[animation-play-state:paused]">
+        <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5">
           {[...reels, ...reels].map((reel, i) => (
             <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
           ))}
@@ -107,7 +107,7 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "group relative flex aspect-[9/16] w-32 flex-col justify-between overflow-hidden rounded-xl p-3.5 transition-transform duration-500 hover:-translate-y-1 sm:w-36 sm:rounded-2xl sm:p-4",
+        "group relative flex aspect-[9/16] w-40 shrink-0 flex-col justify-between overflow-hidden rounded-2xl p-4 transition-transform duration-500 hover:-translate-y-1 sm:w-48 sm:p-5",
         reel.cloudinaryVideoUrl || tone === "dark" ? "bg-surface-deep" : "bg-primary"
       )}
     >
@@ -128,13 +128,13 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
       )}
 
-      <Instagram className="relative h-3.5 w-3.5 text-white/75 sm:h-4 sm:w-4" strokeWidth={2} />
+      <Instagram className="relative h-4 w-4 text-white/75 sm:h-5 sm:w-5" strokeWidth={2} />
 
       <div className="relative">
-        <p className="line-clamp-4 font-serif text-[11px] italic leading-snug text-white sm:text-[13px]">
+        <p className="line-clamp-5 font-serif text-sm italic leading-snug text-white sm:text-base">
           {reel.caption || "From the KSA feed"}
         </p>
-        <span className="mt-1.5 inline-flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:mt-2">
+        <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:mt-2.5 sm:text-[10px]">
           Watch
           <ArrowUpRight className="h-2.5 w-2.5" strokeWidth={2.5} />
         </span>
