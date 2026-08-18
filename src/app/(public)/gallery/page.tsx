@@ -5,6 +5,12 @@ import { getPageContent } from "@/lib/page-content/actions";
 import type { GalleryContentT } from "@/lib/page-content/gallery";
 import GalleryLandingClient from "./gallery-landing-client";
 
+export const metadata = {
+  title: "Photo Gallery | Kerala Samajam Augsburg (KSA)",
+  description:
+    "Photos from Kerala Samajam Augsburg's Onam, Vishu and community events — browse albums from the Malayali community in Augsburg, Germany.",
+};
+
 export const dynamic = "force-dynamic";
 
 export default async function GalleryPage() {
