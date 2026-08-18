@@ -137,7 +137,13 @@ export const passwordChanged = (
       },
     ],
     close: {
-      button: { label: "Reset my password", href: absoluteUrl("/forgot-password") },
+      // Not `/reset-password` — that route needs a token this email never had.
+      // Not `/admin/login` either — this is sent to both portals' owners
+      // (`resetPassword` is audience-agnostic; `acceptInvite` is admin-only,
+      // but the two share this template). The home page's header exposes
+      // sign-in with its own "Forgot password?" option for either audience,
+      // and is guaranteed to resolve, unlike the old `/forgot-password`.
+      button: { label: "Reset my password", href: absoluteUrl("/") },
       note: "You are receiving this because it affects your account's security.",
     },
   };

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { fetchReels, isTokenRefreshDue, refreshLongLivedToken, recordSyncError } from "@/lib/instagram";
 import { sendMail, esc } from "@/lib/email";
+import { themed } from "@/lib/email/shell";
+import { notice } from "@/lib/email/blocks";
 import { adminEmailOrNull } from "@/lib/admin-contact";
 
 /**
@@ -58,14 +60,26 @@ async function runTokenRefresh(): Promise<JobOutcome> {
         await sendMail({
           template: "instagram.token-refresh-failed",
           to,
-          build: () => ({
-            subject: "Instagram token refresh failed",
-            previewText: "The Instagram Graph API token could not be refreshed automatically.",
-            eyebrow: "SYSTEM ALERT",
-            tone: "warning",
-            title: "Instagram token refresh failed",
-            lead: `The scheduled refresh job failed: ${esc(message)}. The current token has not expired yet, but this needs attention before it does.`,
-          }),
+          build: (ctx) => {
+            const t = themed(ctx);
+            return {
+              subject: "Instagram token refresh failed",
+              previewText: "The Instagram Graph API token could not be refreshed automatically.",
+              eyebrow: "System alert",
+              title: "Instagram token refresh failed",
+              accentWord: "failed",
+              sections: [
+                {
+                  blocks: [
+                    notice(t, {
+                      title: "What happened",
+                      body: `The scheduled refresh job failed: ${esc(message)}. The current token has not expired yet, but this needs attention before it does.`,
+                    }),
+                  ],
+                },
+              ],
+            };
+          },
         });
       }
     } catch (mailError) {
