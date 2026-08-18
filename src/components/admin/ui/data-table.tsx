@@ -66,6 +66,16 @@ export interface DataTableProps<T> {
   rowClassName?: (row: T) => string;
   pagination?: DataTablePagination;
   className?: string;
+  /**
+   * Minimum pixel width for the table before it scrolls horizontally
+   * instead of shrinking. `table-fixed` divides that width by each
+   * column's `w-[N%]`, so below this a percentage-width column still
+   * gets real room for its content rather than being crushed to
+   * illegibility on a phone. Defaults to a per-column allowance —
+   * override for tables with especially wide cells (avatars + long
+   * text, badges + icon buttons, etc).
+   */
+  minWidth?: number;
 }
 
 export function DataTable<T>({
@@ -80,10 +90,13 @@ export function DataTable<T>({
   rowClassName,
   pagination,
   className,
+  minWidth,
 }: DataTableProps<T>) {
   if (isLoading) {
     return <TableSkeleton rows={skeletonRows} />;
   }
+
+  const tableMinWidth = minWidth ?? Math.max(640, columns.length * 130);
 
   return (
     <div className={cn(cardSurface, "overflow-hidden", className)}>
@@ -102,7 +115,7 @@ export function DataTable<T>({
           action={empty.action}
         />
       ) : (
-        <Table className="w-full table-fixed">
+        <Table className="w-full table-fixed" style={{ minWidth: tableMinWidth }}>
           <TableHeader>
             <TableRow className={tableHeadRow}>
               {columns.map((col, i) => (

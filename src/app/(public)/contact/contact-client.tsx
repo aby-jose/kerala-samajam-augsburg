@@ -203,7 +203,15 @@ function ContactHeroSection({
                   {channel.label}
                 </span>
                 <span className="mt-2 block break-words font-sans text-lg font-bold tracking-[-0.02em] text-foreground">
-                  {channel.value}
+                  {channel.label === "Email" && channel.value.includes("@") ? (
+                    <>
+                      {channel.value.slice(0, channel.value.indexOf("@") + 1)}
+                      <wbr />
+                      {channel.value.slice(channel.value.indexOf("@") + 1)}
+                    </>
+                  ) : (
+                    channel.value
+                  )}
                 </span>
                 <span className="mt-2 block text-sm leading-relaxed text-muted-foreground">
                   {channel.note}

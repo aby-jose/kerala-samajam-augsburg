@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 import { LEGAL_ALIASES } from "./src/lib/legal-schema";
+import { MAX_VIDEO_BYTES } from "./src/lib/upload-validation";
 
 const nextConfig: NextConfig = {
   /**
@@ -11,6 +12,21 @@ const nextConfig: NextConfig = {
    * plain runtime require keeps `__dirname` pointing at the real package.
    */
   serverExternalPackages: ["pdfkit"],
+
+  /**
+   * Every media upload in the app (gallery images, event covers, profile
+   * pictures, the site logo) goes through a Server Action, not a route
+   * handler — the file rides along as part of the action's request body.
+   * Next's default body limit for that is 1 MB, so anything past a tiny
+   * thumbnail was rejected before it ever reached `validateUpload()`'s own
+   * (much larger) size check. Match it to the biggest thing we actually
+   * accept — video — so the app's own limits are what govern uploads.
+   */
+  experimental: {
+    serverActions: {
+      bodySizeLimit: MAX_VIDEO_BYTES,
+    },
+  },
 
   /**
    * Short and German-language aliases for the legal pages.

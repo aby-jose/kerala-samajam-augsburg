@@ -454,7 +454,7 @@ export default function MembersClient() {
               </div>
 
               <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <p className="text-xs font-medium text-muted-foreground">Account status</p>
                     <div className="flex items-center gap-3">
@@ -597,7 +597,7 @@ export default function MembersClient() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">Full name</label>
                     <Input
@@ -617,7 +617,7 @@ export default function MembersClient() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">Phone</label>
                     <Input
@@ -646,7 +646,7 @@ export default function MembersClient() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">City</label>
                     <Input
@@ -665,7 +665,7 @@ export default function MembersClient() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-foreground">Occupation</label>
                     <Input
