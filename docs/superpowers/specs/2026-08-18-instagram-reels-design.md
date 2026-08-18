@@ -44,7 +44,7 @@ way to feature the best clips on the page most people land on first.
 |---|---|---|
 | D1 | New `InstagramReel` Prisma model, one row per synced reel | Mirrors `GalleryMedia`'s shape; reels are their own content type (sourced from Instagram, not uploaded), so they don't belong inside `GalleryMedia`. |
 | D2 | Metadata (all recent reels) syncs daily via cron; media (video+thumbnail) is cached to Cloudinary only when an admin marks a reel "featured" | Keeps Cloudinary storage/bandwidth cost proportional to what's actually shown, not to everything ever posted. |
-| D3 | The live access token lives in the `Config` table (existing `{key, value: Json}` pattern), seeded from `INSTAGRAM_ACCESS_TOKEN` env on first run | Env vars are static per deploy; a token that auto-rotates every ~60 days needs a writable store. Env stays the source of truth for initial setup. |
+| D3 | The live access token lives in a new dedicated `InstagramSyncState` singleton model (`key: "current"`), seeded from `INSTAGRAM_ACCESS_TOKEN` env on first run | Matches the codebase's actual convention for one-row state (`HomeContent`, `AboutContent` — each concern gets its own model, not a shared bucket). `Config` looked reusable but is in practice single-purpose: always keyed `"current"`, always holding `SiteConfig`. Env vars are static per deploy; a token that auto-rotates every ~60 days needs a writable store, and env stays the source of truth for initial setup. |
 | D4 | Token refresh is a separate weekly cron from the daily metadata sync, and emails `ADMIN_EMAIL` (existing Resend setup) on failure | A dead token should surface as an alert well before the ~60-day hard expiry, not as a silently stale home section. |
 | D5 | New `HomeSectionId: "reels"`, slotted after `gallery` in `HOME_SECTION_IDS`, hideable and movable like the other non-hero sections | Same registry-driven pattern as every existing section (`src/lib/home-schema.ts`, `src/lib/page-layout.ts`) — no new mechanism. |
 | D6 | The `reels` home content block stores only copy (`heading`, `subheading`, `maxCount`) — which reels show comes from `InstagramReel.featured`/`order`, not from home content | Same relationship gallery-strip already has to the Gallery module: the home section is a *view* onto curated content, not its own copy of it. |
@@ -77,9 +77,22 @@ model InstagramReel {
 }
 ```
 
-The live token/expiry/sync-status reuse the existing `Config` model, one row
-each, e.g. keys `instagram.accessToken`, `instagram.tokenExpiresAt`,
-`instagram.lastSyncAt`, `instagram.lastSyncError`.
+The live token/expiry/sync-status live in a new singleton model, following
+the exact `HomeContent`/`AboutContent` shape:
+
+```prisma
+model InstagramSyncState {
+  id                    String    @id @default(auto()) @map("_id") @db.ObjectId
+  key                   String    @unique @default("current")
+  accessToken           String?
+  tokenExpiresAt        DateTime?
+  lastSyncAt            DateTime?
+  lastSyncError         String?
+  lastTokenRefreshAt    DateTime?
+  lastTokenRefreshError String?
+  updatedAt             DateTime  @updatedAt
+}
+```
 
 ### 5.1 Home content schema addition
 
@@ -99,9 +112,9 @@ matching neighboring sections (rotate).
 
 ## 6. Instagram integration (`src/lib/instagram.ts`)
 
-- `getAccessToken()` — reads `Config["instagram.accessToken"]`, falling back
-  to and seeding from `process.env.INSTAGRAM_ACCESS_TOKEN` if the `Config`
-  row doesn't exist yet.
+- `getAccessToken()` — reads `InstagramSyncState.accessToken`, falling back
+  to and seeding from `process.env.INSTAGRAM_ACCESS_TOKEN` if the
+  `InstagramSyncState` row doesn't exist yet.
 - `fetchReels()` — calls the Graph API
   `GET /{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media` filtered to
   `media_product_type=REELS`, paginated, mapped to `{igMediaId, caption,
@@ -117,21 +130,27 @@ matching neighboring sections (rotate).
 - `isTokenRefreshDue(expiresAt)` — pure function, true when within 14 days of
   expiry; unit-testable without hitting the network.
 - `refreshLongLivedToken()` — calls the Graph API's long-lived token refresh
-  endpoint, writes the new token + computed expiry into `Config`.
+  endpoint, writes the new token + computed expiry into `InstagramSyncState`.
 
 ## 7. Cron jobs
 
-Both protected by the existing `CRON_SECRET` bearer-token pattern used by
-current cron routes.
+The existing `src/app/api/cron/route.ts` multiplexes email jobs by `?job=`
+under one `CRON_SECRET`-protected route on purpose ("one route rather than
+five secrets to rotate"). Reels sync isn't an email job and doesn't fit that
+route's `JobResult` shape (`sent`/`skipped`/`failed` email counts), so it
+gets its own small multiplexed route following the identical auth pattern
+rather than being forced into the email one:
 
-- `src/app/api/cron/instagram-sync/route.ts` (daily) — calls `fetchReels()`.
-  Failure is caught, written to `Config["instagram.lastSyncError"]`, and does
-  *not* throw past the route (the home page must keep showing the
-  last-known-good featured reels regardless of sync health).
-- `src/app/api/cron/instagram-token-refresh/route.ts` (weekly) — calls
-  `isTokenRefreshDue()` then `refreshLongLivedToken()` if due. On failure,
-  emails `ADMIN_EMAIL` via the existing Resend setup so a human can
-  intervene inside the ~60-day window.
+- `src/app/api/cron/instagram/route.ts` — same bearer-secret `authorise()`
+  check as the email cron route, dispatching on `?job=`:
+  - `sync` (daily) — calls `fetchReels()`. Failure is caught, written to
+    `InstagramSyncState.lastSyncError`, and does *not* throw past the route
+    (the home page must keep showing the last-known-good featured reels
+    regardless of sync health).
+  - `token-refresh` (weekly) — calls `isTokenRefreshDue()` then
+    `refreshLongLivedToken()` if due. On failure, emails `ADMIN_EMAIL` via
+    the existing Resend setup so a human can intervene inside the ~60-day
+    window.
 
 Marking a reel "featured" in the admin screen triggers `cacheReelMedia()`
 directly from that server action — not from either cron — so caching happens
@@ -148,11 +167,12 @@ feedback.
 - Shows every synced `InstagramReel` (thumbnail — Cloudinary if cached, else
   raw IG CDN — caption excerpt, posted date), each row with:
   - A "Featured" toggle (triggers `cacheReelMedia()` on turning on).
-  - Drag-reorder among featured rows only (same reorder control pattern as
-    home section ordering).
+  - Move-up/move-down buttons to reorder featured rows (the codebase has no
+    drag-and-drop library; this matches the existing home-section reorder
+    control exactly).
   - A manual "Sync now" button calling the same `fetchReels()` path as the
     daily cron, for immediate testing without waiting for the schedule.
-- A status banner surfaces `Config["instagram.lastSyncError"]` and warns when
+- A status banner surfaces `InstagramSyncState.lastSyncError` and warns when
   the token is within its 14-day refresh window but hasn't refreshed yet.
 
 ## 9. Home page component
@@ -188,7 +208,7 @@ Added to `.env.example`, alongside the existing Media section:
 INSTAGRAM_APP_ID=
 INSTAGRAM_APP_SECRET=
 INSTAGRAM_BUSINESS_ACCOUNT_ID=
-INSTAGRAM_ACCESS_TOKEN=        # seed long-lived token; auto-rotates into Config after first refresh
+INSTAGRAM_ACCESS_TOKEN=        # seed long-lived token; auto-rotates into InstagramSyncState after first refresh
 ```
 
 `CRON_SECRET` already exists and is reused as-is to protect the two new
@@ -213,7 +233,7 @@ account, before any of this can sync real data:
    into the site's env vars (§10).
 
 Until this is done, the sync cron will fail gracefully (logged to
-`Config["instagram.lastSyncError"]`, no crash) and the home section stays
+`InstagramSyncState.lastSyncError`, no crash) and the home section stays
 hidden (zero featured reels).
 
 ## 12. Error handling
