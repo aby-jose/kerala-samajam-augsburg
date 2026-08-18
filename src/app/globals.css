@@ -173,6 +173,19 @@
   animation: marquee 32s linear infinite;
 }
 
+/* A narrow blur at the left/right edge of the marquee's clipping box,
+   softening the hard cut without a visible pale "washed out" band. A wider
+   fade (tried first) blends card color against the section background
+   across enough pixels that the eye reads a distinct pale zone — a red
+   card fading through 50% against a white background is just pink, however
+   the fade is built (mask vs. overlay is the same alpha blend either way).
+   Narrow enough and that band is too thin to perceive as a color, only as
+   a soft edge — the same trick used for edge fades on image carousels. */
+@utility marquee-fade-x {
+  mask-image: linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10px, black calc(100% - 10px), transparent);
+}
+
 /*
  * Admin dashboard buttons read a bit sharper than the shared Button
  * component's default — scoped to .admin-shell so the public site keeps

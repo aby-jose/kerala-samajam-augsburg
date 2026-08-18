@@ -81,9 +81,11 @@ export function ReelsSection({
       </Container>
 
       {/* Same Container as the header — the marquee now clips at the page's
-          normal content width instead of bleeding to the screen edge. */}
+          normal content width instead of bleeding to the screen edge. The
+          fade softens that clip: cards dissolve near each edge instead of
+          being sliced mid-card. */}
       <Container>
-        <div className="overflow-hidden">
+        <div className="overflow-hidden marquee-fade-x">
           <div className="flex w-max animate-marquee gap-4 motion-reduce:animate-none sm:gap-5 hover:[animation-play-state:paused]">
             {[...reels, ...reels, ...reels, ...reels].map((reel, i) => (
               <ReelTile key={`${reel.id}-${i}`} reel={reel} tone={i % 2 === 0 ? "primary" : "dark"} />
