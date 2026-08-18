@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Instagram } from "lucide-react";
-import { Container } from "@/components/layout/container";
 import { Eyebrow, SectionLead, SectionTitle } from "@/components/layout/section-heading";
 import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { getFeaturedReels, type ReelCardData } from "@/lib/instagram-actions";
@@ -43,133 +42,137 @@ export function ReelsSection({
         bordered && "border-y border-border"
       )}
     >
-      <Container>
+      {/* Bounded to 80% of the viewport rather than the page's usual content
+          width — the strip reads as an inset editorial column. */}
+      <div className="mx-auto w-[80%]">
+        {/* Same header shape as GalleryStrip, the sibling section this one
+            most resembles: heading on the left, a count-free "view all" link
+            on the right, both anchored to the row's baseline. */}
         <motion.div
-          className="mb-12 max-w-2xl"
+          className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end"
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.7, ease: EASE }}
         >
-          <Eyebrow>Instagram</Eyebrow>
-          <SectionTitle className="mt-6">{content.heading}</SectionTitle>
-          {content.subheading && (
-            <SectionLead className="mt-5 max-w-lg">{content.subheading}</SectionLead>
-          )}
-        </motion.div>
-      </Container>
+          <div className="max-w-2xl">
+            <Eyebrow>Instagram</Eyebrow>
+            <SectionTitle className="mt-6">{content.heading}</SectionTitle>
+            {content.subheading && (
+              <SectionLead className="mt-5 max-w-lg">{content.subheading}</SectionLead>
+            )}
+          </div>
 
-      <motion.div
-        className="flex gap-4 overflow-x-auto px-6 pb-4 snap-x snap-mandatory md:px-[max(1.5rem,calc((100vw-72rem)/2))]"
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-60px" }}
-        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
-      >
-        {reels.map((reel) => (
-          <motion.div
-            key={reel.id}
-            variants={{
-              hidden: { opacity: 0, y: 20 },
-              visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
-            }}
-            className="shrink-0 snap-start"
+          <a
+            href="https://www.instagram.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-foreground"
           >
-            <ReelCardTile reel={reel} />
-          </motion.div>
-        ))}
-      </motion.div>
+            <span className="border-b border-foreground/30 pb-0.5 transition-colors group-hover:border-primary group-hover:text-primary">
+              Follow along
+            </span>
+            <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-primary" />
+          </a>
+        </motion.div>
+
+        {/* Same mosaic GalleryStrip uses — one hero tile carrying four
+            smaller ones — so the two "recent content" sections on this page
+            read as one family instead of two different components. */}
+        <motion.div
+          className={cn(
+            "grid grid-cols-2 gap-3 md:gap-4",
+            reels.length >= 4 ? "md:grid-cols-4" : "md:grid-cols-3"
+          )}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-60px" }}
+          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+        >
+          {reels.slice(0, 5).map((reel, i) => (
+            <motion.div
+              key={reel.id}
+              variants={{
+                hidden: { opacity: 0, y: 20 },
+                visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: EASE } },
+              }}
+              className={cn(
+                "group relative aspect-square overflow-hidden rounded-2xl",
+                i === 0 && reels.length >= 5 && "col-span-2 row-span-2"
+              )}
+            >
+              <ReelTile
+                reel={reel}
+                isHero={i === 0 && reels.length >= 5}
+                tone={i % 2 === 0 ? "primary" : "dark"}
+              />
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
     </section>
   );
 }
 
-/** The reel's own claim on the strip: a media frame with a fixed caption
- *  plate underneath it, like a print underneath the photograph rather than
- *  text burned into the image — so the same layout reads equally well for
- *  a real video or a still-caching placeholder, and never turns into a
- *  generic "gradient with white text stamped in the middle" card. */
-function ReelCardTile({ reel }: { reel: ReelCardData }) {
+/**
+ * A solid field of the site's own primary or near-black — never a stand-in
+ * photo — carrying the caption directly, the way a press clipping carries a
+ * pull quote. Real cached video plays in the same tile once it exists,
+ * with the identical icon-top/caption-bottom shell over a scrim, so the
+ * mosaic doesn't visually reshuffle itself the day Instagram connects.
+ */
+function ReelTile({
+  reel,
+  isHero,
+  tone,
+}: {
+  reel: ReelCardData;
+  isHero: boolean;
+  tone: "primary" | "dark";
+}) {
   return (
     <a
       href={reel.permalink}
       target="_blank"
       rel="noopener noreferrer"
-      className="group flex h-[420px] w-[236px] flex-col overflow-hidden rounded-[1.75rem] border border-border bg-surface-1 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_16px_32px_-24px_rgba(0,0,0,0.25)] transition-shadow duration-300 hover:shadow-[0_2px_4px_rgba(0,0,0,0.06),0_24px_40px_-20px_rgba(0,0,0,0.3)]"
+      className={cn(
+        "absolute inset-0 flex flex-col justify-between p-5 transition-transform duration-500 md:group-hover:-translate-y-1",
+        reel.cloudinaryVideoUrl || tone === "dark" ? "bg-surface-deep" : "bg-primary"
+      )}
     >
-      <div className="relative flex-1 overflow-hidden bg-muted">
-        {reel.cloudinaryVideoUrl ? (
-          <video
-            src={reel.cloudinaryVideoUrl}
-            poster={reel.cloudinaryThumbnailUrl ?? undefined}
-            muted
-            loop
-            playsInline
-            preload="none"
-            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-            onMouseLeave={(e) => e.currentTarget.pause()}
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <GradientFallback />
-        )}
+      {reel.cloudinaryVideoUrl && (
+        <video
+          src={reel.cloudinaryVideoUrl}
+          poster={reel.cloudinaryThumbnailUrl ?? undefined}
+          muted
+          loop
+          playsInline
+          preload="none"
+          onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+          onMouseLeave={(e) => e.currentTarget.pause()}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {reel.cloudinaryVideoUrl && (
+        <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
+      )}
 
-        {/* Same badge idiom the gallery already uses for its video tiles —
-            one visual language for "this is a reel," on top of either state. */}
-        <div className="absolute left-3 top-3 flex items-center gap-1 rounded-lg border border-white/15 bg-black/40 p-1.5 text-white backdrop-blur-md">
-          <Instagram className="h-3 w-3" strokeWidth={2} />
-          <span className="text-[8px] font-black uppercase tracking-widest">Reel</span>
-        </div>
-      </div>
+      <Instagram className="relative h-5 w-5 text-white/75" strokeWidth={2} />
 
-      <div className="shrink-0 border-t border-border px-4 py-3.5">
-        {reel.caption ? (
-          <p className="line-clamp-2 font-serif text-[13px] italic leading-snug text-foreground">
-            {reel.caption}
-          </p>
-        ) : (
-          <p className="text-[13px] italic leading-snug text-muted-foreground">
-            From the KSA feed
-          </p>
-        )}
-        <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors group-hover:text-primary">
-          View on Instagram
+      <div className="relative">
+        <p
+          className={cn(
+            "font-serif italic leading-snug text-white line-clamp-4",
+            isHero ? "text-2xl" : "text-base"
+          )}
+        >
+          {reel.caption || "From the KSA feed"}
+        </p>
+        <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+          Watch on Instagram
           <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
         </span>
       </div>
     </a>
-  );
-}
-
-/** Shown for a featured reel that hasn't finished caching yet, or whose cache
- *  attempt failed — an animated gradient built from the site's own primary
- *  and surface tokens, not a generic rainbow, so the strip never reads as
- *  broken mid-sync (spec D8). The caption lives in the plate below, not
- *  stamped over the art, so this is free to just be the moving field of
- *  color plus one quiet editorial mark. */
-function GradientFallback() {
-  return (
-    <div className="relative h-full w-full overflow-hidden">
-      <motion.div
-        className="absolute inset-0 bg-[length:200%_200%] bg-linear-to-br from-primary via-primary/70 to-surface-deep"
-        animate={{ backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"] }}
-        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-      />
-      {/* A faint dot field for texture, so the gradient reads as a made
-          surface rather than a flat CSS fill. */}
-      <div
-        className="absolute inset-0 opacity-[0.12]"
-        style={{
-          backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)",
-          backgroundSize: "14px 14px",
-          color: "white",
-        }}
-      />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -bottom-8 right-2 select-none font-serif text-[9rem] italic leading-none text-white/10"
-      >
-        "
-      </span>
-    </div>
   );
 }
