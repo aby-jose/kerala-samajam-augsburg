@@ -76,22 +76,21 @@ export function ReelsSection({
           </a>
         </motion.div>
 
-        {/* Masonry: three columns of unequal width, each reel keeping its
-            real 9:16 shape. The stagger comes from the columns themselves
-            (different widths, different item counts), not from stretching
-            any individual card out of proportion — so it reads as a wall of
-            actual reels, not a photo grid wearing a reel's clothes. */}
+        {/* Masonry, kept genuinely compact: small fixed-size tiles (not
+            stretched to fill a grid track), staggered by nudging alternate
+            columns down half a card — so the wall stays short regardless of
+            how many columns fit, instead of growing with the container. */}
         <motion.div
-          className="grid grid-cols-2 gap-4 sm:grid-cols-[1fr_1.2fr_0.9fr]"
+          className="flex gap-3 overflow-x-auto pb-2 sm:gap-4"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: "-60px" }}
           variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.06 } } }}
         >
-          {columnsOf(reels, 3).map((column, colIndex) => (
+          {columnsOf(reels, 5).map((column, colIndex) => (
             <div
               key={colIndex}
-              className={cn("flex flex-col gap-4", colIndex === 2 && "hidden sm:flex")}
+              className={cn("flex shrink-0 flex-col gap-3 sm:gap-4", colIndex % 2 === 1 && "mt-10")}
             >
               {column.map((reel, i) => (
                 <motion.div
@@ -135,7 +134,7 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "group relative flex aspect-[9/16] w-full flex-col justify-between overflow-hidden rounded-2xl p-5 transition-transform duration-500 hover:-translate-y-1",
+        "group relative flex aspect-[9/16] w-32 flex-col justify-between overflow-hidden rounded-xl p-3.5 transition-transform duration-500 hover:-translate-y-1 sm:w-36 sm:rounded-2xl sm:p-4",
         reel.cloudinaryVideoUrl || tone === "dark" ? "bg-surface-deep" : "bg-primary"
       )}
     >
@@ -156,15 +155,15 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
         <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
       )}
 
-      <Instagram className="relative h-5 w-5 text-white/75" strokeWidth={2} />
+      <Instagram className="relative h-3.5 w-3.5 text-white/75 sm:h-4 sm:w-4" strokeWidth={2} />
 
       <div className="relative">
-        <p className="line-clamp-5 font-serif text-base italic leading-snug text-white">
+        <p className="line-clamp-4 font-serif text-[11px] italic leading-snug text-white sm:text-[13px]">
           {reel.caption || "From the KSA feed"}
         </p>
-        <span className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-          Watch on Instagram
-          <ArrowUpRight className="h-3 w-3" strokeWidth={2.5} />
+        <span className="mt-1.5 inline-flex items-center gap-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/60 opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:mt-2">
+          Watch
+          <ArrowUpRight className="h-2.5 w-2.5" strokeWidth={2.5} />
         </span>
       </div>
     </a>
