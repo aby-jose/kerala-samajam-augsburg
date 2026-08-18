@@ -122,11 +122,11 @@ function GradientFallback({ caption }: { caption: string | null }) {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <motion.div
-        className="absolute inset-0 bg-[length:200%_200%] bg-gradient-to-br from-primary via-surface-3 to-primary"
+        className="absolute inset-0 bg-[length:200%_200%] bg-linear-to-br from-primary via-primary/70 to-surface-deep"
         animate={{ backgroundPosition: ["0% 0%", "100% 100%", "0% 0%"] }}
         transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
       />
-      <div className="absolute inset-0 bg-black/10" />
+      <div className="absolute inset-0 bg-black/35" />
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
         <Instagram className="h-8 w-8 text-white/90" strokeWidth={1.5} />
         {caption && <p className="line-clamp-3 text-xs font-medium text-white/90">{caption}</p>}

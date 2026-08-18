@@ -246,6 +246,11 @@ const UNGUARDED_ROUTES: Record<string, string> = {
     "doesn't match. Not a session guard, so it can't be text-matched; verified by hand.",
   "cron/route.ts#POST":
     "Same authorise() check as GET — some schedulers only issue POST.",
+  "cron/instagram/route.ts#GET":
+    "Bearer CRON_SECRET checked in its own authorise() — same pattern and same hand-verified reasoning as " +
+    "cron/route.ts#GET: it refuses when the secret is unset or the caller's value doesn't match.",
+  "cron/instagram/route.ts#POST":
+    "Same authorise() check as GET — Vercel Cron issues GET, but the manual re-run path uses POST.",
   "gallery/download/route.ts#GET":
     "Public by design — the publicId is resolved against GalleryMedia scoped to a *published* album before " +
     "anything is fetched, so nothing outside the public gallery is addressable through it.",

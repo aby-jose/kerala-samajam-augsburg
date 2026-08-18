@@ -70,8 +70,17 @@ describe("mergeHomeContent", () => {
 });
 
 describe("repairLayout", () => {
-  it("returns the default layout when nothing is stored", () => {
-    expect(repairLayout(undefined)).toEqual(DEFAULT_HOME_CONTENT.layout);
+  it("returns every section, in default order and visible, when nothing is stored", () => {
+    // Deliberately not compared against DEFAULT_HOME_CONTENT.layout as-is any
+    // more: `reels` ships hidden (it renders nothing until an admin features a
+    // reel), while repairLayout's contract is to re-append any section it does
+    // not find as *visible*. The two are no longer the same object, and the
+    // difference doesn't reach a fresh site — getHomeContent short-circuits to
+    // DEFAULT_HOME_CONTENT when no document is stored, so the defaults, not
+    // this path, decide what a never-saved home page renders.
+    expect(repairLayout(undefined)).toEqual(
+      DEFAULT_HOME_CONTENT.layout.map((s) => ({ ...s, visible: true }))
+    );
   });
 
   it("appends sections missing from a stored layout, visible", () => {
@@ -119,16 +128,14 @@ describe("resolveSections", () => {
       ["about", "bg-surface-1"],
       ["events", "bg-surface-2"],
       ["gallery", "bg-surface-1"],
-      ["reels", "bg-surface-3"],
-      ["committee", "bg-surface-1"],
-      ["join", "bg-surface-2"],
+      ["committee", "bg-surface-3"],
+      ["join", "bg-surface-1"],
       ["cta", "bg-surface-deep"],
     ]);
 
     expect(resolved.filter((s) => s.bordered).map((s) => s.id)).toEqual([
       "events",
-      "reels",
-      "join",
+      "committee",
     ]);
   });
 

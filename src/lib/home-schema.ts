@@ -181,7 +181,7 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
     { id: "about", visible: true },
     { id: "events", visible: true },
     { id: "gallery", visible: true },
-    { id: "reels", visible: true },
+    { id: "reels", visible: false },
     { id: "committee", visible: true },
     { id: "join", visible: true },
     { id: "cta", visible: true },

@@ -108,7 +108,10 @@ export async function fetchReels(): Promise<{ created: number; updated: number }
   const businessAccountId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID?.trim();
   if (!businessAccountId) throw new Error("INSTAGRAM_BUSINESS_ACCOUNT_ID is not set");
 
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&access_token=${token}`;
+  // One page only: the most recent 50 media items of ALL types (reels are
+  // filtered out of that set by parseReelsPage). Enough to surface recent
+  // reels every sync, but it will not backfill an entire historical archive.
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Instagram media fetch failed: ${response.status}`);

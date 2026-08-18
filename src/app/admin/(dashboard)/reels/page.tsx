@@ -16,6 +16,7 @@ export default async function AdminReelsPage() {
     <ReelsManager
       initialReels={reels}
       lastSyncError={syncState?.lastSyncError ?? null}
+      lastTokenRefreshError={syncState?.lastTokenRefreshError ?? null}
       tokenExpiresAt={syncState?.tokenExpiresAt ?? null}
     />
   );

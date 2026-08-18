@@ -25,10 +25,12 @@ const REFRESH_WARNING_DAYS = 14;
 export function ReelsManager({
   initialReels,
   lastSyncError,
+  lastTokenRefreshError,
   tokenExpiresAt,
 }: {
   initialReels: Reel[];
   lastSyncError: string | null;
+  lastTokenRefreshError: string | null;
   tokenExpiresAt: Date | null;
 }) {
   const { success, error: toastError } = useToast();
@@ -57,7 +59,14 @@ export function ReelsManager({
         success(reel.featured ? "Removed from home page." : "Featured on home page.");
         refresh();
       } catch (err) {
-        toastError(err instanceof Error ? err.message : "Something went wrong.");
+        toastError(
+          reel.featured
+            ? err instanceof Error
+              ? err.message
+              : "Something went wrong."
+            : `Featured, but the video failed to cache: ${err instanceof Error ? err.message : "unknown error"}. It'll show as a placeholder until retried.`
+        );
+        refresh();
       } finally {
         setBusyId(null);
       }
@@ -109,11 +118,14 @@ export function ReelsManager({
         </Button>
       </div>
 
-      {(lastSyncError || tokenWarning) && (
+      {(lastSyncError || lastTokenRefreshError || tokenWarning) && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="space-y-1">
             {lastSyncError && <p>Last sync failed: {lastSyncError}</p>}
+            {lastTokenRefreshError && (
+              <p>Last token refresh failed: {lastTokenRefreshError}</p>
+            )}
             {tokenWarning && (
               <p>
                 The Instagram access token expires soon
@@ -187,7 +199,16 @@ function ReelRow({
   return (
     <div className={cn(tableRow, "flex items-center gap-4 p-4")}>
       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-muted">
-        {thumb && <img src={thumb} alt="" className="h-full w-full object-cover" />}
+        {thumb && (
+          <img
+            src={thumb}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        )}
       </div>
 
       <div className="min-w-0 flex-1">

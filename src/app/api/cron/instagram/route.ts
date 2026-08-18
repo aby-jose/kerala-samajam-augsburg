@@ -34,32 +34,42 @@ async function runSync(): Promise<JobOutcome> {
 }
 
 async function runTokenRefresh(): Promise<JobOutcome> {
-  const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
-
-  if (!isTokenRefreshDue(state?.tokenExpiresAt ?? null)) {
-    return { job: "token-refresh", ok: true, message: "not due yet" };
-  }
-
   try {
+    if (!process.env.INSTAGRAM_APP_ID?.trim() || !process.env.INSTAGRAM_APP_SECRET?.trim()) {
+      return { job: "token-refresh", ok: true, message: "not configured — skipped" };
+    }
+
+    const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
+    if (!state?.accessToken) {
+      return { job: "token-refresh", ok: true, message: "no token yet — skipped" };
+    }
+    if (!isTokenRefreshDue(state.tokenExpiresAt)) {
+      return { job: "token-refresh", ok: true, message: "not due yet" };
+    }
+
     await refreshLongLivedToken();
     return { job: "token-refresh", ok: true, message: "refreshed" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    const to = adminEmailOrNull();
-    if (to) {
-      await sendMail({
-        template: "instagram.token-refresh-failed",
-        to,
-        build: () => ({
-          subject: "Instagram token refresh failed",
-          previewText: "The Instagram Graph API token could not be refreshed automatically.",
-          eyebrow: "SYSTEM ALERT",
-          tone: "warning",
-          title: "Instagram token refresh failed",
-          lead: `The scheduled refresh job failed: ${esc(message)}. The current token has not expired yet, but this needs attention before it does.`,
-        }),
-      });
+    try {
+      const to = adminEmailOrNull();
+      if (to) {
+        await sendMail({
+          template: "instagram.token-refresh-failed",
+          to,
+          build: () => ({
+            subject: "Instagram token refresh failed",
+            previewText: "The Instagram Graph API token could not be refreshed automatically.",
+            eyebrow: "SYSTEM ALERT",
+            tone: "warning",
+            title: "Instagram token refresh failed",
+            lead: `The scheduled refresh job failed: ${esc(message)}. The current token has not expired yet, but this needs attention before it does.`,
+          }),
+        });
+      }
+    } catch (mailError) {
+      console.error("[instagram] token-refresh alert failed to send:", mailError);
     }
 
     return { job: "token-refresh", ok: false, message };
