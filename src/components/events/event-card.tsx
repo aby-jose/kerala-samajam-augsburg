@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
+import { MapPin, CalendarDays, ArrowRight, Handshake } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
@@ -14,6 +14,7 @@ interface EventCardProps {
     description: string;
     image: string;
     category?: string;
+    sponsored?: boolean;
   };
 }
 
@@ -56,6 +57,13 @@ export function EventCard({ event }: EventCardProps) {
           <span className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
             {event.category || "Event"}
           </span>
+
+          {event.sponsored && (
+            <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+              <Handshake className="h-3 w-3" strokeWidth={2} />
+              Sponsored
+            </span>
+          )}
 
           {/* The date block echoes the ledger rows on /about — day over month,
               filling with primary as the card is hovered. */}
