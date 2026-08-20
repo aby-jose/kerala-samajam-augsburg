@@ -54,7 +54,7 @@ export function EventCard({ event }: EventCardProps) {
             className="relative h-full w-full object-contain transition-transform duration-1000 group-hover:scale-[1.03]"
           />
 
-          <span className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+          <span className="absolute left-4 top-4 max-w-[calc(100%-12rem)] truncate rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
             {event.category || "Event"}
           </span>
 

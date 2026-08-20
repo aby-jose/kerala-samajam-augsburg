@@ -120,6 +120,35 @@ describe("upsertEvent — sponsors", () => {
     );
   });
 
+  it("defaults a sponsor's websiteUrl to an empty string when the key is omitted entirely", async () => {
+    mockedFindUnique.mockResolvedValue(null as never);
+    mockedCreate.mockResolvedValue({
+      id: "event-1",
+      date: new Date("2026-09-15"),
+      location: "Community Hall",
+      status: "SCHEDULED",
+    } as never);
+
+    await upsertEvent({
+      ...BASE_INPUT,
+      sponsors: [
+        { name: "Malabar Bank", logoUrl: "https://res.cloudinary.com/demo/image/upload/b.png" },
+      ],
+    } as any);
+
+    expect(mockedCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          sponsors: {
+            create: [
+              { name: "Malabar Bank", logoUrl: "https://res.cloudinary.com/demo/image/upload/b.png", websiteUrl: "", order: 0 },
+            ],
+          },
+        }),
+      })
+    );
+  });
+
   it("replaces the sponsor list on update via deleteMany + create", async () => {
     const existing = {
       id: "event-1",

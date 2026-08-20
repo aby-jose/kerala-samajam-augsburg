@@ -30,7 +30,11 @@ export function normalizeVenueCase(value: string): string {
 export const eventSponsorSchema = z.object({
   name: z.string().min(1, "Sponsor name is required"),
   logoUrl: z.string().min(1, "Logo is required"),
-  websiteUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+  websiteUrl: z
+    .string()
+    .url({ protocol: /^https?$/, error: "Enter a valid URL" })
+    .optional()
+    .or(z.literal("")),
 });
 
 export type EventSponsorFormValue = z.infer<typeof eventSponsorSchema>;

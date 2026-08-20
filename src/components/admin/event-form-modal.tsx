@@ -758,7 +758,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                       key={field.id}
                       className="flex items-start gap-3 rounded-lg border border-border p-3"
                     >
-                      <div className="w-20 shrink-0">
+                      <div className="w-32 shrink-0">
                         <ImageUpload
                           aspect="aspect-square"
                           folder="kerala-samajam/sponsors"

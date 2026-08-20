@@ -44,6 +44,15 @@ describe("eventSponsorSchema", () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it("rejects a javascript: website URL", () => {
+    const result = eventSponsorSchema.safeParse({
+      name: "Kerala Spice Co.",
+      logoUrl: "https://res.cloudinary.com/demo/image/upload/logo.png",
+      websiteUrl: "javascript:alert(1)",
+    });
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("eventSchema sponsors field", () => {

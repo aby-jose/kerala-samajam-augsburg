@@ -700,9 +700,9 @@ export function EventDetailClient() {
               With thanks to
             </span>
 
-            <h2 className="mt-4 font-sans text-2xl font-bold tracking-[-0.02em] text-foreground">
+            <SectionTitle className="mt-4">
               Our <Accent>Sponsors</Accent>
-            </h2>
+            </SectionTitle>
 
             <div className="mt-10 flex flex-wrap items-center gap-x-12 gap-y-8">
               {event.sponsors.map((sponsor) => {
@@ -710,6 +710,11 @@ export function EventDetailClient() {
                   <img
                     src={sponsor.logoUrl}
                     alt={sponsor.name}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
                     className="h-12 w-auto object-contain grayscale transition-[filter] duration-300 hover:grayscale-0 sm:h-14"
                   />
                 );
