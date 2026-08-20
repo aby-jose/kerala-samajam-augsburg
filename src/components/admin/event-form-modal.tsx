@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { useForm, SubmitHandler } from "react-hook-form";
+import { useForm, useFieldArray, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   X,
@@ -12,7 +12,10 @@ import {
   Upload,
   Zap,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  MoveUp,
+  MoveDown,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -21,6 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { upsertEvent, generateEventDetails, improveEventTitle, improveEventDescription, generateCategory, generateEventImage } from "@/lib/event-actions";
 import { uploadImageAction } from "@/lib/gallery-actions";
+import ImageUpload from "@/components/admin/image-upload";
 import { eventSchema, type EventFormValues } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -53,6 +57,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
     watch,
     setValue,
     reset,
+    control,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(eventSchema) as any,
@@ -74,8 +79,16 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
       maxAttendees: null,
       memberPrice: null,
       nonMemberPrice: null,
+      sponsors: [],
     },
   });
+
+  const {
+    fields: sponsorFields,
+    append: appendSponsor,
+    remove: removeSponsor,
+    swap: swapSponsor,
+  } = useFieldArray({ control, name: "sponsors" });
 
   const title = watch("title");
   const imageUrl = watch("imageUrl");
@@ -102,6 +115,11 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
         maxAttendees: initialData.maxAttendees ?? null,
         memberPrice: initialData.memberPrice ?? null,
         nonMemberPrice: initialData.nonMemberPrice ?? null,
+        sponsors: (initialData.sponsors || []).map((sponsor: any) => ({
+          name: sponsor.name || "",
+          logoUrl: sponsor.logoUrl || "",
+          websiteUrl: sponsor.websiteUrl || "",
+        })),
       });
     } else if (isOpen && !initialData) {
       reset({
@@ -122,6 +140,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
         maxAttendees: null,
         memberPrice: null,
         nonMemberPrice: null,
+        sponsors: [],
       });
     }
   }, [isOpen, initialData, reset]);
@@ -713,6 +732,113 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Sponsors Section */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Sponsors</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => appendSponsor({ name: "", logoUrl: "", websiteUrl: "" })}
+                  className="h-8 rounded-lg text-xs"
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  Add sponsor
+                </Button>
+              </div>
+
+              {sponsorFields.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No sponsors added yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {sponsorFields.map((field, index) => (
+                    <div
+                      key={field.id}
+                      className="flex items-start gap-3 rounded-lg border border-border p-3"
+                    >
+                      <div className="w-20 shrink-0">
+                        <ImageUpload
+                          aspect="aspect-square"
+                          folder="kerala-samajam/sponsors"
+                          defaultValue={watch(`sponsors.${index}.logoUrl`)}
+                          onUploadComplete={(url) =>
+                            setValue(`sponsors.${index}.logoUrl`, url, { shouldValidate: true })
+                          }
+                        />
+                        {errors.sponsors?.[index]?.logoUrl && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            {errors.sponsors[index]?.logoUrl?.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <Input
+                            {...register(`sponsors.${index}.name`)}
+                            placeholder="Sponsor name"
+                            className="h-9 rounded-lg"
+                          />
+                          {errors.sponsors?.[index]?.name && (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              {errors.sponsors[index]?.name?.message}
+                            </p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <Input
+                            {...register(`sponsors.${index}.websiteUrl`)}
+                            placeholder="https://sponsor-website.com (optional)"
+                            className="h-9 rounded-lg"
+                          />
+                          {errors.sponsors?.[index]?.websiteUrl && (
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              {errors.sponsors[index]?.websiteUrl?.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === 0}
+                          onClick={() => swapSponsor(index, index - 1)}
+                          className="h-7 w-7 rounded-md"
+                          aria-label="Move up"
+                        >
+                          <MoveUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={index === sponsorFields.length - 1}
+                          onClick={() => swapSponsor(index, index + 1)}
+                          className="h-7 w-7 rounded-md"
+                          aria-label="Move down"
+                        >
+                          <MoveDown className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeSponsor(index)}
+                          className="h-7 w-7 rounded-md hover:text-red-600"
+                          aria-label="Remove sponsor"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="h-px bg-border" />
