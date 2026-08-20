@@ -335,6 +335,29 @@ export async function toggleEventPublish(id: string, isPublished: boolean) {
 }
 
 /**
+ * Manually close (or reopen) sign-ups, independent of `maxAttendees`.
+ *
+ * Capacity is normally worked out from the registration count, which has
+ * nothing to say about an event with no cap set, or one that needs to stop
+ * taking names before the numbers do it automatically. No notification goes
+ * out — existing registrants keep their place either way, so there is
+ * nothing to tell them.
+ */
+export async function toggleEventFull(id: string, registrationsFull: boolean) {
+  await requirePermission("events.edit");
+
+  const event = await prisma.event.update({
+    where: { id },
+    data: { registrationsFull },
+  });
+
+  revalidatePath("/admin/events");
+  revalidatePath("/events");
+  revalidatePath(`/events/${event.slug}`);
+  return { success: true, event };
+}
+
+/**
  * Announce a published event to members who want to hear about them.
  *
  * Kept as a separate, explicitly-invoked action rather than a side effect of
@@ -625,6 +648,17 @@ export async function registerForEvent(data: {
 
   if (event.status === "CANCELLED") {
     throw new Error("This event has been cancelled and is no longer taking registrations.");
+  }
+
+  if (event.registrationsFull) {
+    await sendMail({
+      template: "event.full",
+      to: email,
+      entityId: event.id,
+      build: (ctx) =>
+        templates.events.eventFull(ctx, { name: name || "there", event: eventSummary(event) }),
+    });
+    throw new Error("Sorry, this event has reached its maximum capacity.");
   }
 
   // Check Capacity

@@ -127,6 +127,10 @@ model Event {
   isPublished    Boolean        @default(false)
   requiresLogin  Boolean        @default(false)
   maxAttendees   Int?
+  /// Manually closes sign-ups regardless of `maxAttendees` — for events with
+  /// no hard cap, or where registration should stop before the count would
+  /// say so. Checked alongside the capacity comparison, never in place of it.
+  registrationsFull Boolean     @default(false)
 
   /// Whether the event is still going ahead.
   ///

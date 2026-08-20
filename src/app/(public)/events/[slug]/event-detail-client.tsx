@@ -178,7 +178,7 @@ export function EventDetailClient() {
   const seatsLeft = event.maxAttendees
     ? Math.max(event.maxAttendees - registered, 0)
     : null;
-  const isFull = seatsLeft === 0;
+  const isFull = seatsLeft === 0 || event.registrationsFull;
   // The switch closes sign-ups without hiding the event itself: the calendar
   // and this page stay readable, only the ability to take a place goes away.
   const registrationEnabled = features.enableRegistration;
@@ -592,7 +592,11 @@ export function EventDetailClient() {
                     <ClosedPanel
                       icon={Users}
                       title="Fully booked"
-                      body={`All ${event.maxAttendees} places have been taken. Drop us a line — places occasionally free up, and we will let you know if one does.`}
+                      body={
+                        event.maxAttendees
+                          ? `All ${event.maxAttendees} places have been taken. Drop us a line — places occasionally free up, and we will let you know if one does.`
+                          : "This event is no longer taking new sign-ups. Drop us a line — places occasionally free up, and we will let you know if one does."
+                      }
                       action={{ href: "/contact", label: "Ask About a Place" }}
                     />
                   ) : !registrationEnabled ? (

@@ -11,6 +11,7 @@ import {
   Megaphone,
   RotateCcw,
   Users,
+  UserX,
   Trash2,
   Calendar,
   Globe,
@@ -24,6 +25,7 @@ import {
   deleteEvent,
   getAdminEvents,
   reinstateEvent,
+  toggleEventFull,
   toggleEventPublish,
 } from "@/lib/event-actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -194,6 +196,22 @@ export default function EventsClient() {
     fetchEvents();
   };
 
+  /** Manually close or reopen sign-ups — separate from capacity, which is
+   *  worked out from the registration count and doesn't apply to events with
+   *  no cap set. Reversible, so no confirmation step. */
+  const handleToggleFull = async (event: any) => {
+    setBusyId(event.id);
+    try {
+      await toggleEventFull(event.id, !event.registrationsFull);
+      success(event.registrationsFull ? "Registration reopened" : "Marked as full");
+      fetchEvents();
+    } catch (e: any) {
+      error(`Could not update the event: ${e.message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const filteredEvents = events
     .filter(event => {
       const matchesSearch = event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -284,6 +302,7 @@ export default function EventsClient() {
         <div className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-sm text-foreground tabular-nums">{event._count?.registrations || 0}</span>
+          {event.registrationsFull && <StatusBadge tone="warning">Full</StatusBadge>}
         </div>
       ),
     },
@@ -326,6 +345,23 @@ export default function EventsClient() {
                 title="Cancel the event and notify registrants"
               >
                 <CalendarX className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleToggleFull(event)}
+                disabled={busyId === event.id}
+                className={cn(
+                  "h-8 w-8 rounded-md text-muted-foreground hover:text-amber-600",
+                  event.registrationsFull && "text-amber-600"
+                )}
+                title={
+                  event.registrationsFull
+                    ? "Reopen registration"
+                    : "Mark registration as full — closes sign-ups without cancelling the event"
+                }
+              >
+                <UserX className="h-4 w-4" />
               </Button>
             </>
           )}
