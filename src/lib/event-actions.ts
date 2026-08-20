@@ -67,7 +67,10 @@ export async function getAdminEvents() {
     include: {
       _count: {
         select: { registrations: true }
-      }
+      },
+      sponsors: {
+        orderBy: { order: "asc" },
+      },
     },
     orderBy: { date: 'desc' }
   });
@@ -84,7 +87,12 @@ export async function getUpcomingEvents() {
 
   return await prisma.event.findMany({
     where: { isPublished: true, date: { gte: startOfToday } },
-    orderBy: { date: 'asc' }
+    orderBy: { date: 'asc' },
+    include: {
+      sponsors: {
+        select: { id: true },
+      },
+    },
   });
 }
 
@@ -94,7 +102,10 @@ export async function getEventBySlug(slug: string) {
     include: {
       _count: {
         select: { registrations: true }
-      }
+      },
+      sponsors: {
+        orderBy: { order: "asc" },
+      },
     }
   });
 }
@@ -103,7 +114,7 @@ export async function upsertEvent(data: EventFormValues) {
   await requirePermission("events.edit");
 
   const validated = eventSchema.parse(data);
-  const { id, ...eventData } = validated;
+  const { id, sponsors, ...eventData } = validated;
 
   let finalImageUrl = eventData.imageUrl;
 
@@ -126,6 +137,18 @@ export async function upsertEvent(data: EventFormValues) {
     imageUrl: finalImageUrl,
     date: new Date(validated.date),
     maxAttendees: validated.maxAttendees || null,
+    // Sponsors are a small, admin-edited list fully replaced on every save
+    // (design doc §7) — simplest correct sync, using the row order already
+    // submitted from the form rather than trusting a client-supplied `order`.
+    sponsors: {
+      ...(id ? { deleteMany: {} } : {}),
+      create: sponsors.map((sponsor, index) => ({
+        name: sponsor.name,
+        logoUrl: sponsor.logoUrl,
+        websiteUrl: sponsor.websiteUrl ?? "",
+        order: index,
+      })),
+    },
   };
 
   // The state before the edit, so a moved date or venue can be recognised as
