@@ -27,6 +27,14 @@ export function normalizeVenueCase(value: string): string {
   );
 }
 
+export const eventSponsorSchema = z.object({
+  name: z.string().min(1, "Sponsor name is required"),
+  logoUrl: z.string().min(1, "Logo is required"),
+  websiteUrl: z.string().url("Enter a valid URL").optional().or(z.literal("")),
+});
+
+export type EventSponsorFormValue = z.infer<typeof eventSponsorSchema>;
+
 export const eventSchema = z.object({
   id: z.string().optional(),
   title: z.string().min(5, "Title must be at least 5 characters"),
@@ -48,6 +56,7 @@ export const eventSchema = z.object({
   isPublished: z.boolean().default(false),
   requiresLogin: z.boolean().default(false),
   maxAttendees: z.number().int("Capacity must be a whole number").positive("Capacity must be positive").optional().nullable(),
+  sponsors: z.array(eventSponsorSchema).default([]),
 });
 
 export type EventFormValues = z.infer<typeof eventSchema>;
