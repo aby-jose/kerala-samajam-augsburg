@@ -691,6 +691,48 @@ export function EventDetailClient() {
         </Container>
       </section>
 
+      {/* ============ 2.5 Sponsors — surface 1 ============ */}
+      {event.sponsors.length > 0 && (
+        <section className="border-b border-border bg-background py-16 md:py-20">
+          <Container className="max-w-7xl">
+            <span className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              <span className="h-px w-6 bg-border" />
+              With thanks to
+            </span>
+
+            <h2 className="mt-4 font-sans text-2xl font-bold tracking-[-0.02em] text-foreground">
+              Our <Accent>Sponsors</Accent>
+            </h2>
+
+            <div className="mt-10 flex flex-wrap items-center gap-x-12 gap-y-8">
+              {event.sponsors.map((sponsor) => {
+                const logo = (
+                  <img
+                    src={sponsor.logoUrl}
+                    alt={sponsor.name}
+                    className="h-12 w-auto object-contain grayscale transition-[filter] duration-300 hover:grayscale-0 sm:h-14"
+                  />
+                );
+
+                return sponsor.websiteUrl ? (
+                  <a
+                    key={sponsor.id}
+                    href={sponsor.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="opacity-80 transition-opacity duration-300 hover:opacity-100"
+                  >
+                    {logo}
+                  </a>
+                ) : (
+                  <span key={sponsor.id}>{logo}</span>
+                );
+              })}
+            </div>
+          </Container>
+        </section>
+      )}
+
       {/* ============ 3. Closing band — deep ============ */}
       {/* Same ambient treatment as the closing bands on /events and /about, so
           the pages end on one note. */}
