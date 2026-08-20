@@ -251,8 +251,11 @@ export function EventDetailClient() {
     {
       icon: Users,
       label: "Attendance",
-      value:
-        seatsLeft !== null
+      value: event.registrationsFull
+        ? seatsLeft !== null
+          ? `${event.maxAttendees} places — registration closed`
+          : `${registered} registered — registration closed`
+        : seatsLeft !== null
           ? registered === 0
             ? `${event.maxAttendees} places, none taken yet`
             : `${seatsLeft} of ${event.maxAttendees} places left`
@@ -661,7 +664,9 @@ export function EventDetailClient() {
                         : "Registration closed"}
                     </span>
                     <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {seatsLeft !== null
+                      {event.registrationsFull
+                        ? "Full"
+                        : seatsLeft !== null
                         ? `${seatsLeft} left`
                         : `${registered} registered`}
                     </span>
