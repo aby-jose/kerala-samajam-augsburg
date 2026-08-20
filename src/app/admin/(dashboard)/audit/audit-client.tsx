@@ -78,7 +78,7 @@ export default function AuditClient({
     {
       key: "when",
       header: "When",
-      width: "w-[16%]",
+      width: "w-[20%]",
       cellClassName: "whitespace-nowrap text-muted-foreground",
       render: (row) =>
         new Date(row.createdAt).toLocaleString("en-GB", {
@@ -92,14 +92,14 @@ export default function AuditClient({
     {
       key: "actor",
       header: "Actor",
-      width: "w-[18%]",
+      width: "w-[17%]",
       cellClassName: "min-w-0",
       render: (row) => <p className="truncate text-sm text-foreground">{row.actorEmail}</p>,
     },
     {
       key: "action",
       header: "Action",
-      width: "w-[18%]",
+      width: "w-[16%]",
       cellClassName: "min-w-0",
       render: (row) => (
         <code className="block truncate rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
@@ -110,15 +110,15 @@ export default function AuditClient({
     {
       key: "summary",
       header: "Summary",
-      width: "w-[32%]",
+      width: "w-[29%]",
       cellClassName: "min-w-0",
       render: (row) => <p className="truncate text-sm text-foreground">{row.summary}</p>,
     },
     {
       key: "entity",
       header: "Entity",
-      width: "w-[16%]",
-      cellClassName: "min-w-0 text-muted-foreground",
+      width: "w-[18%]",
+      cellClassName: "min-w-0 truncate text-muted-foreground",
       render: (row) => (row.entity ? `${row.entity}${row.entityId ? ` · ${row.entityId.slice(-6)}` : ""}` : "—"),
     },
   ];
@@ -136,6 +136,12 @@ export default function AuditClient({
         keyExtractor={(row) => row.id}
         isLoading={loading}
         skeletonRows={8}
+        // The default per-column allowance (130px) is too tight for a
+        // fixed-width "20 Aug 2026, 14:23" timestamp that never wraps — it
+        // spilled past its cell into the Actor column. Give the table enough
+        // room for every column's content and let it scroll horizontally
+        // below that instead of crushing the date.
+        minWidth={900}
         empty={{
           icon: FileClock,
           title: "No entries",
