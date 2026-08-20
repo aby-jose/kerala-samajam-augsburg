@@ -33,6 +33,7 @@ import {
 } from "@/components/layout/section-heading";
 import { EventBody } from "@/components/events/event-body";
 import { RegistrationForm } from "@/components/events/registration-form";
+import { SponsorChips } from "@/components/events/sponsor-chips";
 import { getEventBySlug } from "@/lib/event-actions";
 import { checkCurrentMemberStatus } from "@/lib/membership-actions";
 import { cn } from "@/lib/utils";
@@ -352,6 +353,8 @@ export function EventDetailClient() {
                 )}
                 <HeroMeta icon={MapPin} label="Where" value={event.location} />
               </div>
+
+              <SponsorChips sponsors={event.sponsors} className="mt-6 sm:mt-8" />
 
               {isCountingDown && (
                 <div className="mt-7 sm:mt-9">
@@ -690,53 +693,6 @@ export function EventDetailClient() {
           </div>
         </Container>
       </section>
-
-      {/* ============ 2.5 Sponsors — surface 1 ============ */}
-      {event.sponsors.length > 0 && (
-        <section className="border-b border-border bg-background py-16 md:py-20">
-          <Container className="max-w-7xl">
-            <span className="flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              <span className="h-px w-6 bg-border" />
-              With thanks to
-            </span>
-
-            <SectionTitle className="mt-4">
-              Our <Accent>Sponsors</Accent>
-            </SectionTitle>
-
-            <div className="mt-10 flex flex-wrap items-center gap-x-12 gap-y-8">
-              {event.sponsors.map((sponsor) => {
-                const logo = (
-                  <img
-                    src={sponsor.logoUrl}
-                    alt={sponsor.name}
-                    loading="lazy"
-                    decoding="async"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = "none";
-                    }}
-                    className="h-12 w-auto object-contain grayscale transition-[filter] duration-300 hover:grayscale-0 sm:h-14"
-                  />
-                );
-
-                return sponsor.websiteUrl ? (
-                  <a
-                    key={sponsor.id}
-                    href={sponsor.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="opacity-80 transition-opacity duration-300 hover:opacity-100"
-                  >
-                    {logo}
-                  </a>
-                ) : (
-                  <span key={sponsor.id}>{logo}</span>
-                );
-              })}
-            </div>
-          </Container>
-        </section>
-      )}
 
       {/* ============ 3. Closing band — deep ============ */}
       {/* Same ambient treatment as the closing bands on /events and /about, so

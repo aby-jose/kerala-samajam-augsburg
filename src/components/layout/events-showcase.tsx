@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Countdown } from "./countdown";
+import { SponsorChips } from "@/components/events/sponsor-chips";
 import { cn } from "@/lib/utils";
 
 interface Event {
@@ -22,6 +23,7 @@ interface Event {
   location: string;
   description: string;
   image: string;
+  sponsors?: { id: string; name: string; logoUrl: string }[];
 }
 
 interface EventsShowcaseProps {
@@ -182,6 +184,8 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
                 <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/65 line-clamp-3">
                   {selectedEvent.description}
                 </p>
+
+                <SponsorChips sponsors={selectedEvent.sponsors} className="mt-5" />
 
                 <div className="mt-8 flex flex-col items-start gap-6 border-t border-white/10 pt-7 sm:flex-row sm:items-end sm:justify-between sm:gap-10">
                   <Countdown targetDate={selectedEvent.date} />

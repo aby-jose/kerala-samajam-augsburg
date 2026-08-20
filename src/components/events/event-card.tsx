@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { MapPin, CalendarDays, ArrowRight, Handshake } from "lucide-react";
+import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
@@ -14,7 +14,7 @@ interface EventCardProps {
     description: string;
     image: string;
     category?: string;
-    sponsored?: boolean;
+    sponsors?: { id: string; name: string; logoUrl: string }[];
   };
 }
 
@@ -58,10 +58,25 @@ export function EventCard({ event }: EventCardProps) {
             {event.category || "Event"}
           </span>
 
-          {event.sponsored && (
-            <span className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
-              <Handshake className="h-3 w-3" strokeWidth={2} />
-              Sponsored
+          {event.sponsors && event.sponsors.length > 0 && (
+            <span className="absolute right-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-black/40 py-1 pl-1 pr-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
+              {/* The logo sits in its own white roundel — a sponsor's mark can
+                  be any colour, and this is the one badge on the card that
+                  isn't ours to theme. */}
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
+                <img
+                  src={event.sponsors[0].logoUrl}
+                  alt=""
+                  aria-hidden
+                  loading="lazy"
+                  decoding="async"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                  className="h-full w-full object-contain p-0.5"
+                />
+              </span>
+              {event.sponsors.length > 1 ? "Sponsors" : "Sponsored"}
             </span>
           )}
 

@@ -66,6 +66,7 @@ export default async function Home() {
         location: e.location,
         description: e.description,
         image: e.imageUrl || "/images/placeholder.svg",
+        sponsors: e.sponsors,
       }))}
     />
   );

@@ -216,14 +216,19 @@ describe("read paths — include sponsors", () => {
     );
   });
 
-  it("getUpcomingEvents includes sponsor ids only", async () => {
+  it("getUpcomingEvents includes just enough sponsor data for listing cards", async () => {
     mockedFindMany.mockResolvedValue([] as never);
 
     await getUpcomingEvents();
 
     expect(mockedFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: { sponsors: { select: { id: true } } },
+        include: {
+          sponsors: {
+            orderBy: { order: "asc" },
+            select: { id: true, name: true, logoUrl: true },
+          },
+        },
       })
     );
   });

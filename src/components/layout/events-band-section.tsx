@@ -24,6 +24,7 @@ export interface EventCard {
   location: string;
   description: string;
   image: string;
+  sponsors?: { id: string; name: string; logoUrl: string }[];
 }
 
 export function EventsBandSection({

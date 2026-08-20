@@ -97,6 +97,7 @@ function EventsHeroSection({
               location: e.location,
               description: e.description,
               image: e.imageUrl || "/images/placeholder.svg",
+              sponsors: e.sponsors,
             }))}
           />
         </motion.div>
@@ -150,7 +151,6 @@ function EventsCalendarSection({
                 date: event.date.toISOString(),
                 image: event.imageUrl || "/images/placeholder.svg",
                 category: event.category ?? undefined,
-                sponsored: (event.sponsors?.length ?? 0) > 0,
               }}
             />
           ))}

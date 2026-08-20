@@ -89,8 +89,11 @@ export async function getUpcomingEvents() {
     where: { isPublished: true, date: { gte: startOfToday } },
     orderBy: { date: 'asc' },
     include: {
+      // Logo + name now, not just an id — listing cards show the actual
+      // sponsor, not a generic "sponsored" flag.
       sponsors: {
-        select: { id: true },
+        orderBy: { order: "asc" },
+        select: { id: true, name: true, logoUrl: true },
       },
     },
   });
