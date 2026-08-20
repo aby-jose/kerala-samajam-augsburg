@@ -12,6 +12,7 @@ interface ImageUploadProps {
   className?: string;
   aspect?: string;
   accept?: string;
+  folder?: string;
 }
 
 export default function ImageUpload({
@@ -19,7 +20,8 @@ export default function ImageUpload({
     defaultValue,
     className,
     aspect = "aspect-video",
-    accept = "image/*"
+    accept = "image/*",
+    folder,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(defaultValue || null);
@@ -62,7 +64,7 @@ export default function ImageUpload({
       const formData = new FormData();
       formData.append("file", file);
 
-      const result = await uploadImageAction(formData) as { url: string; publicId: string };
+      const result = await uploadImageAction(formData, folder) as { url: string; publicId: string };
       onUploadComplete(result.url, result.publicId);
     } catch (err) {
       console.error("Upload failed", err);
