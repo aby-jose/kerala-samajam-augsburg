@@ -756,7 +756,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                   {sponsorFields.map((field, index) => (
                     <div
                       key={field.id}
-                      className="flex items-start gap-3 rounded-lg border border-border p-3"
+                      className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-start"
                     >
                       <div className="w-32 shrink-0">
                         <ImageUpload
@@ -801,7 +801,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                         </div>
                       </div>
 
-                      <div className="flex shrink-0 flex-col gap-1">
+                      <div className="flex shrink-0 flex-row gap-1 sm:flex-col">
                         <Button
                           type="button"
                           variant="ghost"
