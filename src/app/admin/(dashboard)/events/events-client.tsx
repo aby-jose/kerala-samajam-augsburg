@@ -240,7 +240,7 @@ export default function EventsClient() {
     {
       key: "event",
       header: "Event",
-      width: "w-[38%]",
+      width: "w-[30%]",
       render: (event) => (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linear-to-br from-violet-500/20 to-violet-500/5 text-xs font-semibold text-violet-600 dark:text-violet-400">
@@ -260,7 +260,7 @@ export default function EventsClient() {
     {
       key: "schedule",
       header: "Schedule",
-      width: "w-[22%]",
+      width: "w-[18%]",
       render: (event) => (
         <>
           <div className="flex items-center gap-1.5 text-sm text-foreground">
@@ -274,7 +274,7 @@ export default function EventsClient() {
     {
       key: "status",
       header: "Status",
-      width: "w-[14%]",
+      width: "w-[12%]",
       render: (event) =>
         // A cancelled event is not a draft and not published — it is off, and
         // the badge has to say so or the table lies about what registrants
@@ -297,7 +297,7 @@ export default function EventsClient() {
     {
       key: "registrations",
       header: "Registrations",
-      width: "w-[12%]",
+      width: "w-[11%]",
       render: (event) => (
         <div className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5 text-muted-foreground" />
@@ -309,7 +309,7 @@ export default function EventsClient() {
     {
       key: "actions",
       header: "Actions",
-      width: "w-[14%]",
+      width: "w-[29%]",
       align: "right",
       render: (event) => (
         <div className="flex items-center justify-end gap-1">
@@ -426,6 +426,11 @@ export default function EventsClient() {
         keyExtractor={(event) => event.id}
         isLoading={isLoading}
         skeletonRows={6}
+        // Actions can hold up to 7 icon buttons (announce, cancel, mark full,
+        // edit, registrations, public page, delete) — the default per-column
+        // allowance isn't enough room for that row, so it spills into the
+        // registrations column instead of the table scrolling horizontally.
+        minWidth={1100}
         empty={{
           icon: Calendar,
           title: "No events found",
