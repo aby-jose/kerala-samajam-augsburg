@@ -176,20 +176,33 @@ export default function AuditClient({
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                aria-label="From date"
-                className="h-10 w-[150px] rounded-lg"
-              />
-              <Input
-                type="date"
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-                aria-label="To date"
-                className="h-10 w-[150px] rounded-lg"
-              />
+              {/* `placeholder` is a no-op on `<input type="date">` — every
+                  browser renders its own locale format in its place, so
+                  these two fields need a visible label to tell them apart. */}
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="audit-from" className="text-sm text-muted-foreground">
+                  From
+                </label>
+                <Input
+                  id="audit-from"
+                  type="date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className="h-10 w-[150px] rounded-lg"
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="audit-to" className="text-sm text-muted-foreground">
+                  To
+                </label>
+                <Input
+                  id="audit-to"
+                  type="date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className="h-10 w-[150px] rounded-lg"
+                />
+              </div>
             </div>
           </>
         }
