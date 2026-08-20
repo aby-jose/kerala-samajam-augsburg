@@ -774,66 +774,71 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                         )}
                       </div>
 
-                      <div className="grid flex-1 grid-cols-1 gap-2 sm:grid-cols-2">
-                        <div className="space-y-1">
-                          <Input
-                            {...register(`sponsors.${index}.name`)}
-                            placeholder="Sponsor name"
-                            className="h-9 rounded-lg"
-                          />
-                          {errors.sponsors?.[index]?.name && (
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              {errors.sponsors[index]?.name?.message}
-                            </p>
-                          )}
+                      <div className="flex flex-1 flex-col gap-2">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          <div className="space-y-1">
+                            <Input
+                              {...register(`sponsors.${index}.name`)}
+                              placeholder="Sponsor name"
+                              className="h-9 rounded-lg"
+                            />
+                            {errors.sponsors?.[index]?.name && (
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                {errors.sponsors[index]?.name?.message}
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <Input
+                              {...register(`sponsors.${index}.websiteUrl`)}
+                              placeholder="https://sponsor-website.com (optional)"
+                              className="h-9 rounded-lg"
+                            />
+                            {errors.sponsors?.[index]?.websiteUrl && (
+                              <p className="text-xs text-red-600 dark:text-red-400">
+                                {errors.sponsors[index]?.websiteUrl?.message}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <Input
-                            {...register(`sponsors.${index}.websiteUrl`)}
-                            placeholder="https://sponsor-website.com (optional)"
-                            className="h-9 rounded-lg"
-                          />
-                          {errors.sponsors?.[index]?.websiteUrl && (
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              {errors.sponsors[index]?.websiteUrl?.message}
-                            </p>
-                          )}
-                        </div>
-                      </div>
 
-                      <div className="flex shrink-0 flex-row gap-1 sm:flex-col">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={index === 0}
-                          onClick={() => swapSponsor(index, index - 1)}
-                          className="h-7 w-7 rounded-md"
-                          aria-label="Move up"
-                        >
-                          <MoveUp className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={index === sponsorFields.length - 1}
-                          onClick={() => swapSponsor(index, index + 1)}
-                          className="h-7 w-7 rounded-md"
-                          aria-label="Move down"
-                        >
-                          <MoveDown className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeSponsor(index)}
-                          className="h-7 w-7 rounded-md hover:text-red-600"
-                          aria-label="Remove sponsor"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {/* Sits directly under the inputs it acts on, rather than as a tall
+                            column beside the logo box — keeps the row's height driven by its
+                            content instead of dangling icons across empty vertical space. */}
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={index === 0}
+                            onClick={() => swapSponsor(index, index - 1)}
+                            className="h-7 w-7 rounded-md"
+                            aria-label="Move up"
+                          >
+                            <MoveUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={index === sponsorFields.length - 1}
+                            onClick={() => swapSponsor(index, index + 1)}
+                            className="h-7 w-7 rounded-md"
+                            aria-label="Move down"
+                          >
+                            <MoveDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSponsor(index)}
+                            className="h-7 w-7 rounded-md hover:text-red-600"
+                            aria-label="Remove sponsor"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
