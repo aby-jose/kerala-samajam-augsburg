@@ -677,7 +677,9 @@ export function EventDetailClient() {
                       <div
                         className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
                         style={{
-                          width: `${Math.min(100, (registered / event.maxAttendees) * 100)}%`,
+                          width: event.registrationsFull
+                            ? "100%"
+                            : `${Math.min(100, (registered / event.maxAttendees) * 100)}%`,
                         }}
                       />
                     </div>
