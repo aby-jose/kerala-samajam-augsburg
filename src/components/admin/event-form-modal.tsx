@@ -758,10 +758,11 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                       key={field.id}
                       className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-start"
                     >
-                      <div className="w-32 shrink-0">
+                      <div className="w-24 shrink-0 sm:w-28">
                         <ImageUpload
                           aspect="aspect-square"
                           folder="kerala-samajam/sponsors"
+                          compact
                           defaultValue={watch(`sponsors.${index}.logoUrl`)}
                           onUploadComplete={(url) =>
                             setValue(`sponsors.${index}.logoUrl`, url, { shouldValidate: true })
@@ -775,7 +776,7 @@ export default function EventFormModal({ isOpen, onClose, initialData }: EventFo
                       </div>
 
                       <div className="flex flex-1 flex-col gap-2">
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-2">
                           <div className="space-y-1">
                             <Input
                               {...register(`sponsors.${index}.name`)}

@@ -13,6 +13,16 @@ interface ImageUploadProps {
   aspect?: string;
   accept?: string;
   folder?: string;
+  /**
+   * Trims the empty-state copy down to an icon and one short word instead of
+   * the full two-line "Click to upload…" + format/size hint. The full copy
+   * only fits a box a few hundred px wide; at small fixed sizes (e.g. a
+   * w-32 sponsor logo tile) it wraps past the box's own height and gets
+   * clipped by `overflow-hidden`. Format/size are still enforced by
+   * `validateUpload` server-side, so dropping the hint here loses no
+   * guardrail, only some on-box copy.
+   */
+  compact?: boolean;
 }
 
 export default function ImageUpload({
@@ -22,6 +32,7 @@ export default function ImageUpload({
     aspect = "aspect-video",
     accept = "image/*",
     folder,
+    compact = false,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(defaultValue || null);
@@ -122,13 +133,24 @@ export default function ImageUpload({
               <img src={preview} alt="Upload preview" className="h-full w-full object-cover" />
             )}
             <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                type="button"
-                variant="secondary"
-                className="h-8 rounded-lg px-3 text-xs"
-              >
-                Change {isVideo ? "video" : "image"}
-              </Button>
+              {compact ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-8 w-8 rounded-lg p-0"
+                  aria-label={`Change ${isVideo ? "video" : "image"}`}
+                >
+                  <Upload className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-8 rounded-lg px-3 text-xs"
+                >
+                  Change {isVideo ? "video" : "image"}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="secondary"
@@ -146,6 +168,11 @@ export default function ImageUpload({
               </div>
             )}
           </div>
+        ) : compact ? (
+          <div className="flex flex-col items-center gap-1 p-2 text-center">
+            <Upload className="h-4 w-4 text-muted-foreground" />
+            <p className="text-xs text-muted-foreground">Upload</p>
+          </div>
         ) : (
           <div className="flex flex-col items-center space-y-2 p-8 text-center">
             <Upload className="h-5 w-5 text-muted-foreground" />
@@ -159,9 +186,12 @@ export default function ImageUpload({
         )}
 
         {error && (
-            <div className="absolute inset-x-3 bottom-3 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
+            <div className={cn(
+              "absolute flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400",
+              compact ? "inset-x-1 bottom-1 px-1.5 py-1 text-[10px]" : "inset-x-3 bottom-3 px-3 py-2 text-xs"
+            )}>
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                {error}
+                {compact ? "Upload failed" : error}
             </div>
         )}
       </div>
