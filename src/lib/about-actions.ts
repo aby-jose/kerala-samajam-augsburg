@@ -15,6 +15,7 @@ import {
 } from "./about-schema";
 import { ABOUT_SECTION_META } from "./about-sections";
 import { enforceHideable, repairLayout } from "./page-layout";
+import { pruneOrphanedCloudinaryUrls } from "./cloudinary";
 
 /**
  * The live About page content, or the built-in defaults if nothing has been
@@ -62,11 +63,15 @@ export async function saveAboutContent(data: AboutContentT) {
   });
 
   try {
+    const previous = await prisma.aboutContent.findUnique({ where: { key: "current" } });
+
     await prisma.aboutContent.upsert({
       where: { key: "current" },
       update: { value: validated as any },
       create: { key: "current", value: validated as any },
     });
+
+    await pruneOrphanedCloudinaryUrls(previous?.value, validated);
 
     revalidatePath("/about");
     revalidatePath("/admin/about");

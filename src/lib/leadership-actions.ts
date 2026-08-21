@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requirePermission } from "./guards";
+import { deleteFromCloudinary } from "./cloudinary";
 
 const leadershipMemberSchema = z.object({
   id: z.string().optional(),
@@ -29,10 +30,20 @@ export async function upsertLeadershipMember(data: LeadershipMemberValues) {
   const { id, ...memberData } = validated;
 
   if (id) {
+    // Read before the overwrite — the old photo's Cloudinary URL is only
+    // recoverable from the row itself.
+    const previous = await prisma.leadershipMember.findUnique({ where: { id }, select: { image: true } });
+
     await prisma.leadershipMember.update({
       where: { id },
       data: memberData,
     });
+
+    // Best-effort — otherwise a replaced (or removed) photo stays live on
+    // Cloudinary at its old URL forever, orphaned but still billed.
+    if (previous?.image && previous.image !== memberData.image) {
+      await deleteFromCloudinary(previous.image);
+    }
   } else {
     await prisma.leadershipMember.create({
       data: memberData,
@@ -47,10 +58,14 @@ export async function upsertLeadershipMember(data: LeadershipMemberValues) {
 export async function deleteLeadershipMember(id: string) {
   await requirePermission("content.leadership.edit");
 
+  const member = await prisma.leadershipMember.findUnique({ where: { id }, select: { image: true } });
+
   await prisma.leadershipMember.delete({
     where: { id },
   });
-  
+
+  if (member?.image) await deleteFromCloudinary(member.image);
+
   revalidatePath("/about");
   revalidatePath("/admin/leadership");
   return { success: true };

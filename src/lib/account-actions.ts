@@ -9,7 +9,7 @@ import { persistentRateLimit } from "./rate-limit";
 import { BCRYPT_ROUNDS, passwordSchema } from "./password-rules";
 import { sendMail, templates } from "./email";
 import { validateUpload } from "./upload-validation";
-import { uploadToCloudinary } from "./cloudinary";
+import { deleteFromCloudinary, uploadToCloudinary } from "./cloudinary";
 
 /**
  * Self-service password change for a signed-in staff member.
@@ -101,8 +101,18 @@ export async function updateAvatar(formData: FormData) {
     const { buffer } = await validateUpload(file, "image");
     const imageUrl = await uploadToCloudinary(buffer, "profile_pics");
 
+    const previous = await prisma.user.findUnique({ where: { id: actor.id }, select: { image: true } });
     await prisma.user.update({ where: { id: actor.id }, data: { image: imageUrl } });
     revalidatePath("/admin/account");
+
+    // Best-effort — the old avatar otherwise stays live on Cloudinary at its
+    // old URL forever, orphaned but still billed. Safe even if it was never
+    // a Cloudinary asset (e.g. inherited from an OAuth provider's own profile
+    // picture) — deleteFromCloudinary just can't parse a public_id from that
+    // and skips it.
+    if (previous?.image && previous.image !== imageUrl) {
+      await deleteFromCloudinary(previous.image);
+    }
 
     return { url: imageUrl };
   } catch (error) {

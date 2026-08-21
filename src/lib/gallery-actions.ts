@@ -61,14 +61,25 @@ export async function uploadImageAction(formData: FormData, folder?: string) {
 /**
  * Remove an asset from Cloudinary.
  *
+ * `resource_type` defaults to "image" in the Cloudinary SDK, which is why
+ * `type` has to be threaded through from the caller rather than omitted:
+ * `destroy` on a video publicId without `resource_type: "video"` looks in
+ * the wrong bucket, finds nothing, and resolves with `{ result: "not
+ * found" }` rather than throwing — so every video-typed GalleryMedia /
+ * MediaContribution row deleted before this parameter existed had its
+ * database row removed while the actual Cloudinary asset silently survived,
+ * unreachable from the app but still billed.
+ *
  * Not exported: every export of a `"use server"` file is a POST endpoint, and
  * the admin-guarded `deleteImageAction` wrapper that used to sit here had no
  * callers at all — the delete paths below use this directly. An endpoint
  * nobody calls is surface without purpose.
  */
-async function deleteImage(publicId: string) {
+async function deleteImage(publicId: string, type: "IMAGE" | "VIDEO" = "IMAGE") {
   try {
-    await cloudinary.uploader.destroy(publicId);
+    await cloudinary.uploader.destroy(publicId, {
+      resource_type: type === "VIDEO" ? "video" : "image",
+    });
     return { success: true };
   } catch (error) {
     console.error("Cloudinary delete error:", error);
@@ -199,32 +210,32 @@ export async function deleteAlbum(id: string) {
 
   const media = await prisma.galleryMedia.findMany({
     where: { albumId: id },
-    select: { publicId: true },
+    select: { publicId: true, type: true },
   });
 
   const contributions = await prisma.mediaContribution.findMany({
     where: { albumId: id },
-    select: { publicId: true },
+    select: { publicId: true, type: true },
   });
 
-  const publicIds = [...media, ...contributions]
-    .map((m) => m.publicId)
-    .filter((publicId): publicId is string => !!publicId);
+  const assets = [...media, ...contributions].filter(
+    (m): m is { publicId: string; type: "IMAGE" | "VIDEO" } => !!m.publicId
+  );
 
   const failures: string[] = [];
-  for (const publicId of publicIds) {
-    const result = await deleteImage(publicId);
+  for (const { publicId, type } of assets) {
+    const result = await deleteImage(publicId, type);
     if ("error" in result) failures.push(publicId);
   }
 
   if (failures.length > 0) {
     console.error(
-      `Album ${id}: ${failures.length}/${publicIds.length} assets could not be removed from Cloudinary.`,
+      `Album ${id}: ${failures.length}/${assets.length} assets could not be removed from Cloudinary.`,
       failures
     );
     return {
       error:
-        `Could not delete ${failures.length} of ${publicIds.length} files from storage. ` +
+        `Could not delete ${failures.length} of ${assets.length} files from storage. ` +
         "The album was left intact — try again, or remove those files in Cloudinary first.",
     };
   }
@@ -284,7 +295,12 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
 export async function deleteMedia(id: string, publicId: string) {
   await requirePermission("gallery.media.delete");
 
-  await deleteImage(publicId);
+  // Looked up rather than trusted from the caller, so this stays correct
+  // even if a client passes stale/wrong data — see deleteImage's comment on
+  // why the type has to be right.
+  const media = await prisma.galleryMedia.findUnique({ where: { id }, select: { type: true } });
+
+  await deleteImage(publicId, media?.type);
   await prisma.galleryMedia.delete({
     where: { id },
   });
@@ -297,9 +313,15 @@ export async function bulkDeleteMedia(mediaItems: { id: string; publicId: string
   await requirePermission("gallery.media.delete");
 
   try {
+    const types = await prisma.galleryMedia.findMany({
+      where: { id: { in: mediaItems.map((m) => m.id) } },
+      select: { id: true, type: true },
+    });
+    const typeById = new Map(types.map((t) => [t.id, t.type]));
+
     // 1. Delete from Cloudinary in parallel
-    await Promise.all(mediaItems.map(item => deleteImage(item.publicId)));
-    
+    await Promise.all(mediaItems.map(item => deleteImage(item.publicId, typeById.get(item.id))));
+
     // 2. Delete from Database
     await prisma.galleryMedia.deleteMany({
       where: { id: { in: mediaItems.map(m => m.id) } },
@@ -592,7 +614,7 @@ export async function moderateContribution(id: string, status: "APPROVED" | "REJ
     }
   } else {
     // 1. Delete from Cloudinary
-    await deleteImage(contribution.publicId);
+    await deleteImage(contribution.publicId, contribution.type);
 
     // 2. Update Contribution Status
     await prisma.mediaContribution.update({

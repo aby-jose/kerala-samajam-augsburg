@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { uploadToCloudinary } from "./cloudinary";
+import { deleteFromCloudinary, uploadToCloudinary } from "./cloudinary";
 import { eventSchema, type EventFormValues } from "./schemas";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
@@ -155,10 +155,13 @@ export async function upsertEvent(data: EventFormValues) {
   };
 
   // The state before the edit, so a moved date or venue can be recognised as
-  // such. Someone who has already booked their Saturday around an event needs
-  // telling when it moves; nobody needs telling that the description was
-  // reworded, so only these two fields are compared.
-  const before = id ? await prisma.event.findUnique({ where: { id } }) : null;
+  // such (date/location, below), and so a replaced cover image or dropped
+  // sponsor logo can be told apart from one that's just carried over
+  // unchanged (sponsors, further below) — both need the old row, not just
+  // the new one.
+  const before = id
+    ? await prisma.event.findUnique({ where: { id }, include: { sponsors: true } })
+    : null;
 
   let event: Event;
   if (id) {
@@ -170,6 +173,19 @@ export async function upsertEvent(data: EventFormValues) {
     event = await prisma.event.create({
       data: prismaData,
     });
+  }
+
+  if (before) {
+    // Sponsors are fully replaced above (deleteMany + create), so any old
+    // logo not present in the new list is gone for good from the DB side —
+    // best-effort here is what stops it from also lingering, orphaned, on
+    // Cloudinary. Same for a replaced cover image.
+    const newLogoUrls = new Set(sponsors.map((s) => s.logoUrl));
+    const orphaned = [
+      ...(before.imageUrl && before.imageUrl !== finalImageUrl ? [before.imageUrl] : []),
+      ...(before.sponsors ?? []).filter((s) => !newLogoUrls.has(s.logoUrl)).map((s) => s.logoUrl),
+    ];
+    await Promise.all(orphaned.map((url) => deleteFromCloudinary(url)));
   }
 
   let notified = 0;
@@ -313,7 +329,7 @@ export async function deleteEvent(id: string) {
 
   const event = await prisma.event.findUnique({
     where: { id },
-    include: { _count: { select: { registrations: true } } },
+    include: { _count: { select: { registrations: true } }, sponsors: true },
   });
   if (!event) throw new Error("Event not found");
 
@@ -341,6 +357,13 @@ export async function deleteEvent(id: string) {
 
   await prisma.registration.deleteMany({ where: { eventId: id } });
   await prisma.event.delete({ where: { id } });
+
+  // Sponsors cascade on the relation (`onDelete: Cascade`), so the DB rows
+  // are already gone — this is the Cloudinary half, which nothing else does.
+  const orphaned = [event.imageUrl, ...event.sponsors.map((s) => s.logoUrl)].filter(
+    (url): url is string => !!url
+  );
+  await Promise.all(orphaned.map((url) => deleteFromCloudinary(url)));
 
   revalidatePath("/admin/events");
   revalidatePath("/events");

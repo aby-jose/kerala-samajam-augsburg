@@ -7,6 +7,7 @@ import { publicAuthOptions } from "./auth";
 import { revalidatePath } from "next/cache";
 import { absoluteUrl, sendMail, templates } from "./email";
 import { nanoid } from "nanoid";
+import { deleteFromCloudinary } from "./cloudinary";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -53,6 +54,12 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
       }
     }
 
+    // Read before the overwrite below, from the row rather than the session —
+    // the session is a JWT that may not reflect a change made elsewhere since
+    // it was issued, and it's the only place the old avatar's Cloudinary URL
+    // is recoverable from at all once the update below runs.
+    const previousUser = await prisma.user.findUnique({ where: { id: userId }, select: { image: true } });
+
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -77,6 +84,15 @@ export async function updateProfile(data: z.infer<typeof profileSchema>) {
         image,
       },
     });
+
+    // Best-effort — otherwise the replaced (or removed) avatar stays live on
+    // Cloudinary at its old URL forever, orphaned but still billed. Safe if
+    // it was never a Cloudinary asset to begin with (e.g. an OAuth
+    // provider's own profile picture) — deleteFromCloudinary just can't
+    // parse a public_id from that and skips it.
+    if (previousUser?.image && previousUser.image !== image) {
+      await deleteFromCloudinary(previousUser.image);
+    }
 
     // A changed sign-in address is a security event, so it is announced to the
     // address that is losing control as well as the one gaining it. Notifying

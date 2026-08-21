@@ -17,6 +17,7 @@ import { sendMail, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { adminEmail, adminEmailOrNull } from "./admin-contact";
 import { recordDocumentConsents } from "./consent-recorder";
+import { deleteFromCloudinary } from "./cloudinary";
 import {
   PAYMENT_METHODS,
   PENDING_STATUSES,
@@ -355,13 +356,24 @@ export async function approveMembership(subscriptionId: string) {
   if (!sub) throw new Error("Subscription not found");
   if (sub.paymentStatus === "PAID") throw new Error("This membership is already paid and active.");
 
+  // The scanned ID has done its job the moment it's been checked — nothing
+  // downstream of here (payment, an active membership) ever needs to look at
+  // it again, so this is where it stops being retained rather than sitting
+  // on Cloudinary indefinitely with no purge path. `studentIdUrl` is dropped
+  // from `details` (not just left dangling) so the URL isn't still sitting
+  // in the JSON blob pointing at an asset that no longer exists.
+  const { studentIdUrl, ...restDetails } = (sub.details as any) || {};
+
   await prisma.subscription.update({
     where: { id: subscriptionId },
     data: {
       isApproved: true,
       status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT,
+      ...(typeof studentIdUrl === "string" ? { details: restDetails } : {}),
     }
   });
+
+  if (typeof studentIdUrl === "string") await deleteFromCloudinary(studentIdUrl);
 
   if (sub.user.email) {
     await sendMail({
@@ -618,18 +630,22 @@ export async function rejectMembership(subscriptionId: string, reason?: string) 
     });
   }
 
-  // Update status and store reason in details
-  const details = (sub.details as any) || {};
+  // Update status and store reason in details. The ID is done being needed
+  // either way a review ends — see the matching comment in approveMembership
+  // — so it's dropped from `details` and purged from Cloudinary here too.
+  const { studentIdUrl, ...restDetails } = (sub.details as any) || {};
   await prisma.subscription.update({
     where: { id: subscriptionId },
     data: {
       status: "REJECTED",
       details: {
-        ...details,
+        ...restDetails,
         rejectionReason: reason || "Documents could not be verified."
       }
     }
   });
+
+  if (typeof studentIdUrl === "string") await deleteFromCloudinary(studentIdUrl);
 
   revalidatePath("/admin/membership/applications");
   revalidatePath("/profile");

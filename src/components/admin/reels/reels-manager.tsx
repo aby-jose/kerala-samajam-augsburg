@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { AlertTriangle, Loader2, MoveDown, MoveUp, RefreshCw } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, Loader2, MoveDown, MoveUp, RefreshCw, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { cardSurface, panelHeader, tableRow } from "@/components/admin/ui/surface";
 import { cn } from "@/lib/utils";
-import { setReelFeatured, reorderFeaturedReel, syncReelsNow } from "@/lib/instagram-actions";
+import {
+  setReelFeatured,
+  reorderFeaturedReel,
+  syncReelsNow,
+  uploadReelVideo,
+} from "@/lib/instagram-actions";
 
 interface Reel {
   id: string;
@@ -34,21 +40,26 @@ export function ReelsManager({
   tokenExpiresAt: Date | null;
 }) {
   const { success, error: toastError } = useToast();
-  const [reels, setReels] = useState(initialReels);
+  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const featured = reels.filter((r) => r.featured).sort((a, b) => a.order - b.order);
-  const rest = reels.filter((r) => !r.featured);
+  // No local copy of the list: initialReels is re-fetched fresh whenever
+  // router.refresh() re-renders this page's server component, so it's
+  // already the single source of truth — a useState mirror of it would just
+  // go stale (state doesn't resync from a changed initializer prop).
+  const featured = initialReels.filter((r) => r.featured).sort((a, b) => a.order - b.order);
+  const rest = initialReels.filter((r) => !r.featured);
 
   const tokenWarning =
     tokenExpiresAt &&
     tokenExpiresAt.getTime() - Date.now() <= REFRESH_WARNING_DAYS * 24 * 60 * 60 * 1000;
 
   function refresh() {
-    // Server actions revalidate the route; a client-side reload of props
-    // needs a full navigation refresh, same as the Gallery admin's pattern.
-    window.location.reload();
+    // Server actions already revalidate the route; re-fetch this server
+    // component in place instead of a full page reload, so the list updates
+    // without the whole page flashing/reloading from scratch.
+    router.refresh();
   }
 
   function toggleFeatured(reel: Reel) {
@@ -64,9 +75,26 @@ export function ReelsManager({
             ? err instanceof Error
               ? err.message
               : "Something went wrong."
-            : `Featured, but the video failed to cache: ${err instanceof Error ? err.message : "unknown error"}. It'll show as a placeholder until retried.`
+            : `Featured, but the video didn't cache: ${err instanceof Error ? err.message : "unknown error"}`
         );
         refresh();
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  function uploadVideo(reel: Reel, file: File) {
+    setBusyId(reel.id);
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        await uploadReelVideo(reel.id, formData);
+        success("Video uploaded — it'll show on the home page in place of the placeholder.");
+        refresh();
+      } catch (err) {
+        toastError(err instanceof Error ? err.message : "Upload failed.");
       } finally {
         setBusyId(null);
       }
@@ -157,6 +185,7 @@ export function ReelsManager({
               onToggle={() => toggleFeatured(reel)}
               onMoveUp={index > 0 ? () => move(reel, "up") : undefined}
               onMoveDown={index < featured.length - 1 ? () => move(reel, "down") : undefined}
+              onUploadVideo={(file) => uploadVideo(reel, file)}
             />
           ))}
         </div>
@@ -187,14 +216,17 @@ function ReelRow({
   onToggle,
   onMoveUp,
   onMoveDown,
+  onUploadVideo,
 }: {
   reel: Reel;
   busy: boolean;
   onToggle: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onUploadVideo?: (file: File) => void;
 }) {
   const thumb = reel.cloudinaryThumbnailUrl ?? reel.igThumbnailUrl;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className={cn(tableRow, "flex items-center gap-4 p-4")}>
@@ -223,6 +255,34 @@ function ReelRow({
             </span>
           )}
         </p>
+        {/* Instagram's API won't hand over a video for some reels at all (see
+            uploadReelVideo's doc comment) — there's nothing left to retry
+            automatically, so this is the manual way around it. Only offered
+            once a cache attempt has actually failed. */}
+        {reel.cacheError && onUploadVideo && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onUploadVideo(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              <Upload className="h-3 w-3" />
+              Upload video manually
+            </button>
+          </>
+        )}
       </div>
 
       {reel.featured && (

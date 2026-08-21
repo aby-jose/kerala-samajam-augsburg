@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ publicAuthOptions: {} }));
-vi.mock("@/lib/cloudinary", () => ({ uploadToCloudinary: vi.fn() }));
+vi.mock("@/lib/cloudinary", () => ({ uploadToCloudinary: vi.fn(), deleteFromCloudinary: vi.fn() }));
 vi.mock("@google/generative-ai", () => ({ GoogleGenerativeAI: vi.fn() }));
 vi.mock("@/lib/guards", () => ({ requirePermission: vi.fn() }));
 vi.mock("@/lib/feature-gate", () => ({ assertFeature: vi.fn() }));
@@ -155,6 +155,8 @@ describe("upsertEvent — sponsors", () => {
       date: new Date("2026-09-15"),
       location: "Community Hall",
       status: "SCHEDULED",
+      imageUrl: null,
+      sponsors: [],
     };
     mockedFindUnique.mockResolvedValue(existing as never);
     mockedUpdate.mockResolvedValue(existing as never);

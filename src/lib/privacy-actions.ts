@@ -9,6 +9,7 @@ import { LegalSlug } from "./legal-schema";
 import { sendMail, templates } from "./email";
 import { adminEmailOrNull } from "./admin-contact";
 import { SUBSCRIPTION_STATUS } from "./membership-term";
+import { deleteFromCloudinary } from "./cloudinary";
 
 /**
  * Art. 12(3) GDPR gives the controller one month to act on a data-subject
@@ -388,6 +389,35 @@ export async function completeAccountDeletion(userId: string) {
   await prisma.userFaceProfile.deleteMany({ where: { userId } });
   await prisma.session.deleteMany({ where: { userId } });
   await prisma.account.deleteMany({ where: { userId } });
+
+  // The avatar is nulled on the row below, same as every other identifying
+  // field here — but nulling the column was never enough on its own (see the
+  // identical gap `deleteAlbum` closed for gallery photos): the image itself
+  // stays live on Cloudinary at its old URL unless it's actually removed.
+  // Best-effort and safe to call unconditionally — `image` may also be an
+  // OAuth provider's own profile picture URL rather than a Cloudinary one
+  // (never uploaded through `updateAvatar`), which this simply can't parse
+  // a public_id from and skips.
+  if (user.image) await deleteFromCloudinary(user.image);
+
+  // A scanned student ID normally doesn't outlive its own review —
+  // `approveMembership`/`rejectMembership` purge it the moment a decision is
+  // made — but an application still sitting unreviewed at the moment someone
+  // is erased would otherwise leave that document behind indefinitely, tied
+  // to a row that no longer identifies anyone but still points at a real
+  // Cloudinary asset. Subscription rows themselves are financial records
+  // under statutory retention (see this function's own doc comment) and stay,
+  // so only the document is removed, not the row.
+  const subsWithStudentId = await prisma.subscription.findMany({
+    where: { userId },
+    select: { id: true, details: true },
+  });
+  for (const sub of subsWithStudentId) {
+    const { studentIdUrl, ...restDetails } = (sub.details as any) || {};
+    if (typeof studentIdUrl !== "string") continue;
+    await deleteFromCloudinary(studentIdUrl);
+    await prisma.subscription.update({ where: { id: sub.id }, data: { details: restDetails } });
+  }
 
   await prisma.user.update({
     where: { id: userId },

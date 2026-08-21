@@ -14,6 +14,7 @@ import {
 import { repairLayout } from "./home-layout";
 import { HOME_SECTION_META } from "./home-sections";
 import { enforceHideable } from "./page-layout";
+import { pruneOrphanedCloudinaryUrls } from "./cloudinary";
 
 /**
  * The live home page document, or the built-in defaults if nothing has been
@@ -46,11 +47,17 @@ export async function saveHomeContent(data: HomeContentT) {
   });
 
   try {
+    // Read before the overwrite — this is the only chance to see what media
+    // the previous save referenced that this one no longer does.
+    const previous = await prisma.homeContent.findUnique({ where: { key: "current" } });
+
     await prisma.homeContent.upsert({
       where: { key: "current" },
       update: { value: validated as any },
       create: { key: "current", value: validated as any },
     });
+
+    await pruneOrphanedCloudinaryUrls(previous?.value, validated);
 
     revalidatePath("/");
     revalidatePath("/admin/home");

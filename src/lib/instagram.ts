@@ -168,7 +168,36 @@ export async function fetchReels(): Promise<{ created: number; updated: number }
 export async function cacheReelMedia(reelId: string): Promise<void> {
   const reel = await prisma.instagramReel.findUnique({ where: { id: reelId } });
   if (!reel) throw new Error("Reel not found");
-  if (!reel.igMediaUrl) throw new Error("Reel has no media URL to cache");
+  // Instagram's own Graph API response can omit media_url entirely for a
+  // REELS item — confirmed by querying it directly — most likely because the
+  // reel uses a licensed/trending audio track Meta restricts from API
+  // distribution. thumbnail_url still comes through, just not the video.
+  // There's nothing to retry for the video: the field simply isn't there to
+  // fetch. The thumbnail is still worth caching on its own, though — it turns
+  // the card from a flat color placeholder into the reel's actual frame, the
+  // same still image the admin list already shows for it.
+  if (!reel.igMediaUrl) {
+    const message =
+      "Instagram didn't provide a video for this reel (common for reels using licensed audio) — it'll stay featured with a placeholder card instead of the video.";
+
+    if (reel.igThumbnailUrl) {
+      try {
+        const thumbnailUrl = await uploadToCloudinary(reel.igThumbnailUrl, "reels");
+        await prisma.instagramReel.update({
+          where: { id: reelId },
+          data: { cloudinaryThumbnailUrl: thumbnailUrl, cacheError: message },
+        });
+      } catch {
+        // Best-effort — the thumbnail is a bonus on top of the real error
+        // below, not worth failing over on its own.
+        await prisma.instagramReel.update({ where: { id: reelId }, data: { cacheError: message } });
+      }
+    } else {
+      await prisma.instagramReel.update({ where: { id: reelId }, data: { cacheError: message } });
+    }
+
+    throw new Error(message);
+  }
 
   try {
     const videoUrl = await uploadToCloudinary(reel.igMediaUrl, "reels");

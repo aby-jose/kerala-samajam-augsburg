@@ -12,6 +12,7 @@ import {
   PAGE_CONTENT,
   type PageSlug,
 } from "./registry";
+import { pruneOrphanedCloudinaryUrls } from "../cloudinary";
 
 /**
  * The live document for a page, or the built-in defaults if nothing has been
@@ -45,11 +46,15 @@ export async function savePageContent(slug: string, data: unknown) {
   const validated = PAGE_CONTENT[slug].schema.parse(normalizePageContentForSave(slug, data));
 
   try {
+    const previous = await prisma.pageContent.findUnique({ where: { slug } });
+
     await prisma.pageContent.upsert({
       where: { slug },
       update: { value: validated as any },
       create: { slug, value: validated as any },
     });
+
+    await pruneOrphanedCloudinaryUrls(previous?.value, validated);
 
     for (const path of PAGE_CONTENT[slug].revalidate) revalidatePath(path);
     revalidatePath(`/admin/pages/${slug}`);
