@@ -46,7 +46,7 @@ export const aboutHeroSectionSchema = z.object({
   // diverge, which react-hook-form's resolver rejects. getAboutContent()
   // always merges the defaults in.
   accentWord: z.string().max(60).optional().or(z.literal("")),
-  lead: z.string().min(1, "Required").max(500),
+  lead: z.string().min(1, "Required"),
   heroImageUrl: z.string().min(1, "Hero image is required"),
 });
 
@@ -82,7 +82,7 @@ export const aboutContentSchema = z.object({
       eyebrow: z.string().min(1, "Required").max(60),
       title: z.string().min(1, "Required").max(160),
       accentWord: z.string().max(60).optional().or(z.literal("")),
-      lead: z.string().min(1, "Required").max(500),
+      lead: z.string().min(1, "Required"),
     }),
   }),
 });
