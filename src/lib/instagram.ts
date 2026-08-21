@@ -10,6 +10,14 @@
  * No Instagram SDK exists in package.json; every call is a plain `fetch`
  * against the documented REST endpoints, matching the pattern already used
  * for the Pollinations.ai call in event-actions.ts.
+ *
+ * Talks to `graph.instagram.com`, not `graph.facebook.com` — this account
+ * was set up via Meta's standalone "Instagram API with Instagram Login"
+ * (no linked Facebook Page), whose `IGAA…` tokens are only valid on that
+ * host. The Facebook-Login variant (Page-linked, `EAA…` tokens, §11 of the
+ * design doc) uses `graph.facebook.com` instead and is NOT what this talks
+ * to — don't "fix" the host back without checking which flow the live
+ * token actually came from.
  */
 
 import { prisma } from "./prisma";
@@ -111,7 +119,7 @@ export async function fetchReels(): Promise<{ created: number; updated: number }
   // One page only: the most recent 50 media items of ALL types (reels are
   // filtered out of that set by parseReelsPage). Enough to surface recent
   // reels every sync, but it will not backfill an entire historical archive.
-  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
+  const url = `https://graph.instagram.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Instagram media fetch failed: ${response.status}`);
@@ -184,21 +192,19 @@ export async function cacheReelMedia(reelId: string): Promise<void> {
   }
 }
 
-/** Extends the long-lived token via Meta's `fb_exchange_token` grant — the
- *  correct mechanism for a Graph API (not Basic Display API) token, which
- *  has no `ig_refresh_token` endpoint of its own. */
+/** Extends the long-lived token via the `ig_refresh_token` grant — the
+ *  correct mechanism for an Instagram-Login token (`IGAA…`), unlike a
+ *  Facebook-Login Page token which would instead use the `fb_exchange_token`
+ *  grant against `graph.facebook.com`. No app id/secret involved: the grant
+ *  authenticates with the token being refreshed alone. */
 export async function refreshLongLivedToken(): Promise<void> {
   const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
   const currentToken = state?.accessToken ?? process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
   if (!currentToken) throw new Error("No Instagram access token to refresh");
 
-  const appId = process.env.INSTAGRAM_APP_ID?.trim();
-  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim();
-  if (!appId || !appSecret) throw new Error("INSTAGRAM_APP_ID/INSTAGRAM_APP_SECRET are not set");
-
   const url =
-    `https://graph.facebook.com/${GRAPH_API_VERSION}/oauth/access_token` +
-    `?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${currentToken}`;
+    `https://graph.instagram.com/refresh_access_token` +
+    `?grant_type=ig_refresh_token&access_token=${currentToken}`;
 
   const response = await fetch(url);
   if (!response.ok) {

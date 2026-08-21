@@ -37,10 +37,6 @@ async function runSync(): Promise<JobOutcome> {
 
 async function runTokenRefresh(): Promise<JobOutcome> {
   try {
-    if (!process.env.INSTAGRAM_APP_ID?.trim() || !process.env.INSTAGRAM_APP_SECRET?.trim()) {
-      return { job: "token-refresh", ok: true, message: "not configured — skipped" };
-    }
-
     const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
     if (!state?.accessToken) {
       return { job: "token-refresh", ok: true, message: "no token yet — skipped" };
