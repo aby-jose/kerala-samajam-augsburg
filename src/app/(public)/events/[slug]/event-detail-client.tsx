@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import {
@@ -280,11 +281,13 @@ export function EventDetailClient() {
       <section className="relative isolate overflow-hidden bg-surface-deep pb-14 pt-24 sm:pt-28 md:pb-28 md:pt-36">
         {event.imageUrl && (
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <img
+            <Image
               src={event.imageUrl}
               alt=""
               aria-hidden
-              className="h-full w-full scale-125 object-cover opacity-40 blur-[80px]"
+              fill
+              sizes="100vw"
+              className="scale-125 object-cover opacity-40 blur-[80px]"
             />
           </div>
         )}

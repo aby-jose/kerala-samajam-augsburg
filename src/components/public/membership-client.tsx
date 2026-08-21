@@ -15,6 +15,7 @@ import {
   User,
   Wallet
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { LoginModal } from "@/components/auth/login-modal";
@@ -444,7 +445,13 @@ function MembershipBenefitsSection({
           <div className="relative group">
              <div className="absolute inset-0 bg-primary/10 rounded-[3rem] -rotate-3 scale-[1.02] transition-transform group-hover:rotate-0" />
              <div className="relative aspect-square rounded-[3rem] bg-zinc-900 overflow-hidden border border-border/40 shadow-2xl">
-                <img src={content.imageUrl} className="w-full h-full object-cover opacity-70 transition-transform duration-700 group-hover:scale-105" alt={content.imageAlt} />
+                <Image
+                  src={content.imageUrl}
+                  alt={content.imageAlt}
+                  fill
+                  sizes="(min-width: 1024px) 40vw, 90vw"
+                  className="object-cover opacity-70 transition-transform duration-700 group-hover:scale-105"
+                />
                 <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-transparent to-transparent" />
                 <div className="absolute bottom-12 left-12 right-12 space-y-2">
                    <p className="font-sans text-2xl font-extrabold leading-tight tracking-[-0.03em] text-white">Kerala in Augsburg,<br /> since 2012.</p>

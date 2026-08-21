@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentType } from "react";
+import Image from "next/image";
 import { Container } from "@/components/layout/container";
 import { motion, Variants } from "framer-motion";
 import { EventsBand } from "@/components/layout/events-band";
@@ -72,10 +73,13 @@ function AboutHeroSection({
             transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="relative aspect-21/9 md:aspect-2.5/1 w-full rounded-4xl overflow-hidden shadow-3xl border border-border/10 group"
           >
-            <img
+            <Image
               src={content.heroImageUrl}
               alt="Kerala Culture in Augsburg"
-              className="w-full h-full object-cover transition-transform duration-2000 group-hover:scale-105"
+              fill
+              priority
+              sizes="(min-width: 1024px) 80vw, 100vw"
+              className="object-cover transition-transform duration-2000 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-linear-to-t from-black/20 via-transparent to-transparent" />
           </motion.div>

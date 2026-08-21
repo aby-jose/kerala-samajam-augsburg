@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Suspense } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -146,9 +147,12 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
           {/* Shrinkable rather than `shrink-0`: on a narrow phone the name
               ellipsises instead of pushing the actions off the screen. */}
           <Link href="/" className="flex items-center gap-2.5 min-w-0 transition-opacity hover:opacity-85">
-            <img
+            <Image
               src={config.branding.logoUrl || "/images/logo.png"}
               alt={config.siteName}
+              width={40}
+              height={40}
+              priority
               className="h-9 lg:h-10 w-auto shrink-0"
             />
             <span

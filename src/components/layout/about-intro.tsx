@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion, type Variants } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { Container } from "@/components/layout/container";
@@ -137,12 +138,12 @@ export function AboutIntro({
                 variants={rise}
                 className="group relative aspect-4/3 overflow-hidden rounded-[1.5rem] border border-border bg-muted sm:row-span-2 sm:aspect-auto"
               >
-                <img
+                <Image
                   src={content.collage.primary.url}
                   alt={content.collage.primary.alt}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
+                  fill
+                  sizes="(min-width: 1024px) 32vw, (min-width: 640px) 45vw, 90vw"
+                  className="object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
                 />
                 <div
                   aria-hidden
@@ -161,12 +162,12 @@ export function AboutIntro({
                 variants={rise}
                 className="group relative hidden aspect-square overflow-hidden rounded-[1.5rem] border border-border bg-muted sm:block"
               >
-                <img
+                <Image
                   src={content.collage.secondary.url}
                   alt={content.collage.secondary.alt}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
+                  fill
+                  sizes="(min-width: 1024px) 16vw, (min-width: 640px) 22vw, 45vw"
+                  className="object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
                 />
               </motion.figure>
 
@@ -229,7 +230,10 @@ export function AboutIntro({
                     <span className="grid h-10 w-10 place-items-center rounded-xl border border-primary/10 bg-primary/[0.08] text-primary transition-colors duration-300 group-hover:border-primary/25 group-hover:bg-primary/[0.16]">
                       <Icon strokeWidth={1.6} className="h-5 w-5" />
                     </span>
-                    <span className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/50">
+                    {/* Full-strength muted-foreground, not /50: at 10px this
+                        is already right at the AA floor on a white surface —
+                        halving it further fails contrast outright. */}
+                    <span className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground">
                       {String(i + 1).padStart(2, "0")}
                     </span>
                   </div>

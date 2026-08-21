@@ -1,4 +1,5 @@
 import { Mail } from "lucide-react";
+import Image from "next/image";
 
 import { Container } from "@/components/layout/container";
 import type { SiteConfig } from "@/lib/config-schema";
@@ -15,9 +16,12 @@ export function MaintenanceScreen({ config }: { config: SiteConfig }) {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-surface-1 py-24">
       <Container className="flex flex-col items-center text-center">
-        <img
+        <Image
           src={config.branding.logoUrl || "/images/logo.png"}
           alt={config.siteName}
+          width={80}
+          height={80}
+          priority
           className="h-20 w-auto"
         />
 

@@ -14,6 +14,18 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pdfkit"],
 
   /**
+   * Every user-facing upload — gallery media, event covers, sponsor logos,
+   * profile pictures, the site logo — goes through `uploadToCloudinary()`
+   * and comes back as a `res.cloudinary.com` URL (see `src/lib/cloudinary.ts`).
+   * That is the only external host `next/image` needs to trust; OAuth avatar
+   * URLs (Google/Facebook) stay on plain `<img>` deliberately, since they're
+   * small and their host varies by provider.
+   */
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "res.cloudinary.com" }],
+  },
+
+  /**
    * Every media upload in the app (gallery images, event covers, profile
    * pictures, the site logo) goes through a Server Action, not a route
    * handler — the file rides along as part of the action's request body.

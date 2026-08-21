@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Mail, Lock, User, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { getProviders, signIn } from "next-auth/react";
@@ -227,7 +228,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
                 <div className="relative z-10">
                   <div className="flex items-center gap-3 mb-4">
-                    <img src={config.branding.logoUrl || "/images/logo.png"} alt={config.siteName} className="h-10 w-auto" />
+                    <Image src={config.branding.logoUrl || "/images/logo.png"} alt={config.siteName} width={40} height={40} className="h-10 w-auto" />
                     <span className="hidden font-sans text-lg font-extrabold tracking-[-0.03em] lg:block">{config.siteName}</span>
                   </div>
                 </div>
@@ -310,7 +311,7 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
 
                     {/* Mobile Branding Header (Hidden on Desktop) */}
                     <div className="md:hidden flex flex-col items-center">
-                      <img src={config.branding.logoUrl || "/images/logo.png"} alt={config.siteName} className="h-10 w-auto mb-4" />
+                      <Image src={config.branding.logoUrl || "/images/logo.png"} alt={config.siteName} width={40} height={40} className="h-10 w-auto mb-4" />
                       <h2 className="mb-2 font-sans text-xl font-extrabold leading-tight tracking-[-0.03em] text-foreground">
                         {view === "login" && <>Welcome <Accent>Back</Accent></>}
                         {view === "signup" && <>Create Your <Accent>Account</Accent></>}

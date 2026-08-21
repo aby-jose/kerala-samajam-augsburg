@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Images } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import {
@@ -138,11 +139,16 @@ export function GalleryStrip({
                 href={shot.albumId ? `/gallery/${shot.albumId}` : "/gallery"}
                 className="absolute inset-0"
               >
-                <img
+                <Image
                   src={shot.url}
                   alt={shot.caption || shot.albumTitle || "KSA gallery photograph"}
-                  loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
+                  fill
+                  sizes={
+                    i === 0 && shots.length >= 5
+                      ? "(min-width: 768px) 45vw, 90vw"
+                      : "(min-width: 768px) 22vw, 45vw"
+                  }
+                  className="object-cover transition-transform duration-[1200ms] ease-out group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
                 {(shot.caption || shot.albumTitle) && (

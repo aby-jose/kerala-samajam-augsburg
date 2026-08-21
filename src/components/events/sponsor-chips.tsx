@@ -1,4 +1,5 @@
 import React from "react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 interface Sponsor {
@@ -35,12 +36,12 @@ export function SponsorChips({
             className="flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] py-1 pl-1 pr-3 backdrop-blur-md"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
-              <img
+              <Image
                 src={sponsor.logoUrl}
                 alt=""
                 aria-hidden
-                loading="lazy"
-                decoding="async"
+                width={20}
+                height={20}
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}

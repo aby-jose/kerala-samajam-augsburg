@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Container } from "@/components/layout/container";
 import { motion, AnimatePresence, useReducedMotion, type Variants } from "framer-motion";
+import NextImage from "next/image";
 import { 
   X, 
   ChevronLeft, 
@@ -210,11 +211,13 @@ export default function AlbumDetailClient({ album }: { album: any }) {
       <section className="relative isolate overflow-hidden bg-surface-deep pb-14 pt-24 sm:pt-28 md:pb-28 md:pt-36">
         {album.coverImage && (
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <img
+            <NextImage
               src={album.coverImage}
               alt=""
               aria-hidden
-              className="h-full w-full scale-125 object-cover opacity-40 blur-[80px]"
+              fill
+              sizes="100vw"
+              className="scale-125 object-cover opacity-40 blur-[80px]"
             />
           </div>
         )}
@@ -368,10 +371,13 @@ export default function AlbumDetailClient({ album }: { album: any }) {
             <motion.div variants={rise} className="lg:col-span-5">
               <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/60 aspect-4/3 flex items-center justify-center">
                 {album.coverImage ? (
-                  <img
+                  <NextImage
                     src={album.coverImage}
                     alt={album.title}
-                    className="h-full w-full object-cover"
+                    fill
+                    priority
+                    sizes="(min-width: 1024px) 40vw, 90vw"
+                    className="object-cover"
                   />
                 ) : (
                   <ImageIcon className="h-20 w-20 text-white/10" strokeWidth={1} />
@@ -437,10 +443,13 @@ export default function AlbumDetailClient({ album }: { album: any }) {
                   onClick={() => setSelectedMedia(media)}
                 >
                   {media.type === "IMAGE" ? (
-                    <img 
-                      src={media.url} 
+                    <NextImage
+                      src={media.url}
                       alt={media.caption || ""}
-                      className="w-full h-full object-cover transition-transform duration-2000 group-hover:scale-105"
+                      width={media.width || 800}
+                      height={media.height || 800}
+                      sizes="(min-width: 1280px) 23vw, (min-width: 640px) 48vw, 96vw"
+                      className="w-full h-auto object-cover transition-transform duration-2000 group-hover:scale-105"
                     />
                   ) : (
                     <div className="relative group/video">
@@ -518,10 +527,13 @@ export default function AlbumDetailClient({ album }: { album: any }) {
               <div className="relative group/lightbox overflow-hidden rounded-2xl ring-1 ring-white/10 shadow-2xl">
                 {selectedMedia.type === "IMAGE" ? (
                   <>
-                    <img 
-                      src={selectedMedia.url} 
+                    <NextImage
+                      src={selectedMedia.url}
                       alt={selectedMedia.caption || ""}
-                      className="max-w-full max-h-[80vh] object-contain"
+                      width={selectedMedia.width || 1200}
+                      height={selectedMedia.height || 1200}
+                      sizes="90vw"
+                      className="max-w-full max-h-[80vh] w-auto h-auto object-contain"
                     />
                     {/* Interactive Face Boxes */}
                     {selectedMedia.faces?.map((face: any, idx: number) => (

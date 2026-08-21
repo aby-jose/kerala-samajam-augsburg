@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { format } from "date-fns";
@@ -151,7 +152,15 @@ function AlbumMeta({
  * The cover, or a warm placeholder when an album has none. The placeholder is
  * built on surface-deep so the white overlay type stays readable either way.
  */
-function AlbumCover({ album }: { album: Album }) {
+function AlbumCover({
+  album,
+  sizes = "(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw",
+}: {
+  album: Album;
+  /** Matched to how big each call site actually renders the cover — the
+   *  ledger rows use an 80–96px thumbnail box, not a third of the viewport. */
+  sizes?: string;
+}) {
   if (!album.coverImage) {
     return (
       <span
@@ -164,12 +173,12 @@ function AlbumCover({ album }: { album: Album }) {
   }
 
   return (
-    <img
+    <Image
       src={album.coverImage}
       alt=""
-      loading="lazy"
-      decoding="async"
-      className="absolute inset-0 h-full w-full object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
+      fill
+      sizes={sizes}
+      className="object-cover transition-transform duration-[1400ms] ease-out group-hover:scale-[1.04]"
     />
   );
 }
@@ -488,7 +497,7 @@ function GalleryAlbumsSection({
                   href={`/gallery/${featured.id}`}
                   className="group relative flex h-full min-h-[400px] flex-col justify-end overflow-hidden rounded-[1.5rem] border border-border bg-surface-deep shadow-sm transition-shadow duration-700 hover:shadow-2xl sm:min-h-[460px] lg:min-h-[540px]"
                 >
-                  <AlbumCover album={featured} />
+                  <AlbumCover album={featured} sizes="(min-width: 1024px) 58vw, 95vw" />
 
                   {/* Weighted to the bottom third so the picture, not the
                       shade, is what you see first. */}
@@ -553,7 +562,7 @@ function GalleryAlbumsSection({
                           />
 
                           <span className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border bg-surface-deep sm:h-24 sm:w-24">
-                            <AlbumCover album={album} />
+                            <AlbumCover album={album} sizes="96px" />
                           </span>
 
                           <span className="min-w-0 flex-1">

@@ -1,6 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 
@@ -38,20 +39,20 @@ export function EventCard({ event }: EventCardProps) {
           {/* The frame stays a fixed ratio so the grid stays aligned, but the
               poster inside it is never cropped — a blurred copy of the same
               artwork fills whatever the contained image does not. */}
-          <img
+          <Image
             src={event.image}
             alt=""
             aria-hidden
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 h-full w-full scale-125 object-cover opacity-50 blur-2xl"
+            fill
+            sizes="(min-width: 768px) 45vw, 90vw"
+            className="scale-125 object-cover opacity-50 blur-2xl"
           />
-          <img
+          <Image
             src={event.image}
             alt={event.title}
-            loading="lazy"
-            decoding="async"
-            className="relative h-full w-full object-contain transition-transform duration-1000 group-hover:scale-[1.03]"
+            fill
+            sizes="(min-width: 768px) 45vw, 90vw"
+            className="object-contain transition-transform duration-1000 group-hover:scale-[1.03]"
           />
 
           <span className="absolute left-4 top-4 max-w-[calc(100%-12rem)] truncate rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
@@ -64,12 +65,12 @@ export function EventCard({ event }: EventCardProps) {
                   be any colour, and this is the one badge on the card that
                   isn't ours to theme. */}
               <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white">
-                <img
+                <Image
                   src={event.sponsors[0].logoUrl}
                   alt=""
                   aria-hidden
-                  loading="lazy"
-                  decoding="async"
+                  width={20}
+                  height={20}
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { Container } from "@/components/layout/container";
 import {
@@ -129,14 +130,18 @@ export function LeadershipRow({
               >
                 <div className="relative aspect-4/5 overflow-hidden rounded-2xl border border-border bg-muted">
                   {member.image ? (
-                    <img
+                    <Image
                       src={member.image}
                       alt={member.name}
-                      loading="lazy"
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                      fill
+                      sizes="(min-width: 1024px) 22vw, (min-width: 640px) 30vw, 45vw"
+                      className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
                     />
                   ) : (
-                    <span className="absolute inset-0 flex items-center justify-center font-sans text-3xl font-extrabold tracking-[-0.04em] text-muted-foreground/40">
+                    // Full-strength muted-foreground, not /40: against the
+                    // placeholder's bg-muted fill that opacity fell well
+                    // under the 3:1 large-text floor.
+                    <span className="absolute inset-0 flex items-center justify-center font-sans text-3xl font-extrabold tracking-[-0.04em] text-muted-foreground">
                       {member.name
                         .split(" ")
                         .map((part) => part[0])
