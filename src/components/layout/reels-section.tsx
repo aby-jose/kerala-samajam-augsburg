@@ -7,6 +7,7 @@ import { Container } from "@/components/layout/container";
 import { Eyebrow, SectionLead, SectionTitle } from "@/components/layout/section-heading";
 import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
 import { getFeaturedReels, type ReelCardData } from "@/lib/instagram-actions";
+import { cloudinaryOptimize } from "@/lib/cloudinary-url";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -137,7 +138,7 @@ function ReelTile({ reel, tone }: { reel: ReelCardData; tone: "primary" | "dark"
     >
       {hasThumbnail && (
         <img
-          src={thumbnailUrl!}
+          src={cloudinaryOptimize(thumbnailUrl!, { width: 480 })}
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
           onError={() => setImgFailed(true)}

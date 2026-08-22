@@ -147,9 +147,12 @@ export function Navbar({ hideLinks = false, forceLightText = false }: NavbarProp
           {/* Shrinkable rather than `shrink-0`: on a narrow phone the name
               ellipsises instead of pushing the actions off the screen. */}
           <Link href="/" className="flex items-center gap-2.5 min-w-0 transition-opacity hover:opacity-85">
+            {/* Decorative: the site name right beside it already gives this
+                link its accessible name, so a repeated alt would just have
+                screen readers announce "Kerala Samajam Augsburg" twice. */}
             <Image
               src={config.branding.logoUrl || "/images/logo.png"}
-              alt={config.siteName}
+              alt=""
               width={40}
               height={40}
               priority

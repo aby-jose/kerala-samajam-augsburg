@@ -68,6 +68,10 @@ const nextConfig: NextConfig = {
    * CSP containing `unsafe-inline` mostly provides reassurance rather than
    * protection. Doing it properly means a nonce threaded through the proxy —
    * worth doing, but not something to switch on untested.
+   *
+   * `object-src 'none'` costs nothing to add now, though: nothing on the
+   * site uses `<object>`/`<embed>`/Flash-era plugins, so it closes off a
+   * class of XSS payload without depending on the `script-src` work above.
    */
   async headers() {
     return [
@@ -76,7 +80,10 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'none'; object-src 'none'",
+          },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",

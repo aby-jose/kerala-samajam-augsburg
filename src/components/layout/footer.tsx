@@ -32,9 +32,12 @@ export function Footer() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
           <div className="sm:col-span-2 lg:col-span-4">
             <Link href="/" className="group mb-6 flex items-center gap-3 transition-opacity hover:opacity-90">
+              {/* Decorative: the site name right beside it already gives this
+                  link its accessible name, so a repeated alt would just have
+                  screen readers announce "Kerala Samajam Augsburg" twice. */}
               <Image
                 src={config.branding.logoUrl || "/images/logo.png"}
-                alt={config.siteName}
+                alt=""
                 width={56}
                 height={56}
                 className="h-14 w-auto"

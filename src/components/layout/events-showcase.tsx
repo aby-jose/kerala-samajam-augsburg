@@ -13,6 +13,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Countdown } from "./countdown";
 import { SponsorChips } from "@/components/events/sponsor-chips";
+import { cloudinaryOptimize } from "@/lib/cloudinary-url";
 import { cn } from "@/lib/utils";
 
 interface Event {
@@ -139,7 +140,7 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
                 legibility so it reads as colour only and the frame is never
                 empty beside a narrow one. */}
             <img
-              src={selectedEvent.image}
+              src={cloudinaryOptimize(selectedEvent.image, { width: 120 })}
               alt=""
               aria-hidden
               className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-45 blur-[70px]"
@@ -156,7 +157,7 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
                 className="flex justify-center lg:order-2"
               >
                 <img
-                  src={selectedEvent.image}
+                  src={cloudinaryOptimize(selectedEvent.image, { width: 900 })}
                   alt={selectedEvent.title}
                   className="block max-h-[320px] w-auto max-w-full rounded-2xl border border-white/10 object-contain shadow-2xl shadow-black/60 transition-transform duration-[1200ms] ease-out group-hover:scale-[1.02] sm:max-h-[400px] lg:max-h-[440px]"
                 />
