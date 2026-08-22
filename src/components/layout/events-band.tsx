@@ -14,6 +14,12 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { getUpcomingEvents } from "@/lib/event-actions";
+import {
+  formatClockTime,
+  formatDayNumber,
+  formatMonthShort,
+  formatWeekday,
+} from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -29,12 +35,12 @@ interface BandEvent {
   image: string | null;
 }
 
-const dayNum = (d: Date) => String(d.getDate()).padStart(2, "0");
-const monthShort = (d: Date) =>
-  d.toLocaleDateString("en-GB", { month: "short" });
-const weekday = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "long" });
-const clockTime = (d: Date) =>
-  d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+// Thin aliases kept local so the JSX below reads the same as before —
+// the timezone-pinning that actually matters now lives in `lib/utils`.
+const dayNum = formatDayNumber;
+const monthShort = formatMonthShort;
+const weekday = formatWeekday;
+const clockTime = formatClockTime;
 
 type UpcomingEvent = Awaited<ReturnType<typeof getUpcomingEvents>>[number];
 

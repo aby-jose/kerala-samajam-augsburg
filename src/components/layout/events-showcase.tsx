@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Countdown } from "./countdown";
 import { SponsorChips } from "@/components/events/sponsor-chips";
 import { cloudinaryOptimize } from "@/lib/cloudinary-url";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 
 interface Event {
   id: string;
@@ -36,13 +36,6 @@ interface EventsShowcaseProps {
    */
   isLoading?: boolean;
 }
-
-const fullDate = (d: string) =>
-  new Date(d).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 
 export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
   const displayEvents = useMemo(() => events.slice(0, 4), [events]);
@@ -170,7 +163,7 @@ export function EventsShowcase({ events, isLoading }: EventsShowcaseProps) {
                       reads as part of the site's voice rather than plain glass. */}
                   <span className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-md">
                     <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary" />
-                    {fullDate(selectedEvent.date)}
+                    {formatDate(selectedEvent.date)}
                   </span>
                   <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
                     <MapPin className="h-3 w-3 text-primary" strokeWidth={2} />

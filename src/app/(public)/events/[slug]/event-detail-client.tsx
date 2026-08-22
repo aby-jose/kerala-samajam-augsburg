@@ -37,7 +37,7 @@ import { RegistrationForm } from "@/components/events/registration-form";
 import { SponsorChips } from "@/components/events/sponsor-chips";
 import { getEventBySlug } from "@/lib/event-actions";
 import { checkCurrentMemberStatus } from "@/lib/membership-actions";
-import { cn } from "@/lib/utils";
+import { cn, formatFullDate } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -54,13 +54,7 @@ const DOT_GRID: React.CSSProperties = {
 type EventDetail = NonNullable<Awaited<ReturnType<typeof getEventBySlug>>>;
 type MemberStatus = Awaited<ReturnType<typeof checkCurrentMemberStatus>>;
 
-const longDate = (d: Date) =>
-  d.toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+const longDate = formatFullDate;
 
 /** An unset price and a zero price both mean the same thing to a visitor. */
 const asPrice = (value?: number | null) =>

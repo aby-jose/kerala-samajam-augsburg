@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { MapPin, CalendarDays, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDayNumber, formatMonthShort } from "@/lib/utils";
 
 interface EventCardProps {
   event: {
@@ -85,12 +85,10 @@ export function EventCard({ event }: EventCardProps) {
               filling with primary as the card is hovered. */}
           <span className="absolute bottom-4 right-4 flex h-13 w-13 flex-col items-center justify-center rounded-xl border border-white/15 bg-black/45 backdrop-blur-md transition-colors duration-500 group-hover:border-primary group-hover:bg-primary">
             <span className="font-sans text-lg font-extrabold leading-none tracking-[-0.03em] text-white">
-              {new Date(event.date).getDate().toString().padStart(2, "0")}
+              {formatDayNumber(event.date)}
             </span>
             <span className="mt-1 text-[9px] font-bold uppercase tracking-[0.16em] text-white/70">
-              {new Date(event.date).toLocaleDateString("en-GB", {
-                month: "short",
-              })}
+              {formatMonthShort(event.date)}
             </span>
           </span>
         </div>

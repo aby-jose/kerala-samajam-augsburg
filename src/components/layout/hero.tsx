@@ -17,9 +17,12 @@ import { splitOnAccent } from "@/lib/accent";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
+// Opacity + y only — no `filter: blur()`. Lighthouse flags animated `filter`
+// as non-composited (it forces main-thread rasterization every frame); the
+// blur was a nice touch but not one worth the jank on slower devices.
 const fade = (delay: number) => ({
-  initial: { opacity: 0, y: 20, filter: "blur(10px)" },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
   transition: { duration: 1.3, ease: EASE, delay },
 });
 
@@ -126,11 +129,14 @@ export function Hero({
             </span>
           </motion.div>
 
-          {/* Headline */}
-          <motion.h1
-            {...fade(0.4)}
-            className="mt-7 max-w-4xl text-balance font-sans text-[2.25rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl md:text-6xl"
-          >
+          {/* Headline — deliberately NOT a motion element. This is the
+              page's LCP candidate, and an entrance animation means the
+              browser can't count it as painted until hydration runs and
+              the animation clears the fade, which measured as a 3.2s render
+              delay on a throttled mobile connection. Everything around it
+              still gets the cascading reveal; this anchors the composition
+              instead of joining it. */}
+          <h1 className="mt-7 max-w-4xl text-balance font-sans text-[2.25rem] font-extrabold leading-[1.08] tracking-[-0.035em] text-white sm:text-5xl md:text-6xl">
             {before}
             {match && (
               <span className="bg-linear-to-br from-primary to-primary/70 bg-clip-text font-serif font-normal italic tracking-[-0.015em] text-transparent">
@@ -138,7 +144,7 @@ export function Hero({
               </span>
             )}
             {after}
-          </motion.h1>
+          </h1>
 
           {/* Sub-copy */}
           <motion.p

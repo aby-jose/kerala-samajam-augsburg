@@ -5,11 +5,65 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Every date shown on the site — events, memberships, payments — is
+ * effectively Augsburg-local, so formatting is pinned to it explicitly
+ * rather than left to `Intl`'s default of "wherever this code happens to
+ * run." Server-rendered pages hydrate on the client, and without a fixed
+ * zone the two renders read the *runtime's* local clock: a server on UTC
+ * and a browser on Europe/Berlin can disagree about which calendar day an
+ * event near midnight falls on, and React throws a hydration mismatch
+ * (error #418) the moment the server- and client-rendered text differ.
+ */
+const EVENT_TIME_ZONE = "Europe/Berlin";
+
 export function formatDate(date: Date | string) {
   return new Intl.DateTimeFormat("en-GB", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+/** Day-of-month, zero-padded — e.g. the "07" in a date-block digit pair. */
+export function formatDayNumber(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+export function formatMonthShort(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    month: "short",
+    timeZone: EVENT_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+export function formatWeekday(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    timeZone: EVENT_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+/** "Saturday, 7 June 2026" — the event detail page's long-form date. */
+export function formatFullDate(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: EVENT_TIME_ZONE,
+  }).format(new Date(date));
+}
+
+export function formatClockTime(date: Date | string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: EVENT_TIME_ZONE,
   }).format(new Date(date));
 }
 
