@@ -36,41 +36,35 @@ const weekday = (d: Date) => d.toLocaleDateString("en-GB", { weekday: "long" });
 const clockTime = (d: Date) =>
   d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
+type UpcomingEvent = Awaited<ReturnType<typeof getUpcomingEvents>>[number];
+
 /**
- * The closing band on /about: what is actually on the calendar, pulled live.
+ * The closing band on /about: what is actually on the calendar.
  *
  * It sits on surface-deep so the page ends on the same dark note the home page
  * does, and the events read as a ledger — hairline rules, a date block per row
  * — rather than another card grid. The section is deliberately not a card
  * grid: /events already shows those, and this page has two grids above it.
+ *
+ * `events` arrives from the server component above (/about's page.tsx) rather
+ * than being fetched here in a `useEffect` — that used to mean this band, and
+ * every link to a registration page inside it, was missing from the HTML any
+ * crawler actually saw.
  */
-export function EventsBand() {
+export function EventsBand({ events: upcoming }: { events: UpcomingEvent[] }) {
   const reduced = useReducedMotion();
-  const [events, setEvents] = React.useState<BandEvent[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        const data = await getUpcomingEvents();
-        setEvents(
-          data.map((e) => ({
-            id: e.id,
-            slug: e.slug,
-            title: e.title,
-            date: new Date(e.date),
-            location: e.location,
-            image: e.imageUrl ?? null,
-          }))
-        );
-      } catch (error) {
-        console.error("Failed to load upcoming events:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchEvents();
-  }, []);
+  const events: BandEvent[] = React.useMemo(
+    () =>
+      upcoming.map((e) => ({
+        id: e.id,
+        slug: e.slug,
+        title: e.title,
+        date: new Date(e.date),
+        location: e.location,
+        image: e.imageUrl ?? null,
+      })),
+    [upcoming]
+  );
 
   const rise: Variants = {
     hidden: { opacity: 0, y: reduced ? 0 : 20 },
@@ -85,6 +79,10 @@ export function EventsBand() {
   const rows = events.slice(0, MAX_ROWS);
   const next = rows[0];
   const remaining = events.length - rows.length;
+  // Snapshotted once rather than read fresh on every render — `Date.now()`
+  // directly in the render body is an impure call the countdown itself
+  // doesn't need: it re-ticks on its own timer regardless of this value.
+  const [now] = React.useState(() => Date.now());
 
   return (
     <section className="relative overflow-hidden bg-surface-deep py-24 md:py-32">
@@ -132,7 +130,7 @@ export function EventsBand() {
             {/* The nearest date, counted down. Hidden once it is in the past
                 so the label never sits above an empty clock. */}
             {next &&
-              next.date.getTime() > Date.now() &&
+              next.date.getTime() > now &&
               (next.image ? (
                 /* Everything rides on the poster itself — a card underneath it
                    would only repeat what the artwork already says. The shade is
@@ -210,29 +208,14 @@ export function EventsBand() {
                 <span className="h-px w-6 bg-white/20" />
                 On the calendar
               </span>
-              {!isLoading && events.length > 0 && (
+              {events.length > 0 && (
                 <span className="font-mono text-[10px] tracking-[0.2em] text-white/30">
                   {String(events.length).padStart(2, "0")} SCHEDULED
                 </span>
               )}
             </div>
 
-            {isLoading ? (
-              <ul className="mt-6">
-                {[0, 1, 2].map((i) => (
-                  <li
-                    key={i}
-                    className="flex items-center gap-5 border-t border-white/10 py-7"
-                  >
-                    <span className="h-14 w-14 shrink-0 animate-pulse rounded-xl bg-white/[0.06]" />
-                    <span className="flex-1 space-y-2.5">
-                      <span className="block h-4 w-2/3 animate-pulse rounded-full bg-white/[0.06]" />
-                      <span className="block h-3 w-1/3 animate-pulse rounded-full bg-white/[0.04]" />
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : rows.length === 0 ? (
+            {rows.length === 0 ? (
               <div className="mt-6 flex flex-col items-start gap-5 rounded-[1.5rem] border border-dashed border-white/15 px-7 py-12">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white/60">
                   <CalendarDays className="h-5 w-5" strokeWidth={1.6} />

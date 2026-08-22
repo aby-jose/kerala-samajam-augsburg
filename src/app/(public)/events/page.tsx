@@ -1,5 +1,6 @@
 import { getPageContent } from "@/lib/page-content/actions";
 import type { EventsContentT } from "@/lib/page-content/events";
+import { getUpcomingEvents } from "@/lib/event-actions";
 import { EventsClient } from "./events-client";
 
 export const metadata = {
@@ -11,7 +12,18 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
-  const content = (await getPageContent("events")) as EventsContentT;
+  // Fetched here rather than by the client component: the list of events —
+  // and every link to a registration page — used to only exist after a
+  // useEffect fetch resolved in the browser, so the HTML search engines
+  // actually crawled had no events on it at all. Same fix as the home page's
+  // events band.
+  const [content, events] = await Promise.all([
+    getPageContent("events") as Promise<EventsContentT>,
+    getUpcomingEvents().catch((error) => {
+      console.error("Upcoming events fetch error:", error);
+      return [];
+    }),
+  ]);
 
-  return <EventsClient content={content} />;
+  return <EventsClient content={content} events={events} />;
 }

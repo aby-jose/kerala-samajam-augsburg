@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useReducedMotion, type Variants } from "framer-motion";
@@ -69,20 +69,18 @@ const asPrice = (value?: number | null) =>
 /**
  * All the page's interactivity — countdown, registration form, live member
  * status. Split out of `page.tsx` so that file can be a server component:
- * this one still reads the slug via `useParams()` itself (works fine nested
- * under a server page, no prop needed) and fetches the event client-side the
- * same way it always did.
+ * the event itself now arrives as a prop, fetched server-side there, so this
+ * component only has its own client-only data left to load — the visitor's
+ * member status, which depends on their session and so can't be baked into
+ * the server render.
  */
-export function EventDetailClient() {
-  const { slug } = useParams();
+export function EventDetailClient({ event }: { event: EventDetail }) {
   const router = useRouter();
   const pathname = usePathname();
   const reduced = useReducedMotion();
   const { data: session } = useSession();
   const { features } = useConfig();
 
-  const [event, setEvent] = useState<EventDetail | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [memberStatus, setMemberStatus] = useState<MemberStatus>({
     isMember: false,
     hasPending: false,
@@ -90,29 +88,24 @@ export function EventDetailClient() {
     plan: null,
   });
   const [copied, setCopied] = useState(false);
+  // Snapshotted once rather than read fresh on every render — `Date.now()`
+  // directly in the render body is an impure call the countdown itself
+  // doesn't need: it re-ticks on its own timer regardless of this value.
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
-    const fetchEventData = async () => {
-      try {
-        const [eventData, status] = await Promise.all([
-          getEventBySlug(slug as string),
-          checkCurrentMemberStatus(),
-        ]);
-
-        if (!eventData) {
-          router.push("/events");
-          return;
-        }
-        setEvent(eventData);
-        setMemberStatus(status);
-      } catch (error) {
-        console.error("Failed to load event data:", error);
-      } finally {
-        setIsLoading(false);
-      }
+    let cancelled = false;
+    checkCurrentMemberStatus()
+      .then((status) => {
+        if (!cancelled) setMemberStatus(status);
+      })
+      .catch((error) => {
+        console.error("Failed to load member status:", error);
+      });
+    return () => {
+      cancelled = true;
     };
-    fetchEventData();
-  }, [slug, router, session]);
+  }, [session]);
 
   const rise: Variants = {
     hidden: { opacity: 0, y: reduced ? 0 : 20 },
@@ -141,32 +134,6 @@ export function EventDetailClient() {
     }
   };
 
-  // The skeleton is dark because the hero is: a white placeholder would flash
-  // the wrong colour for as long as the fetch takes.
-  if (isLoading) {
-    return (
-      <main className="flex min-h-screen flex-col bg-surface-deep">
-        <section className="pb-24 pt-32 md:pt-40">
-          <Container className="max-w-7xl">
-            <div className="grid grid-cols-1 gap-x-16 gap-y-12 lg:grid-cols-12">
-              <div className="space-y-6 lg:col-span-7">
-                <span className="block h-7 w-32 animate-pulse rounded-full bg-white/[0.07]" />
-                <span className="block h-12 w-4/5 animate-pulse rounded-2xl bg-white/[0.07]" />
-                <span className="block h-12 w-3/5 animate-pulse rounded-2xl bg-white/[0.05]" />
-                <span className="block h-24 w-full animate-pulse rounded-2xl bg-white/[0.04]" />
-              </div>
-              <div className="lg:col-span-5">
-                <span className="block aspect-4/5 w-full animate-pulse rounded-[1.75rem] bg-white/[0.06]" />
-              </div>
-            </div>
-          </Container>
-        </section>
-      </main>
-    );
-  }
-
-  if (!event) return null;
-
   const eventDate = new Date(event.date);
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -174,7 +141,7 @@ export function EventDetailClient() {
   // Same rule the calendar uses: an event stays "on" for the whole of its day
   // rather than falling into the past the moment it begins.
   const isPast = eventDate < startOfToday;
-  const isCountingDown = !isPast && eventDate.getTime() > Date.now();
+  const isCountingDown = !isPast && eventDate.getTime() > now;
 
   const registered = event._count?.registrations ?? 0;
   const seatsLeft = event.maxAttendees

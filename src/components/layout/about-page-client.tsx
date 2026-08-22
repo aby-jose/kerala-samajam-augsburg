@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Container } from "@/components/layout/container";
 import { motion, Variants } from "framer-motion";
 import { EventsBand } from "@/components/layout/events-band";
+import type { getUpcomingEvents } from "@/lib/event-actions";
 import { LeadershipRow } from "@/components/layout/leadership-row";
 import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 import {
@@ -167,8 +168,10 @@ function AboutCommitteeSection({ surface = "bg-surface-3", bordered = true }: Se
  * ignores the resolved surface/tone/bordered — they would be
  * bg-surface-deep/dark/false anyway for a "deep" surfaceMode section.
  */
-function AboutClosingSection(_props: SectionSurfaceProps) {
-  return <EventsBand />;
+function AboutClosingSection({
+  events,
+}: SectionSurfaceProps & { events: Awaited<ReturnType<typeof getUpcomingEvents>> }) {
+  return <EventsBand events={events} />;
 }
 
 const ABOUT_SECTION_COMPONENTS: Record<AboutSectionId, ComponentType<any>> = {
@@ -179,7 +182,13 @@ const ABOUT_SECTION_COMPONENTS: Record<AboutSectionId, ComponentType<any>> = {
   whatsappCta: WhatsAppCta,
 };
 
-export function AboutPageClient({ content }: { content: AboutContentT }) {
+export function AboutPageClient({
+  content,
+  events,
+}: {
+  content: AboutContentT;
+  events: Awaited<ReturnType<typeof getUpcomingEvents>>;
+}) {
   const sections = resolveSections(ABOUT_SECTION_META, content.layout);
 
   return (
@@ -194,6 +203,7 @@ export function AboutPageClient({ content }: { content: AboutContentT }) {
             surface={surface}
             tone={tone}
             bordered={bordered}
+            events={events}
           />
         );
       })}

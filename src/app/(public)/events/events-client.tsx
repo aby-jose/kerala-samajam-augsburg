@@ -61,11 +61,9 @@ type SectionSurfaceProps = {
 function EventsHeroSection({
   content = DEFAULT_EVENTS.content.hero,
   surface = "bg-surface-1",
-  isLoading,
   spotlight,
 }: {
   content?: EventsContentT["content"]["hero"];
-  isLoading: boolean;
   spotlight: UpcomingEvent[];
 } & SectionSurfaceProps) {
   const rise = useRiseVariants();
@@ -88,7 +86,6 @@ function EventsHeroSection({
           {/* The same spotlight the home page uses: rotation, countdown and
               the empty state all live inside the component. */}
           <EventsShowcase
-            isLoading={isLoading}
             events={spotlight.map((e) => ({
               id: e.id,
               slug: e.slug,
@@ -232,23 +229,13 @@ function EventsMembersBandSection({
   );
 }
 
-export function EventsClient({ content }: { content: EventsContentT }) {
-  const [events, setEvents] = React.useState<UpcomingEvent[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    const fetchEvents = async () => {
-      try {
-        setEvents(await getUpcomingEvents());
-      } catch (error) {
-        console.error("Failed to load events:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchEvents();
-  }, []);
-
+export function EventsClient({
+  content,
+  events,
+}: {
+  content: EventsContentT;
+  events: UpcomingEvent[];
+}) {
   // Server order is date-ascending. The one flagged featured jumps the queue
   // so it opens the spotlight; everything else keeps its date order.
   const ordered = React.useMemo(() => {
@@ -272,7 +259,6 @@ export function EventsClient({ content }: { content: EventsContentT }) {
               key={id}
               content={content.content.hero}
               surface={surface}
-              isLoading={isLoading}
               spotlight={spotlight}
             />
           );
