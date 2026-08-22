@@ -214,7 +214,7 @@ export const defaultLegalEntity: LegalEntityConfig = {
 
 export const defaultConfig: SiteConfig = {
   siteName: "Kerala Samajam Augsburg",
-  siteDescription: "The official platform for the Kerala community in Augsburg, Germany.",
+  siteDescription: "The official platform for the Malayali — Mallu — community in Augsburg, Bavaria, Germany.",
   tagline: "Connecting Hearts, Celebrating Culture",
   contactEmail: "info@ksaugsburg.de",
   socials: {

@@ -32,7 +32,10 @@ export function organizationJsonLd(config: SiteConfig, url: string | undefined) 
     "@context": "https://schema.org",
     "@type": "Organization",
     name: isPlaceholder(legal.entityName) ? siteName : legal.entityName,
-    alternateName: siteName,
+    // "Malayalee" is the other common spelling and "Samajam" is what these
+    // associations actually call themselves — a search for either should
+    // still land on the one Organization record.
+    alternateName: Array.from(new Set([siteName, "Malayalee Samajam Augsburg"])),
     description: siteDescription,
     ...(url ? { url } : {}),
     ...(branding.logoUrl ? { logo: branding.logoUrl } : {}),
@@ -48,7 +51,13 @@ export function organizationJsonLd(config: SiteConfig, url: string | undefined) 
           },
         }
       : {}),
-    areaServed: { "@type": "City", name: legal.city || "Augsburg" },
+    // Augsburg is the actual base, but membership and events reach the wider
+    // region — listing the state alongside the city says so without
+    // overclaiming a city KSA doesn't actually serve.
+    areaServed: [
+      { "@type": "City", name: legal.city || "Augsburg" },
+      { "@type": "State", name: "Bavaria" },
+    ],
     ...(sameAs.length ? { sameAs } : {}),
   };
 }

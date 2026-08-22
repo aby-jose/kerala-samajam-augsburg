@@ -200,7 +200,7 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
       badge: "Kerala Samajam Augsburg",
       headline: "A home for Kerala in the heart of Augsburg",
       accentWord: "Kerala",
-      lead: "The Malayali community in Bavaria — celebrating our culture, supporting each other, and building a home away from home since 2012.",
+      lead: "The Malayali — or Mallu — community in Bavaria — celebrating our culture, supporting each other, and building a home away from home since 2012.",
       primaryCta: { label: "Become a Member", href: "/membership" },
       secondaryCta: { label: "Upcoming Events", href: "/events" },
       videoUrl: "/hero.mp4",
@@ -211,7 +211,7 @@ export const DEFAULT_HOME_CONTENT: HomeContentT = {
       eyebrow: "About us",
       title: "About Kerala Samajam Augsburg",
       accentWord: "Kerala",
-      lead: "It started in 2012, when a handful of families cooked one Onam sadhya together. Today KSA is a registered Verein with members across Augsburg and the towns around it.",
+      lead: "It started in 2012, when a handful of families cooked one Onam sadhya together. Today KSA is a registered Verein welcoming Malayalis and the wider Mallu community across Augsburg and Bavaria.",
       facts: [
         { value: "2012", label: "Founded" },
         { value: "e.V.", label: "Registered Verein" },

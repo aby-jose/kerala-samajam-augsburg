@@ -6,7 +6,7 @@ import MembershipClient from "@/components/public/membership-client";
 
 export const metadata = {
   title: "Membership | Kerala Samajam Augsburg",
-  description: "Join the KSA family and become a part of the vibrant Malayali community in Augsburg.",
+  description: "Join the KSA family — the Malayali and Mallu community across Augsburg and Bavaria.",
 };
 
 // Plans are edited from the admin panel and drive a payment flow, so they are

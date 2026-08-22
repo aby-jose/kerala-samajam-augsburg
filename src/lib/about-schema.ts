@@ -107,7 +107,7 @@ export const DEFAULT_ABOUT_CONTENT: AboutContentT = {
       eyebrow: "About us",
       title: "About Kerala Samajam Augsburg",
       accentWord: "Kerala",
-      lead: "A registered Verein in Bavaria, run entirely by its members. We celebrate the festivals, teach the language to our children, and help people find their feet when they arrive in Augsburg.",
+      lead: "A registered Verein for Malayalis — the Mallu community — in Bavaria, run entirely by its members. We celebrate the festivals, teach the language to our children, and help people find their feet when they arrive in Augsburg.",
       heroImageUrl: "/images/about/hero.png",
     },
     story: {

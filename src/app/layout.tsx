@@ -34,8 +34,22 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: url ? new URL(url) : undefined,
     title: "Kerala Samajam Augsburg (KSA) | Malayali Community in Germany",
-    description: "Experience the vibrant culture and community of Kerala in Augsburg, Germany. Join us for events, celebrations, and togetherness.",
-    keywords: ["Kerala Samajam", "Augsburg", "Malayali", "Germany", "KSA", "Indian Community", "Kerala Events"],
+    description:
+      "Kerala Samajam Augsburg (KSA) — the Malayali and Mallu community in Augsburg, Bavaria. Onam, Vishu and Kerala celebrations, cultural events and community support in Germany.",
+    keywords: [
+      "Kerala Samajam",
+      "Augsburg",
+      "Malayali",
+      "Mallu",
+      "Malayalis in Germany",
+      "Mallu community Germany",
+      "Malayalee Samajam",
+      "Bavaria",
+      "Germany",
+      "KSA",
+      "Indian Community",
+      "Kerala Events",
+    ],
     authors: [{ name: "KSA Team" }],
     // Points every URL variant (bare domain, http) at the one canonical
     // address, so a crawler that reaches the site a different way doesn't
@@ -49,8 +63,20 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: "en_GB",
       url,
       title: "Kerala Samajam Augsburg (KSA)",
-      description: "Kerala Samajam Augsburg (KSA) - Your Malayali home in Augsburg.",
+      description: "The Malayali — and Mallu — community's home in Augsburg, Bavaria.",
       siteName: "KSA",
+      // The branding logo, not a photo — recognisable in a link preview even
+      // before the site's own visual identity is familiar.
+      images: ["/images/logo.png"],
+    },
+    // No OG block above meant no Twitter card either — a link shared there
+    // fell back to a bare title with no image. summary_large_image mirrors
+    // the Open Graph copy so both platforms preview the same thing.
+    twitter: {
+      card: "summary_large_image",
+      title: "Kerala Samajam Augsburg (KSA)",
+      description: "The Malayali — and Mallu — community's home in Augsburg, Bavaria.",
+      images: ["/images/logo.png"],
     },
   };
 }
