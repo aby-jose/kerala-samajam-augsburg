@@ -54,6 +54,11 @@ for the full design):
 3. Add `DATABASE_URL`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
    `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `BACKUP_ENCRYPTION_KEY` as GitHub
    Actions repository secrets.
+4. To run any of the commands below locally, put the same values in your
+   `.env` — the scripts load it via `dotenv` and will fail without
+   `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`
+   and `BACKUP_ENCRYPTION_KEY`. GitHub Actions secrets are not visible to
+   your machine.
 
 Commands:
 
