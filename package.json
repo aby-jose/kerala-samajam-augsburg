@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "seed:roles": "tsx prisma/seed-roles.ts",
     "fix:gallery-album-index": "tsx prisma/fix-gallery-album-index.ts",
-    "email:preview": "tsx scripts/email-preview.ts"
+    "email:preview": "tsx scripts/email-preview.ts",
+    "backup:upload": "tsx scripts/backup-db.ts --upload",
+    "backup:list": "tsx scripts/restore-db.ts --list"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
