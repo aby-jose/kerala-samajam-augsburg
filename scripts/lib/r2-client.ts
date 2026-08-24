@@ -107,11 +107,21 @@ export async function deleteObjects(
   for (let i = 0; i < keys.length; i += 1000) {
     // R2/S3 DeleteObjects caps at 1000 keys per request.
     const batch = keys.slice(i, i + 1000);
-    await client.send(
+    const res = await client.send(
       new DeleteObjectsCommand({
         Bucket: bucket,
         Delete: { Objects: batch.map((key) => ({ Key: key })) },
       })
     );
+    // R2/S3 returns HTTP 200 even when individual keys fail to delete;
+    // per-key failures show up here rather than as a thrown error. These
+    // are logged but not thrown - a retention-sweep failure must not fail
+    // the backup run.
+    if (res.Errors && res.Errors.length > 0) {
+      console.warn(
+        `deleteObjects: failed to delete ${res.Errors.length} object(s) from ${bucket}:`,
+        res.Errors.map((err) => `${err.Key} (${err.Code}: ${err.Message})`).join(", ")
+      );
+    }
   }
 }
