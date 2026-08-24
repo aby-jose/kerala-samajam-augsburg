@@ -10,8 +10,8 @@
  */
 export const BACKUP_MODELS = [
   "config", "aboutContent", "homeContent", "pageContent", "legalDocument",
-  "legalRevision", "userConsent", "cookieConsent", "event", "registration",
-  "galleryAlbum", "galleryMedia", "faceDetection", "instagramReel",
+  "legalRevision", "userConsent", "cookieConsent", "event", "eventSponsor",
+  "registration", "galleryAlbum", "galleryMedia", "faceDetection", "instagramReel",
   "instagramSyncState", "user", "emailLog", "userFaceProfile",
   "membershipPlan", "subscription", "leadershipMember", "mediaContribution",
   "contactMessage", "role", "staffInvite", "auditLog",

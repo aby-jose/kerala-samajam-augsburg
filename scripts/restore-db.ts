@@ -25,8 +25,8 @@
  *     most recent one if omitted. Without --confirm, only prints the diff.
  *   npx tsx scripts/restore-db.ts --key <checkpoint> [--confirm]
  *     Download and restore from a remote checkpoint (e.g. the key printed
- *     by --list, such as db-backups/20260818-134452.json.gz.enc). Without
- *     --confirm, only prints the diff.
+ *     by --list, such as db-backups/2026-08-24T14-00-00Z.json.gz.enc).
+ *     Without --confirm, only prints the diff.
  */
 import "dotenv/config";
 import { MongoClient, ObjectId } from "mongodb";
@@ -35,6 +35,7 @@ import path from "path";
 import zlib from "zlib";
 import os from "os";
 import { decryptBuffer } from "./lib/backup-crypto";
+import { BACKUP_MODELS } from "./lib/backup-models";
 import { createR2Client, downloadObject, listObjects, loadR2ConfigFromEnv } from "./lib/r2-client";
 
 // Field-level type info the JSON export can't carry on its own: which fields
@@ -64,6 +65,10 @@ const MODEL_CONFIG: Record<
   Event: {
     objectIdFields: [],
     dateFields: ["date", "cancelledAt", "createdAt", "updatedAt"],
+  },
+  EventSponsor: {
+    objectIdFields: ["eventId"],
+    dateFields: ["createdAt", "updatedAt"],
   },
   Registration: {
     objectIdFields: ["eventId", "recordedById"],
@@ -143,6 +148,29 @@ function reviveDoc(raw: any, cfg: { objectIdFields: string[]; dateFields: string
   return doc;
 }
 
+/**
+ * Reads `_summary.json` (written by both the local dump and, since this
+ * change, the downloaded-checkpoint temp dir) and reports any model whose dump
+ * failed. Such a model has no file in the backup at all, so restoring leaves
+ * that collection at its current live state while everything else rolls back —
+ * the operator has to be told, not left to notice.
+ */
+function readFailedModels(dir: string): Array<[string, string]> {
+  const summaryPath = path.join(dir, "_summary.json");
+  if (!fs.existsSync(summaryPath)) return [];
+  let summary: Record<string, unknown>;
+  try {
+    summary = JSON.parse(fs.readFileSync(summaryPath, "utf-8"));
+  } catch {
+    console.warn("\nWarning: _summary.json in this backup could not be parsed.");
+    return [];
+  }
+  return Object.entries(summary).filter(
+    (entry): entry is [string, string] =>
+      typeof entry[1] === "string" && entry[1].startsWith("ERROR:")
+  );
+}
+
 async function restoreFromDir(dir: string, opts: { confirm: boolean }): Promise<void> {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
@@ -167,6 +195,31 @@ async function restoreFromDir(dir: string, opts: { confirm: boolean }): Promise<
         cfg
           ? `  ${modelName}: ${currentCount} -> ${raw.length}`
           : `  ${modelName}: SKIPPED (no field-type config) — will not be restored`
+      );
+    }
+
+    // Printed before the confirm gate, so it shows in the dry-run preview and
+    // again immediately before a real restore.
+    const failed = readFailedModels(dir);
+    if (failed.length > 0) {
+      console.warn(
+        "\n⚠️  WARNING: this checkpoint has partial data — the following models failed to back up and will NOT be restored (left at current live state):"
+      );
+      for (const [model, message] of failed) {
+        console.warn(`  - ${modelNameFor(model)}: ${message}`);
+      }
+    }
+
+    const presentBases = new Set(files.map((f) => f.replace(/\.json$/, "")));
+    const failedBases = new Set(failed.map(([model]) => model));
+    const absent = BACKUP_MODELS.filter(
+      (model) => !presentBases.has(model) && !failedBases.has(model)
+    );
+    if (absent.length > 0) {
+      console.log(
+        `\nNote: this backup contains no data for ${absent
+          .map(modelNameFor)
+          .join(", ")} (likely taken before the model existed). Those collections will be left at their current live state.`
       );
     }
 
@@ -220,8 +273,14 @@ async function downloadCheckpointToTempDir(key: string): Promise<string> {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ksa-restore-"));
   try {
     for (const [model, docs] of Object.entries(bundle)) {
-      if (model === "_summary") continue;
-      fs.writeFileSync(path.join(tempDir, `${model}.json`), JSON.stringify(docs));
+      // _summary is not a collection, but it records which models failed to
+      // dump when this checkpoint was taken. Write it out under the same name
+      // a local backup directory uses so restoreFromDir can warn about a
+      // partial checkpoint (its file discovery filters _summary.json out).
+      fs.writeFileSync(
+        path.join(tempDir, model === "_summary" ? "_summary.json" : `${model}.json`),
+        JSON.stringify(docs)
+      );
     }
   } catch (e) {
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -258,7 +317,7 @@ async function main() {
   const remoteKey = keyIndex >= 0 ? args[keyIndex + 1] : undefined;
 
   if (keyIndex >= 0 && (!remoteKey || remoteKey.startsWith("--"))) {
-    throw new Error("--key requires a checkpoint key, e.g. --key db-backups/20260818-134452.json.gz.enc");
+    throw new Error("--key requires a checkpoint key, e.g. --key db-backups/2026-08-24T14-00-00Z.json.gz.enc");
   }
   if (args.some((a) => a.startsWith("--") && !["--list", "--confirm", "--key"].includes(a))) {
     throw new Error("Unknown flag. Use --key <checkpoint> (space-separated), not --key=<checkpoint>.");

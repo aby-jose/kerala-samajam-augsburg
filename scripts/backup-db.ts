@@ -6,6 +6,7 @@
  *   npx tsx scripts/backup-db.ts --upload            - bundle, gzip, encrypt, and upload a checkpoint to Cloudflare R2, then sweep retention
  *   npx tsx scripts/backup-db.ts --upload --dry-run  - run the upload path's dump/bundle steps without uploading anything
  */
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
@@ -68,15 +69,26 @@ async function uploadCheckpoint(dryRun: boolean): Promise<void> {
   await uploadObject(client, config.bucket, key, encrypted);
   console.log(`\nUploaded checkpoint: ${key}`);
 
-  const objects = await listObjects(client, config.bucket, "db-backups/");
-  const checkpoints = objects.map((o) => ({
-    key: o.key,
-    timestamp: parseTimestampFromKey(o.key) ?? o.lastModified,
-  }));
-  const toDelete = checkpointsToDelete(checkpoints, new Date());
-  if (toDelete.length > 0) {
-    await deleteObjects(client, config.bucket, toDelete);
-    console.log(`Retention: deleted ${toDelete.length} checkpoint(s) outside the retention window`);
+  // The checkpoint is already safely uploaded at this point. Pruning old ones
+  // exactly on schedule matters less than the run reporting success, so a
+  // failing sweep is logged and swallowed rather than failing the whole run.
+  try {
+    const objects = await listObjects(client, config.bucket, "db-backups/");
+    // Only sweep objects that really are checkpoints. Anything else under the
+    // prefix (a stray upload, a hand-written note) is left alone rather than
+    // aged out by its S3 lastModified.
+    const checkpoints = objects.flatMap((o) => {
+      if (!o.key.endsWith(".json.gz.enc")) return [];
+      const timestamp = parseTimestampFromKey(o.key);
+      return timestamp ? [{ key: o.key, timestamp }] : [];
+    });
+    const toDelete = checkpointsToDelete(checkpoints, new Date());
+    if (toDelete.length > 0) {
+      await deleteObjects(client, config.bucket, toDelete);
+      console.log(`Retention: deleted ${toDelete.length} checkpoint(s) outside the retention window`);
+    }
+  } catch (e) {
+    console.warn("Retention sweep failed (checkpoint upload succeeded):", (e as Error).message);
   }
 }
 
@@ -94,9 +106,14 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
   const { data, summary } = await dumpAllModels();
   for (const model of BACKUP_MODELS) {
+    // Only models that actually dumped get a file. Writing `[]` for a model
+    // whose findMany() threw would turn "we failed to back this up" into
+    // "wipe this collection" at restore time — restore deleteMany({})s every
+    // collection it finds a file for. The failure is recorded in _summary.json.
+    if (!(model in data)) continue;
     fs.writeFileSync(
       path.join(outDir, `${model}.json`),
-      JSON.stringify(data[model] ?? [], null, 2),
+      JSON.stringify(data[model], null, 2),
       "utf-8"
     );
   }
