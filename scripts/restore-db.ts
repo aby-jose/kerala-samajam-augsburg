@@ -257,7 +257,7 @@ async function main() {
   const keyIndex = args.indexOf("--key");
   const remoteKey = keyIndex >= 0 ? args[keyIndex + 1] : undefined;
 
-  if (keyIndex >= 0 && (remoteKey === undefined || remoteKey.startsWith("--"))) {
+  if (keyIndex >= 0 && (!remoteKey || remoteKey.startsWith("--"))) {
     throw new Error("--key requires a checkpoint key, e.g. --key db-backups/20260818-134452.json.gz.enc");
   }
   if (args.some((a) => a.startsWith("--") && !["--list", "--confirm", "--key"].includes(a))) {
