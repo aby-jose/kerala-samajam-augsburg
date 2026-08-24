@@ -160,9 +160,14 @@ async function restoreFromDir(dir: string, opts: { confirm: boolean }): Promise<
     for (const file of files) {
       const fileBase = file.replace(/\.json$/, "");
       const modelName = modelNameFor(fileBase);
+      const cfg = MODEL_CONFIG[modelName];
       const raw = JSON.parse(fs.readFileSync(path.join(dir, file), "utf-8"));
       const currentCount = await db.collection(modelName).countDocuments();
-      console.log(`  ${modelName}: ${currentCount} -> ${raw.length}`);
+      console.log(
+        cfg
+          ? `  ${modelName}: ${currentCount} -> ${raw.length}`
+          : `  ${modelName}: SKIPPED (no field-type config) — will not be restored`
+      );
     }
 
     if (!opts.confirm) {
@@ -213,9 +218,14 @@ async function downloadCheckpointToTempDir(key: string): Promise<string> {
   const bundle = JSON.parse(zlib.gunzipSync(gzipped).toString("utf-8"));
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ksa-restore-"));
-  for (const [model, docs] of Object.entries(bundle)) {
-    if (model === "_summary") continue;
-    fs.writeFileSync(path.join(tempDir, `${model}.json`), JSON.stringify(docs));
+  try {
+    for (const [model, docs] of Object.entries(bundle)) {
+      if (model === "_summary") continue;
+      fs.writeFileSync(path.join(tempDir, `${model}.json`), JSON.stringify(docs));
+    }
+  } catch (e) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    throw e;
   }
   return tempDir;
 }
@@ -247,6 +257,13 @@ async function main() {
   const keyIndex = args.indexOf("--key");
   const remoteKey = keyIndex >= 0 ? args[keyIndex + 1] : undefined;
 
+  if (keyIndex >= 0 && (remoteKey === undefined || remoteKey.startsWith("--"))) {
+    throw new Error("--key requires a checkpoint key, e.g. --key db-backups/20260818-134452.json.gz.enc");
+  }
+  if (args.some((a) => a.startsWith("--") && !["--list", "--confirm", "--key"].includes(a))) {
+    throw new Error("Unknown flag. Use --key <checkpoint> (space-separated), not --key=<checkpoint>.");
+  }
+
   let dir: string;
   let cleanup: (() => void) | undefined;
 
@@ -255,7 +272,7 @@ async function main() {
     cleanup = () => fs.rmSync(dir, { recursive: true, force: true });
   } else {
     const backupsRoot = path.join(process.cwd(), "backups");
-    const positional = args.find((a) => !a.startsWith("--") && a !== remoteKey);
+    const positional = args.find((a) => !a.startsWith("--"));
     dir = positional
       ? path.join(backupsRoot, positional)
       : path.join(
