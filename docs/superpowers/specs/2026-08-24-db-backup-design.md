@@ -46,9 +46,9 @@ currently nothing to recover from.
 | D3 | Storage is Cloudflare R2, one bucket, private, scoped API token | Free tier comfortably covers JSON-dump volumes at this cadence; no egress fees; token scoped to only this bucket so a leaked token can't reach anything else in the Cloudflare account. |
 | D4 | Archive is encrypted (AES-256-GCM, Node's built-in `crypto`) before upload, key held only in GitHub Actions secrets | The dump still contains PII (names, emails, phone numbers, addresses) even after D2's exclusions. Encrypting at the point of creation means a misconfigured bucket or compromised R2 account exposes nothing readable. |
 | D5 | Tiered retention: hourly kept for 7 days, thinned to one-per-day for the next 90, deleted after 90 | Matches the approved granularity requirement while keeping storage roughly flat forever, run as a sweep after every successful upload. |
-| D6 | Restore is a separate script (`scripts/restore-db.ts`), run locally by hand only — never in CI, never scheduled | Restore is destructive by nature (wipes and reloads collections). Keeping it out of any automated path means it only ever happens as a deliberate, attended action. |
-| D7 | Restore requires `--key <checkpoint> --confirm`; without `--confirm` it only prints a before/after row-count diff per collection and writes nothing | Forces a human to see the blast radius (how many rows change) before anything is overwritten — deliberate, visible action over silent scripted writes, for the one case where a script genuinely has to write to the DB directly. |
-| D8 | Per-model dump/restore failures are caught individually and recorded in a `_summary.json` inside the archive, matching the existing script's pattern | A partial backup must be visibly partial, never mistaken for complete; one bad collection shouldn't abort backing up the other 25. |
+| D6 | Restore stays a separate script (`scripts/restore-db.ts`, already exists), run locally by hand only — never in CI, never scheduled. Its existing single-transaction wipe-and-reload (atomic: any failure rolls back everything) is kept as-is, just gated behind D7 | Restore is destructive by nature. Keeping it out of any automated path means it only ever happens as a deliberate, attended action; keeping it atomic means a failure partway through can't leave the database half-restored. |
+| D7 | Restore requires `--confirm` — for both a remote `--key <checkpoint>` and the existing local-directory mode; without it, only a before/after row-count diff per collection is printed and nothing is written | Forces a human to see the blast radius (how many rows change) before anything is overwritten — closes a real gap, since the local-directory mode currently restores immediately with no confirmation at all. |
+| D8 | Per-model dump failures are caught individually and recorded in a `_summary.json` inside the archive, matching the existing script's pattern | A partial backup must be visibly partial, never mistaken for complete; one bad collection shouldn't abort backing up the other 25. Restore is the opposite by design — see D6. |
 
 ## 5. Scope: what gets backed up
 
@@ -85,11 +85,14 @@ unchanged for manual local use):
 
 1. For each model in §5, `findMany()` via Prisma, same per-model try/catch
    as today, writing failures into a summary object instead of aborting.
-2. Zip all model JSON files + `_summary.json` into one archive in memory.
-3. Encrypt the archive (AES-256-GCM, `BACKUP_ENCRYPTION_KEY`).
+2. Bundle every model's rows plus `_summary` into one JSON document, then
+   gzip it (`zlib`) — compressing before encrypting, since encrypted bytes
+   don't compress. No new archive-format dependency; a single gzipped JSON
+   document serves the same purpose as a zip of per-model files.
+3. Encrypt the gzipped bundle (AES-256-GCM, `BACKUP_ENCRYPTION_KEY`).
 4. Upload to R2 (`@aws-sdk/client-s3`, R2's S3-compatible endpoint) as
-   `db-backups/<ISO-timestamp>.zip.enc`, e.g.
-   `db-backups/2026-08-24T14-00-00Z.zip.enc`.
+   `db-backups/<ISO-timestamp>.json.gz.enc`, e.g.
+   `db-backups/2026-08-24T14-00-00Z.json.gz.enc`.
 5. Run the retention sweep (§7) against the bucket listing.
 6. Without `--upload`, behavior is unchanged: writes plaintext JSON to
    `backups/<timestamp>/` locally, as it does today.
@@ -113,15 +116,25 @@ Runs after every successful upload, idempotent (safe to run repeatedly):
 - `--key <key>` (no `--confirm`): downloads and decrypts the archive,
   prints a per-model table of current DB row count vs. archive row count —
   no writes.
-- `--key <key> --confirm`: same diff printed first, then for each model:
-  `deleteMany` + recreate from the archive's JSON, wrapped per-model in
-  try/catch (one failing collection doesn't block the rest), summarized at
-  the end.
+- `--key <key> --confirm`: same diff printed first, then restores through
+  `scripts/restore-db.ts`'s existing single Mongo transaction — every
+  included collection is wiped and reloaded atomically, and any failure
+  partway through rolls the whole thing back rather than leaving some
+  collections restored and others not. This applies to local-directory
+  restores too: `--confirm` is now required there as well (previously it
+  ran immediately), closing the gap where a restore could happen with no
+  human seeing the blast radius first.
 
 ## 9. Error handling
 
-- Per-model dump/restore failure: caught, logged into `_summary.json` (dump)
-  or the end-of-run summary (restore); the run continues.
+- Per-model dump failure: caught, logged into `_summary.json`, the run
+  continues with the remaining models (independent reads, no consistency
+  concern between them).
+- Restore failure (any model, mid-transaction): the whole restore rolls
+  back — deliberately not "continue on a failing model," since collections
+  reference each other (e.g. `Registration` → `Event`) and a partial
+  restore across them would leave the database in a worse, inconsistent
+  state than not restoring at all.
 - R2 upload failure: the Action step fails, the whole workflow run shows
   red, GitHub emails repo watchers by default — no bespoke alerting needed.
 - Retention sweep failure: logged, does not fail the run — a successful
