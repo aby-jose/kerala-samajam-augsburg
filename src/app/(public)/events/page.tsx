@@ -1,6 +1,7 @@
 import { getPageContent } from "@/lib/page-content/actions";
 import type { EventsContentT } from "@/lib/page-content/events";
 import { getUpcomingEvents } from "@/lib/event-actions";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 import { EventsClient } from "./events-client";
 
 export const metadata = {
@@ -25,5 +26,10 @@ export default async function EventsPage() {
     }),
   ]);
 
-  return <EventsClient content={content} events={events} />;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[{ name: "Events" }]} />
+      <EventsClient content={content} events={events} />
+    </>
+  );
 }

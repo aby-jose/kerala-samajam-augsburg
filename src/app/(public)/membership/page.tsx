@@ -2,6 +2,7 @@ import { getActiveMembershipPlans } from "@/lib/membership-actions";
 import { requireFeature } from "@/lib/feature-gate";
 import { getPageContent } from "@/lib/page-content/actions";
 import type { MembershipContentT } from "@/lib/page-content/membership";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 import MembershipClient from "@/components/public/membership-client";
 
 export const metadata = {
@@ -21,5 +22,10 @@ export default async function MembershipPage() {
     getPageContent("membership") as Promise<MembershipContentT>,
   ]);
 
-  return <MembershipClient plans={plans} content={content} />;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[{ name: "Membership" }]} />
+      <MembershipClient plans={plans} content={content} />
+    </>
+  );
 }

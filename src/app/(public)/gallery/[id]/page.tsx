@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/container";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { requireFeature } from "@/lib/feature-gate";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 import AlbumDetailClient from "./album-detail-client";
 
 export const dynamic = "force-dynamic";
@@ -65,5 +66,10 @@ export default async function AlbumDetailPage({ params }: { params: Promise<{ id
     notFound();
   }
 
-  return <AlbumDetailClient album={album} />;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[{ name: "Gallery", url: "/gallery" }, { name: album.title }]} />
+      <AlbumDetailClient album={album} />
+    </>
+  );
 }

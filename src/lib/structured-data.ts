@@ -20,6 +20,46 @@ function isPlaceholder(value: string | undefined | null): boolean {
   return !value || value.includes("{{");
 }
 
+/**
+ * WebSite schema, embedded once in the root layout alongside Organization.
+ * This is one of the signals Google uses to recognise a "brand" query as
+ * navigational — a prerequisite for showing expanded sitelinks under the
+ * result, though it's Google's call, not something this tag can force.
+ */
+export function websiteJsonLd(config: SiteConfig, url: string | undefined) {
+  if (!url) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: isPlaceholder(config.legal.entityName) ? config.siteName : config.legal.entityName,
+    url,
+  };
+}
+
+/**
+ * Breadcrumb trail for one page. `items` runs root-first, e.g.
+ * `[{ name: "Events", url: "/events" }, { name: event.title }]` — the last
+ * entry is the current page and its `url` is optional.
+ */
+export function breadcrumbJsonLd(
+  items: { name: string; url?: string }[],
+  siteUrl: string | undefined
+) {
+  if (!siteUrl || items.length === 0) return null;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      ...(item.url ? { item: `${siteUrl}${item.url}` } : {}),
+    })),
+  };
+}
+
 /** Organization schema, embedded once in the root layout so every page carries it. */
 export function organizationJsonLd(config: SiteConfig, url: string | undefined) {
   const { legal, socials, branding, contactEmail, siteName, siteDescription } = config;
@@ -115,7 +155,7 @@ export function eventJsonLd(event: EventForJsonLd, url: string | undefined, enti
     },
     ...(event.imageUrl ? { image: [event.imageUrl] } : {}),
     ...(url ? { url: `${url}/events/${event.slug}` } : {}),
-    organizer: { "@type": "Organization", name: entityName },
+    organizer: { "@type": "Organization", name: entityName, ...(url ? { url } : {}) },
     ...(lowestPrice.length
       ? {
           offers: {

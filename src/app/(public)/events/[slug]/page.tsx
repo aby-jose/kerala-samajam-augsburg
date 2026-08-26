@@ -5,6 +5,7 @@ import { getEventBySlug } from "@/lib/event-actions";
 import { getConfig } from "@/lib/config-utils";
 import { siteUrl } from "@/lib/site-url";
 import { eventJsonLd } from "@/lib/structured-data";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 import { EventDetailClient } from "./event-detail-client";
 
 /**
@@ -73,6 +74,7 @@ export default async function EventDetailPage({
           ),
         }}
       />
+      <BreadcrumbJsonLd items={[{ name: "Events", url: "/events" }, { name: event.title }]} />
       <EventDetailClient event={event} />
     </>
   );

@@ -1,6 +1,7 @@
 import { AboutPageClient } from "@/components/layout/about-page-client";
 import { getAboutContent } from "@/lib/about-actions";
 import { getUpcomingEvents } from "@/lib/event-actions";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 
 export const metadata = {
   title: "About Us | Kerala Samajam Augsburg (KSA)",
@@ -21,5 +22,10 @@ export default async function AboutPage() {
     }),
   ]);
 
-  return <AboutPageClient content={content} events={events} />;
+  return (
+    <>
+      <BreadcrumbJsonLd items={[{ name: "About" }]} />
+      <AboutPageClient content={content} events={events} />
+    </>
+  );
 }

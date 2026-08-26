@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireFeature } from "@/lib/feature-gate";
 import { getPageContent } from "@/lib/page-content/actions";
 import type { GalleryContentT } from "@/lib/page-content/gallery";
+import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
 import GalleryLandingClient from "./gallery-landing-client";
 
 export const metadata = {
@@ -52,6 +53,7 @@ export default async function GalleryPage() {
 
   return (
     <main className="min-h-screen flex flex-col bg-background selection:bg-primary/5">
+      <BreadcrumbJsonLd items={[{ name: "Gallery" }]} />
       <GalleryLandingClient albums={items} photoCount={photoCount} content={content} />
     </main>
   );

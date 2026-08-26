@@ -8,7 +8,7 @@ import { Footer } from "@/components/layout/footer";
 import { getConfig } from "@/lib/config-utils";
 import { hexToHsl } from "@/lib/color-utils";
 import { siteUrl } from "@/lib/site-url";
-import { organizationJsonLd } from "@/lib/structured-data";
+import { organizationJsonLd, websiteJsonLd } from "@/lib/structured-data";
 
 const manrope = Manrope({
   subsets: ["latin"],
@@ -100,6 +100,7 @@ export default async function RootLayout({
   const brandVars = primaryHsl
     ? ({ "--primary": primaryHsl, "--ring": primaryHsl } as React.CSSProperties)
     : undefined;
+  const website = websiteJsonLd(config, siteUrl());
 
   return (
     <html lang="en" style={brandVars} suppressHydrationWarning>
@@ -115,6 +116,12 @@ export default async function RootLayout({
             __html: JSON.stringify(organizationJsonLd(config, siteUrl())),
           }}
         />
+        {website && (
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(website) }}
+          />
+        )}
         <Providers>
           {children}
         </Providers>
