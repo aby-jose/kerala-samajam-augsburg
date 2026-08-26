@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Loader2 } from "lucide-react";
 
 import { useToast } from "@/components/ui/toast";
@@ -32,6 +33,7 @@ export function ProfileCard({
   image: string | null;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photo, setPhoto] = useState(image);
   const [preview, setPreview] = useState<string | null>(null);
@@ -56,6 +58,11 @@ export function ProfileCard({
       } else if (result.url) {
         setPhoto(result.url);
         toast.success("Profile photo updated.");
+        // This card's own preview already shows the new photo via local
+        // state above — this is for everything else that reads the photo
+        // off the server (the topbar in layout.tsx), which otherwise
+        // wouldn't see it until the next full navigation.
+        router.refresh();
       }
     } catch {
       toast.error("Something went wrong uploading that photo. Please try again.");

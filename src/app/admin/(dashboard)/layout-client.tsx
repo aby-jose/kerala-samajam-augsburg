@@ -47,17 +47,28 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+type TopbarUser = {
+  name: string | null;
+  email: string;
+  image: string | null;
+  roleName: string;
+} | null;
+
 export default function AdminLayoutClient({
   children,
   allowedPermissions,
+  user,
 }: {
   children: React.ReactNode;
   allowedPermissions: Permission[];
+  user: TopbarUser;
 }) {
   return (
     <ConfirmDialogProvider>
       <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
-      <AdminContent allowedPermissions={allowedPermissions}>{children}</AdminContent>
+      <AdminContent allowedPermissions={allowedPermissions} user={user}>
+        {children}
+      </AdminContent>
     </ConfirmDialogProvider>
   );
 }
@@ -235,9 +246,11 @@ const BREADCRUMB_LABELS: Record<string, string> = {
 function AdminContent({
   children,
   allowedPermissions,
+  user,
 }: {
   children: React.ReactNode;
   allowedPermissions: Permission[];
+  user: TopbarUser;
 }) {
   const config = useConfig();
   const { data: session, status } = useSession();
@@ -304,8 +317,14 @@ function AdminContent({
     .filter((segment) => BREADCRUMB_LABELS[segment])
     .map((segment) => BREADCRUMB_LABELS[segment]);
 
-  const userName = session.user?.name || "Administrator";
-  const userEmail = session.user?.email || "";
+  // Sourced from the server-fetched `user` prop, not `useSession()` — the
+  // client session never carried `image`/`roleName` at all, and its
+  // `name`/`email` only change on a fresh sign-in. `useSession()` above is
+  // still what drives the loading/redirect gate.
+  const userName = user?.name || "Administrator";
+  const userEmail = user?.email || "";
+  const userImage = user?.image || null;
+  const userRole = user?.roleName || "";
   const initials = userName
     .split(" ")
     .map((part) => part[0])
@@ -436,23 +455,40 @@ function AdminContent({
           </nav>
 
           <div className="ml-auto flex items-center gap-2.5">
+            <div className="hidden min-w-0 text-right sm:block">
+              <p className="truncate text-sm font-semibold leading-tight text-foreground">{userName}</p>
+              {userRole && (
+                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {userRole}
+                </p>
+              )}
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary/60 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/40 ring-2 ring-transparent transition-all hover:ring-primary/40"
+                  className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-primary to-primary/60 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/40 ring-2 ring-transparent transition-all hover:ring-primary/40"
                   aria-label="Account menu"
                 >
-                  {initials || "A"}
+                  {userImage ? (
+                    <img src={userImage} alt="" className="h-full w-full object-cover" />
+                  ) : (
+                    initials || "A"
+                  )}
                   <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-black" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 rounded-2xl p-1.5">
                 <div className="flex items-center gap-3 rounded-xl p-2.5">
-                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/40">
-                    {initials || "A"}
+                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/40">
+                    {userImage ? (
+                      <img src={userImage} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      initials || "A"
+                    )}
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
+                    {userRole && <p className="truncate text-xs text-muted-foreground">{userRole}</p>}
                     {userEmail && <p className="truncate text-xs text-muted-foreground">{userEmail}</p>}
                   </div>
                 </div>

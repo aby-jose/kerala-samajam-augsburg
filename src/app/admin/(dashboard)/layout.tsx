@@ -21,8 +21,17 @@ export default async function AdminLayout({
   const ctx = await getStaffContext();
   const allowedPermissions = ctx ? [...ctx.permissions] : [];
 
+  // Read fresh off the database, same as the account page itself — not off
+  // the client-side session, which never carried `image`/`roleName` and only
+  // refreshes its `name`/`email` when the JWT itself is reissued. Sourcing
+  // both from here means a photo (or name) update shows up in the topbar as
+  // soon as the layout re-renders, instead of waiting on a fresh sign-in.
+  const user = ctx
+    ? { name: ctx.name, email: ctx.email, image: ctx.image, roleName: ctx.roleName }
+    : null;
+
   return (
-    <AdminLayoutClient allowedPermissions={allowedPermissions}>
+    <AdminLayoutClient allowedPermissions={allowedPermissions} user={user}>
       {children}
     </AdminLayoutClient>
   );
