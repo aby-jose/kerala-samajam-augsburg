@@ -139,7 +139,17 @@ function findInvalidTokens(content: LegalContent, knownKeys: Set<string>): strin
   return [...found];
 }
 
-export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
+export function LegalEditorClient({
+  slug,
+  canEdit,
+  canPublish,
+}: {
+  slug: LegalSlug;
+  /** Can save drafts and change the text. Without it, every field is read-only. */
+  canEdit: boolean;
+  /** Can publish a new version and take the page online/offline. */
+  canPublish: boolean;
+}) {
   const { success, error: toastError } = useToast();
   const confirm = useConfirm();
   const meta = LEGAL_DOCS[slug];
@@ -456,48 +466,65 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
           <Eye className="mr-2 h-4 w-4" />
           {showPreview ? "Hide preview" : "Preview"}
         </Button>
-        <Button
-          variant="outline"
-          onClick={handleSaveDraft}
-          disabled={isSaving || !isDirty || invalidTokens.length > 0}
-          title={
-            invalidTokens.length > 0
-              ? `Fix or remove ${invalidTokens.join(", ")} before saving`
-              : undefined
-          }
-          className="h-9 rounded-lg"
-        >
-          {isSaving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save draft
-        </Button>
-        <Button
-          variant="outline"
-          onClick={handleTogglePublished}
-          disabled={isTogglingPublish}
-          className="h-9 rounded-lg"
-        >
-          {isTogglingPublish ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : isPublished ? (
-            <EyeOff className="mr-2 h-4 w-4" />
-          ) : (
-            <Globe className="mr-2 h-4 w-4" />
-          )}
-          {isPublished ? "Take offline" : "Put online"}
-        </Button>
-        <Button
-          onClick={() => setPublishOpen(true)}
-          disabled={isSaving || unresolved.length > 0}
-          className="h-9 rounded-lg"
-        >
-          <Send className="mr-2 h-4 w-4" />
-          Publish v{version + 1}
-        </Button>
+        {canEdit && (
+          <Button
+            variant="outline"
+            onClick={handleSaveDraft}
+            disabled={isSaving || !isDirty || invalidTokens.length > 0}
+            title={
+              invalidTokens.length > 0
+                ? `Fix or remove ${invalidTokens.join(", ")} before saving`
+                : undefined
+            }
+            className="h-9 rounded-lg"
+          >
+            {isSaving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save draft
+          </Button>
+        )}
+        {canPublish && (
+          <Button
+            variant="outline"
+            onClick={handleTogglePublished}
+            disabled={isTogglingPublish}
+            className="h-9 rounded-lg"
+          >
+            {isTogglingPublish ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : isPublished ? (
+              <EyeOff className="mr-2 h-4 w-4" />
+            ) : (
+              <Globe className="mr-2 h-4 w-4" />
+            )}
+            {isPublished ? "Take offline" : "Put online"}
+          </Button>
+        )}
+        {canPublish && (
+          <Button
+            onClick={() => setPublishOpen(true)}
+            disabled={isSaving || unresolved.length > 0}
+            className="h-9 rounded-lg"
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Publish v{version + 1}
+          </Button>
+        )}
       </PageHeader>
+
+      {!canEdit && (
+        <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/40 p-4">
+          <Eye className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground">
+            You have view-only access to this document. Fields below are read-only —
+            ask an admin to grant <code className="rounded bg-muted px-1 py-0.5 font-mono">legal.edit</code>{" "}
+            on your role if you need to make changes.
+          </p>
+        </div>
+      )}
 
       {/* Status strip */}
       <div className="flex flex-wrap items-center gap-2">
@@ -637,6 +664,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                 <Input
                   value={current.title}
                   onChange={(e) => update((d) => ({ ...d, title: e.target.value }))}
+                  readOnly={!canEdit}
                   className="h-9 rounded-lg"
                 />
               </div>
@@ -645,6 +673,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                 <textarea
                   value={current.lead}
                   onChange={(e) => update((d) => ({ ...d, lead: e.target.value }))}
+                  readOnly={!canEdit}
                   rows={2}
                   className={cn(textareaClass, "font-sans")}
                 />
@@ -675,29 +704,31 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                   </span>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-1">
-                  <IconButton
-                    onClick={() => moveSection(index, -1)}
-                    disabled={index === 0}
-                    label="Move up"
-                  >
-                    <ChevronUp className="h-3.5 w-3.5" />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => moveSection(index, 1)}
-                    disabled={index === current.sections.length - 1}
-                    label="Move down"
-                  >
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  </IconButton>
-                  <IconButton
-                    onClick={() => removeSection(index)}
-                    label="Remove section"
-                    destructive
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </IconButton>
-                </div>
+                {canEdit && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <IconButton
+                      onClick={() => moveSection(index, -1)}
+                      disabled={index === 0}
+                      label="Move up"
+                    >
+                      <ChevronUp className="h-3.5 w-3.5" />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => moveSection(index, 1)}
+                      disabled={index === current.sections.length - 1}
+                      label="Move down"
+                    >
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </IconButton>
+                    <IconButton
+                      onClick={() => removeSection(index)}
+                      label="Remove section"
+                      destructive
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </IconButton>
+                  </div>
+                )}
               </header>
 
               <div className="space-y-4 p-5">
@@ -716,6 +747,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                             : section.id,
                         })
                       }
+                      readOnly={!canEdit}
                       className="h-9 rounded-lg"
                     />
                   </div>
@@ -725,6 +757,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                       <Input
                         value={section.id}
                         onChange={(e) => updateSection(index, { id: e.target.value })}
+                        readOnly={!canEdit}
                         className="h-9 rounded-lg font-mono text-xs"
                       />
                     </div>
@@ -734,26 +767,28 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label className="text-sm font-medium">Body</Label>
-                    <select
-                      defaultValue=""
-                      onChange={(e) => {
-                        const token = e.target.value;
-                        if (token) insertPlaceholder(index, token);
-                        e.target.value = "";
-                      }}
-                      className="h-8 max-w-[13rem] rounded-md border border-input bg-background px-2 text-xs text-muted-foreground outline-none focus-visible:border-ring"
-                    >
-                      <option value="">+ Insert a detail…</option>
-                      {PLACEHOLDER_GROUPS.map((group) => (
-                        <optgroup key={group.label} label={group.label}>
-                          {group.options.map((opt) => (
-                            <option key={opt.token} value={opt.token}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
+                    {canEdit && (
+                      <select
+                        defaultValue=""
+                        onChange={(e) => {
+                          const token = e.target.value;
+                          if (token) insertPlaceholder(index, token);
+                          e.target.value = "";
+                        }}
+                        className="h-8 max-w-[13rem] rounded-md border border-input bg-background px-2 text-xs text-muted-foreground outline-none focus-visible:border-ring"
+                      >
+                        <option value="">+ Insert a detail…</option>
+                        {PLACEHOLDER_GROUPS.map((group) => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.options.map((opt) => (
+                              <option key={opt.token} value={opt.token}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <textarea
                     ref={(el) => {
@@ -761,6 +796,7 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
                     }}
                     value={section.body}
                     onChange={(e) => updateSection(index, { body: e.target.value })}
+                    readOnly={!canEdit}
                     rows={10}
                     className={textareaClass}
                   />
@@ -791,14 +827,16 @@ export function LegalEditorClient({ slug }: { slug: LegalSlug }) {
             );
           })}
 
-          <Button
-            variant="outline"
-            onClick={addSection}
-            className="h-10 w-full rounded-lg border-dashed"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add section
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              onClick={addSection}
+              className="h-10 w-full rounded-lg border-dashed"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add section
+            </Button>
+          )}
         </div>
 
         {/* Preview */}
