@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   MapPin,
   PartyPopper,
+  type LucideIcon,
 } from "lucide-react";
 import { getAdminDashboardStats } from "@/lib/event-actions";
 import { formatDistanceToNow, format, differenceInCalendarDays } from "date-fns";
@@ -62,7 +63,7 @@ export default function DashboardClient() {
   const totalAttention = stats.attention.reduce((acc: number, item: any) => acc + item.count, 0);
 
   const statCards = [
-    {
+    stats.canViewRegistrations && {
       label: "Total registrations",
       value: stats.totalRegistrations.toString(),
       icon: Users,
@@ -71,7 +72,7 @@ export default function DashboardClient() {
       deltaDirection: stats.regTrend != null && stats.regTrend < 0 ? "down" as const : "up" as const,
       hint: stats.regTrend == null ? "no prior month to compare" : "vs. last month",
     },
-    {
+    stats.canViewPayments && {
       label: "Revenue collected",
       value: `€${stats.totalRevenue.toLocaleString()}`,
       icon: Wallet,
@@ -80,21 +81,31 @@ export default function DashboardClient() {
       deltaDirection: stats.revTrend != null && stats.revTrend < 0 ? "down" as const : "up" as const,
       hint: stats.revTrend == null ? "no prior month to compare" : "vs. last month",
     },
-    {
+    stats.canViewEvents && {
       label: "Upcoming events",
       value: stats.upcomingEvents.toString(),
       icon: Calendar,
       tone: "violet" as const,
       hint: "currently scheduled",
     },
-    {
+    stats.canViewRegistrations && {
       label: "Check-ins",
       value: stats.checkedInCount.toString(),
       icon: CheckCircle2,
       tone: "emerald" as const,
       hint: stats.checkInRate == null ? "no registrations yet" : `${stats.checkInRate}% of registrations`,
     },
-  ];
+  ].filter(Boolean) as Array<{
+    label: string;
+    value: string;
+    icon: LucideIcon;
+    tone: "primary" | "amber" | "violet" | "emerald";
+    delta?: string;
+    deltaDirection?: "up" | "down";
+    hint: string;
+  }>;
+
+  const hasAnySection = statCards.length > 0 || stats.canViewAttention || stats.canViewEvents || stats.canViewRegistrations;
 
   return (
     <div className="space-y-6">
@@ -103,23 +114,37 @@ export default function DashboardClient() {
         description="Overview of registrations, events and what needs your attention."
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <StatCard
-            key={stat.label}
-            label={stat.label}
-            value={stat.value}
-            icon={stat.icon}
-            tone={stat.tone}
-            delta={stat.delta}
-            deltaDirection={stat.deltaDirection}
-            hint={stat.hint}
+      {!hasAnySection && (
+        <div className={cardSurface}>
+          <EmptyState
+            icon={PartyPopper}
+            title="Nothing to show here"
+            description="Your role doesn't include any dashboard widgets yet."
+            className="py-10"
           />
-        ))}
-      </div>
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {statCards.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {statCards.map((stat) => (
+            <StatCard
+              key={stat.label}
+              label={stat.label}
+              value={stat.value}
+              icon={stat.icon}
+              tone={stat.tone}
+              delta={stat.delta}
+              deltaDirection={stat.deltaDirection}
+              hint={stat.hint}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className={cn("grid grid-cols-1 gap-5", stats.canViewAttention && stats.canViewEvents && "lg:grid-cols-2")}>
         {/* Needs attention */}
+        {stats.canViewAttention && (
         <section className={cardSurface}>
           <header className={panelHeader}>
             <div>
@@ -173,13 +198,17 @@ export default function DashboardClient() {
             </div>
           )}
         </section>
+        )}
 
         {/* Upcoming events */}
+        {stats.canViewEvents && (
         <section className={cardSurface}>
           <header className={panelHeader}>
             <div>
               <h2 className="font-sans text-sm font-semibold text-foreground">Upcoming events</h2>
-              <p className="text-xs text-muted-foreground">Next on the calendar, with registrations against capacity</p>
+              <p className="text-xs text-muted-foreground">
+                {stats.canViewRegistrations ? "Next on the calendar, with registrations against capacity" : "Next on the calendar"}
+              </p>
             </div>
             <Link
               href="/admin/events"
@@ -219,17 +248,19 @@ export default function DashboardClient() {
                           {event.location}
                         </p>
                       )}
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-all duration-500"
-                            style={{ width: `${progress ?? 0}%` }}
-                          />
+                      {event.registrations != null && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full rounded-full bg-linear-to-r from-primary/70 to-primary transition-all duration-500"
+                              style={{ width: `${progress ?? 0}%` }}
+                            />
+                          </div>
+                          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                            {event.registrations}{event.maxAttendees ? `/${event.maxAttendees}` : ""}
+                          </span>
                         </div>
-                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                          {event.registrations}{event.maxAttendees ? `/${event.maxAttendees}` : ""}
-                        </span>
-                      </div>
+                      )}
                     </div>
                   </div>
                 </Link>
@@ -246,9 +277,11 @@ export default function DashboardClient() {
             )}
           </div>
         </section>
+        )}
       </div>
 
       {/* Recent registrations */}
+      {stats.canViewRegistrations && (
       <section className={cardSurface}>
         <header className={panelHeader}>
           <div>
@@ -295,6 +328,7 @@ export default function DashboardClient() {
           )}
         </div>
       </section>
+      )}
     </div>
   );
 }

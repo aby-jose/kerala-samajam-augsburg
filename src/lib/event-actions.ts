@@ -1001,8 +1001,23 @@ export async function deleteRegistration(id: string, reason?: string) {
   return { success: true };
 }
 
+/**
+ * `dashboard.view` only unlocks the page itself — it says nothing about what
+ * a given caller is allowed to see on it. Every widget here is gated by the
+ * same permission its own section uses (registrations, payments, events,
+ * membership, inquiries, gallery contributions), so a role like Content
+ * Editor — which holds `dashboard.view` but none of those — gets a dashboard
+ * scoped to what it can actually open, not a preview of everyone else's data.
+ */
 export async function getAdminDashboardStats() {
-  await requirePermission("dashboard.view");
+  const ctx = await requirePermission("dashboard.view");
+
+  const canRegistrations = ctx.has("registrations.view");
+  const canPayments = ctx.has("payments.view");
+  const canEvents = ctx.has("events.view");
+  const canMembership = ctx.has("membership.applications.view");
+  const canInquiries = ctx.has("inquiries.view");
+  const canContributions = ctx.has("gallery.contributions.view");
 
   const now = new Date();
   const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
@@ -1021,76 +1036,75 @@ export async function getAdminDashboardStats() {
     pendingContributions,
     upcomingEvents,
   ] = await Promise.all([
-    prisma.registration.count(),
-    prisma.registration.count({ where: { createdAt: { lt: monthAgo } } }),
-    prisma.event.count({ where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } } }),
-    getCollectedRevenue(),
-    getCollectedRevenue(monthAgo),
-    prisma.registration.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      include: { event: { select: { title: true } } }
-    }),
-    prisma.registration.count({ where: { isCheckedIn: true } }),
-    prisma.registration.count({ where: { paymentStatus: "PENDING" } }),
-    prisma.subscription.count({ where: { status: { in: PENDING_STATUSES } } }),
-    prisma.contactMessage.count({ where: { status: "UNREAD" } }),
-    prisma.mediaContribution.count({ where: { status: "PENDING" } }),
-    prisma.event.findMany({
-      take: 4,
-      where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } },
-      include: { _count: { select: { registrations: true } } },
-      orderBy: { date: 'asc' }
-    }),
+    canRegistrations ? prisma.registration.count() : Promise.resolve(null),
+    canRegistrations ? prisma.registration.count({ where: { createdAt: { lt: monthAgo } } }) : Promise.resolve(null),
+    canEvents ? prisma.event.count({ where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } } }) : Promise.resolve(null),
+    canPayments ? getCollectedRevenue() : Promise.resolve(null),
+    canPayments ? getCollectedRevenue(monthAgo) : Promise.resolve(null),
+    canRegistrations
+      ? prisma.registration.findMany({
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          include: { event: { select: { title: true } } }
+        })
+      : Promise.resolve([]),
+    canRegistrations ? prisma.registration.count({ where: { isCheckedIn: true } }) : Promise.resolve(null),
+    canPayments ? prisma.registration.count({ where: { paymentStatus: "PENDING" } }) : Promise.resolve(0),
+    canMembership ? prisma.subscription.count({ where: { status: { in: PENDING_STATUSES } } }) : Promise.resolve(0),
+    canInquiries ? prisma.contactMessage.count({ where: { status: "UNREAD" } }) : Promise.resolve(0),
+    canContributions ? prisma.mediaContribution.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
+    canEvents
+      ? prisma.event.findMany({
+          take: 4,
+          where: { date: { gte: now }, isPublished: true, status: { not: "CANCELLED" } },
+          include: { _count: { select: { registrations: true } } },
+          orderBy: { date: 'asc' }
+        })
+      : Promise.resolve([]),
   ]);
 
+  // Items that need an admin to actually do something, surfaced up front
+  // instead of only discoverable by visiting each section in turn — but only
+  // the ones this caller could open anyway.
+  const attentionCandidates: Array<{
+    key: string;
+    label: string;
+    count: number;
+    href: string;
+    tone: "amber" | "violet" | "blue" | "emerald";
+    visible: boolean;
+  }> = [
+    { key: "payments", label: "Payments awaiting confirmation", count: pendingPayments, href: "/admin/payments", tone: "amber", visible: canPayments },
+    { key: "membership", label: "Membership applications pending", count: pendingMembership, href: "/admin/membership/applications", tone: "violet", visible: canMembership },
+    { key: "inquiries", label: "Unread inquiries", count: unreadInquiries, href: "/admin/inquiries", tone: "blue", visible: canInquiries },
+    { key: "contributions", label: "Gallery photos awaiting review", count: pendingContributions, href: "/admin/gallery/contributions", tone: "emerald", visible: canContributions },
+  ];
+  const attention = attentionCandidates
+    .filter((item) => item.visible)
+    .map(({ key, label, count, href, tone }) => ({ key, label, count, href, tone }));
+
   return {
+    canViewRegistrations: canRegistrations,
+    canViewPayments: canPayments,
+    canViewEvents: canEvents,
+    canViewAttention: canPayments || canMembership || canInquiries || canContributions,
     totalRegistrations,
-    regTrend: percentChange(totalRegistrations, priorRegistrations),
+    // Non-null assertions below are safe: these values are only null when
+    // the matching `can*` flag is false, in which case the branch is dead.
+    regTrend: canRegistrations ? percentChange(totalRegistrations!, priorRegistrations!) : null,
     upcomingEvents: upcomingEventsCount,
     totalRevenue,
-    revTrend: percentChange(totalRevenue, priorRevenue),
+    revTrend: canPayments ? percentChange(totalRevenue!, priorRevenue!) : null,
     recentRegistrations,
     checkedInCount,
-    checkInRate: totalRegistrations > 0 ? Math.round((checkedInCount / totalRegistrations) * 100) : null,
-    // Items that need an admin to actually do something, surfaced up front
-    // instead of only discoverable by visiting each section in turn.
-    attention: [
-      {
-        key: "payments",
-        label: "Payments awaiting confirmation",
-        count: pendingPayments,
-        href: "/admin/payments",
-        tone: "amber" as const,
-      },
-      {
-        key: "membership",
-        label: "Membership applications pending",
-        count: pendingMembership,
-        href: "/admin/membership/applications",
-        tone: "violet" as const,
-      },
-      {
-        key: "inquiries",
-        label: "Unread inquiries",
-        count: unreadInquiries,
-        href: "/admin/inquiries",
-        tone: "blue" as const,
-      },
-      {
-        key: "contributions",
-        label: "Gallery photos awaiting review",
-        count: pendingContributions,
-        href: "/admin/gallery/contributions",
-        tone: "emerald" as const,
-      },
-    ],
+    checkInRate: canRegistrations && totalRegistrations! > 0 ? Math.round((checkedInCount! / totalRegistrations!) * 100) : null,
+    attention,
     upcomingEventsList: upcomingEvents.map(e => ({
       id: e.id,
       title: e.title,
       date: e.date,
       location: e.location,
-      registrations: e._count.registrations,
+      registrations: canRegistrations ? e._count.registrations : null,
       maxAttendees: e.maxAttendees,
     })),
   };
