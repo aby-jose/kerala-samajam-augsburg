@@ -11,13 +11,14 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { EmptyState } from "@/components/admin/ui/empty-state";
+import { InfoPopover } from "@/components/admin/ui/info-popover";
 import { cardSurface, panelHeader } from "@/components/admin/ui/surface";
 import { cn, getErrorMessage } from "@/lib/utils";
 import { deleteRole, upsertRole, type RoleSummary } from "@/lib/role-actions";
 
 interface PermissionGroupView {
   group: string;
-  permissions: { key: string; label: string; mutates: boolean }[];
+  permissions: { key: string; label: string; mutates: boolean; description: string }[];
 }
 
 /**
@@ -246,19 +247,26 @@ export function RolesClient({
                       {g.permissions.map((p) => (
                         <label
                           key={p.key}
-                          className={cn(
-                            "flex items-center gap-2.5 rounded-lg border border-border p-2.5 text-sm text-foreground",
-                            (!canEdit || isSuperAdmin) && "opacity-70"
-                          )}
+                          className="flex items-center gap-2.5 rounded-lg border border-border p-2.5 text-sm text-foreground"
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSuperAdmin || permissions.has(p.key)}
-                            disabled={!canEdit || isSuperAdmin}
-                            onChange={() => togglePermission(p.key)}
-                            className="h-4 w-4 rounded border-border"
-                          />
-                          <span className="truncate">{p.label}</span>
+                          <span
+                            className={cn(
+                              "flex min-w-0 flex-1 items-center gap-2.5",
+                              (!canEdit || isSuperAdmin) && "opacity-70"
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSuperAdmin || permissions.has(p.key)}
+                              disabled={!canEdit || isSuperAdmin}
+                              onChange={() => togglePermission(p.key)}
+                              className="h-4 w-4 shrink-0 rounded border-border"
+                            />
+                            <span className="min-w-0 truncate">{p.label}</span>
+                          </span>
+                          {/* Outside the opacity-70 span above so the info button and its
+                              popover stay fully legible even on disabled/Super Admin rows. */}
+                          <InfoPopover text={p.description} />
                         </label>
                       ))}
                     </div>

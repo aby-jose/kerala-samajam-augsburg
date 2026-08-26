@@ -29,6 +29,7 @@ import {
   PanelLeftClose,
   PanelLeft,
   ChevronRight,
+  ChevronDown,
   X,
   UserCircle,
 } from "lucide-react";
@@ -454,32 +455,40 @@ function AdminContent({
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2.5">
-            <div className="hidden min-w-0 text-right sm:block">
-              <p className="truncate text-sm font-semibold leading-tight text-foreground">{userName}</p>
-              {userRole && (
-                <p className="truncate text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {userRole}
-                </p>
-              )}
-            </div>
+          <div className="ml-auto">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-primary to-primary/60 text-xs font-bold text-primary-foreground shadow-sm shadow-primary/40 ring-2 ring-transparent transition-all hover:ring-primary/40"
+                  className="group flex items-center gap-3 rounded-full py-1 pl-1 pr-2.5 transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
                   aria-label="Account menu"
                 >
-                  {userImage ? (
-                    <img src={userImage} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    initials || "A"
-                  )}
-                  <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-black" />
+                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full">
+                    <span className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      {userImage ? (
+                        <img src={userImage} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        initials || "A"
+                      )}
+                    </span>
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500 dark:border-black" />
+                  </span>
+                  <span className="hidden min-w-0 text-left sm:block">
+                    <span className="block truncate text-sm font-semibold leading-tight text-foreground">{userName}</span>
+                    {userRole && (
+                      <span className="mt-1 flex items-center gap-1.5 truncate text-xs font-medium text-muted-foreground">
+                        {userRole !== "Super Admin" && (
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                        )}
+                        {userRole}
+                      </span>
+                    )}
+                  </span>
+                  <ChevronDown className="hidden h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 sm:block" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 rounded-2xl p-1.5">
                 <div className="flex items-center gap-3 rounded-xl p-2.5">
-                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-primary to-primary/60 text-sm font-bold text-primary-foreground shadow-sm shadow-primary/40">
+                  <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-sm font-bold text-primary-foreground">
                     {userImage ? (
                       <img src={userImage} alt="" className="h-full w-full object-cover" />
                     ) : (
@@ -488,7 +497,14 @@ function AdminContent({
                   </span>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{userName}</p>
-                    {userRole && <p className="truncate text-xs text-muted-foreground">{userRole}</p>}
+                    {userRole && (
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs font-medium text-muted-foreground">
+                        {userRole !== "Super Admin" && (
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-green-500" />
+                        )}
+                        {userRole}
+                      </p>
+                    )}
                     {userEmail && <p className="truncate text-xs text-muted-foreground">{userEmail}</p>}
                   </div>
                 </div>

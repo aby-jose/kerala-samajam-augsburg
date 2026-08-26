@@ -15,7 +15,7 @@ export default async function RolesPage() {
     group,
     permissions: Object.entries(PERMISSIONS)
       .filter(([, meta]) => meta.group === group)
-      .map(([key, meta]) => ({ key, label: meta.label, mutates: meta.mutates })),
+      .map(([key, meta]) => ({ key, label: meta.label, mutates: meta.mutates, description: meta.description })),
   })).filter((g) => g.permissions.length > 0);
 
   return <RolesClient roles={roles} groups={groups} canEdit={ctx.has("roles.edit")} />;
