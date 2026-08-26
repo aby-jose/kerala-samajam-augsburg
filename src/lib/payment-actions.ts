@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "./guards";
 import { displayStatus, isPaymentMethod, type PaymentMethod } from "./membership-term";
 import { sendMail, templates } from "./email";
+import { attachSubscriptionUsers } from "./subscription-users";
 
 /**
  * The admin payments ledger.
@@ -43,12 +44,9 @@ export type PaymentRecord = {
 export async function getAllPayments(): Promise<PaymentRecord[]> {
   await requirePermission("payments.view");
 
-  const [subscriptions, registrations] = await Promise.all([
+  const [rawSubscriptions, registrations] = await Promise.all([
     prisma.subscription.findMany({
-      include: {
-        user: { select: { name: true, email: true } },
-        plan: { select: { name: true, price: true } }
-      },
+      include: { plan: { select: { name: true, price: true } } },
       orderBy: { createdAt: "desc" }
     }),
     prisma.registration.findMany({
@@ -58,6 +56,8 @@ export async function getAllPayments(): Promise<PaymentRecord[]> {
       orderBy: { createdAt: "desc" }
     })
   ]);
+
+  const subscriptions = await attachSubscriptionUsers(rawSubscriptions);
 
   const subPayments: PaymentRecord[] = subscriptions.map(sub => {
     const paid = sub.paymentStatus === "PAID";

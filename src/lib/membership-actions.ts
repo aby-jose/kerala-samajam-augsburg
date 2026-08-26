@@ -17,6 +17,7 @@ import { sendMail, sendMailBatch, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { recordDocumentConsents } from "./consent-recorder";
 import { deleteFromCloudinary } from "./cloudinary";
+import { attachSubscriptionUsers } from "./subscription-users";
 import {
   PAYMENT_METHODS,
   PENDING_STATUSES,
@@ -679,19 +680,13 @@ export async function resetRejectedSubscription(subscriptionId: string) {
 export async function getPendingSubscriptions() {
   await requirePermission("membership.applications.view");
 
-  return await prisma.subscription.findMany({
+  const subs = await prisma.subscription.findMany({
     where: { status: { in: PENDING_STATUSES } },
-    include: {
-      user: {
-        select: {
-          name: true,
-          email: true
-        }
-      },
-      plan: true
-    },
+    include: { plan: true },
     orderBy: { createdAt: "desc" }
   });
+
+  return attachSubscriptionUsers(subs);
 }
 
 /**

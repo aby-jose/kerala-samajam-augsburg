@@ -19,6 +19,7 @@ import { getConfig } from "./config-utils";
 import { sendMailBatch, templates } from "./email";
 import { superAdminEmails } from "./rbac/staff-queries";
 import { paymentDueDate, paymentReferenceFor, SUBSCRIPTION_STATUS } from "./membership-term";
+import { attachSubscriptionUsers } from "./subscription-users";
 
 export interface JobResult {
   job: string;
@@ -201,13 +202,15 @@ export async function runMembershipLifecycle(): Promise<JobResult[]> {
 
     const { start, end } = dayWindow(days);
 
-    const expiring = await prisma.subscription.findMany({
-      where: {
-        status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { gte: start, lt: end },
-      },
-      include: { user: true, plan: true },
-    });
+    const expiring = await attachSubscriptionUsers(
+      await prisma.subscription.findMany({
+        where: {
+          status: SUBSCRIPTION_STATUS.ACTIVE,
+          endDate: { gte: start, lt: end },
+        },
+        include: { plan: true },
+      })
+    );
 
     const outcome = await sendMailBatch(
       expiring
@@ -240,10 +243,12 @@ export async function runMembershipLifecycle(): Promise<JobResult[]> {
   const expiredResult = empty("membership-expired");
   const { start, end } = dayWindow(-1);
 
-  const expired = await prisma.subscription.findMany({
-    where: { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { gte: start, lt: end } },
-    include: { user: true, plan: true },
-  });
+  const expired = await attachSubscriptionUsers(
+    await prisma.subscription.findMany({
+      where: { status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { gte: start, lt: end } },
+      include: { plan: true },
+    })
+  );
 
   // The status correction runs regardless of the toggle below — a term that
   // ran out is expired whether or not anyone is told about it.
@@ -297,10 +302,12 @@ export async function runPaymentReminders(): Promise<JobResult> {
 
   const termDays = config.legal.paymentTermsDays;
 
-  const awaiting = await prisma.subscription.findMany({
-    where: { status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT, paymentStatus: "PENDING" },
-    include: { user: true, plan: true },
-  });
+  const awaiting = await attachSubscriptionUsers(
+    await prisma.subscription.findMany({
+      where: { status: SUBSCRIPTION_STATUS.AWAITING_PAYMENT, paymentStatus: "PENDING" },
+      include: { plan: true },
+    })
+  );
 
   const now = Date.now();
   const due: Array<{ sub: (typeof awaiting)[number]; daysOverdue: number; finalNotice: boolean }> = [];

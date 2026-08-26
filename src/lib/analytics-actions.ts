@@ -159,14 +159,25 @@ async function fetchRecentActivity() {
     prisma.subscription.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
-      include: { user: true, plan: true }
+      include: { plan: true }
     }),
     prisma.mediaContribution.findMany({
       take: 5,
-      orderBy: { createdAt: "desc" },
-      include: { user: true }
+      orderBy: { createdAt: "desc" }
     })
   ]);
+
+  // Subscription/MediaContribution -> User isn't a DB-enforced foreign key
+  // (MongoDB), so `include: { user: true }` throws "Inconsistent query
+  // result" the moment one row's user was ever removed directly in the
+  // database rather than through the app. Look users up separately here so
+  // one orphaned row can't take down the whole "Recent Activity" widget.
+  const userIds = [...new Set([...subscriptions.map(s => s.userId), ...contributions.map(c => c.userId)])];
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+    select: { id: true, name: true }
+  });
+  const userNameById = new Map(users.map(u => [u.id, u.name]));
 
   const activities = [
     ...registrations.map(r => ({
@@ -181,7 +192,7 @@ async function fetchRecentActivity() {
       id: s.id,
       type: "subscription",
       title: "New Membership",
-      description: `${s.user?.name || "A user"} subscribed to ${s.plan.name}`,
+      description: `${userNameById.get(s.userId) || "A user"} subscribed to ${s.plan.name}`,
       time: s.createdAt,
       icon: "CreditCard"
     })),
@@ -189,7 +200,7 @@ async function fetchRecentActivity() {
       id: c.id,
       type: "contribution",
       title: "Media Contribution",
-      description: `${c.user?.name || "A user"} uploaded a new photo`,
+      description: `${userNameById.get(c.userId) || "A user"} uploaded a new photo`,
       time: c.createdAt,
       icon: "Image"
     }))
