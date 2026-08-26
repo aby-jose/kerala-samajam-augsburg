@@ -9,7 +9,6 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  Globe,
   Users,
   GraduationCap,
   User,
@@ -35,7 +34,7 @@ import {
   type MembershipContentT,
   type MembershipSectionId,
 } from "@/lib/page-content/membership";
-import { MEMBERSHIP_ICON_MAP } from "@/lib/page-content/membership-icons";
+import { LucideIcon } from "@/components/icons/lucide-icon";
 import { WhatsAppCta } from "@/components/layout/whatsapp-cta";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -424,15 +423,11 @@ function MembershipBenefitsSection({
              <SectionLead>{content.lead}</SectionLead>
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6">
                 {content.items.slice(0, 4).map((benefit, i) => {
-                  // Falls back rather than crashing: a hand-edited document
-                  // or a future narrowing of MEMBERSHIP_ICONS can produce an
-                  // icon string this map does not recognise.
-                  const Icon = MEMBERSHIP_ICON_MAP[benefit.icon] ?? Globe;
                   return (
                     <div key={i} className="space-y-3">
                        <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                             <Icon className="h-4 w-4 text-primary" />
+                             <LucideIcon name={benefit.icon} className="h-4 w-4 text-primary" />
                           </div>
                           <h4 className="font-sans text-sm font-bold tracking-[-0.01em]">{benefit.title}</h4>
                        </div>

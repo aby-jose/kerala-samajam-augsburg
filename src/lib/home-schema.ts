@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { LUCIDE_ICON_NAMES } from "./icons/lucide-icon-names";
+
 /**
  * The home page as one editable document. `layout` owns order and visibility;
  * `content` owns the words and pictures, keyed by section id so a field path
@@ -20,10 +22,10 @@ export const HOME_SECTION_IDS = [
 
 export type HomeSectionId = (typeof HOME_SECTION_IDS)[number];
 
-/** Curated icon set for the "What we do" pillars, same contract as
- *  ABOUT_ICONS: a named tuple so the admin form offers a dropdown and the
- *  renderer never guesses whether a stored string is a real icon. */
-export const HOME_ICONS = [
+/** The icon picker's quick-pick suggestions for the "What we do" pillars —
+ *  the set this section originally shipped with. Any lucide-react icon is a
+ *  valid choice (see LUCIDE_ICON_NAMES); these are just shown first. */
+export const HOME_ICON_FAVORITES = [
   "Flower2",
   "HeartHandshake",
   "Languages",
@@ -92,7 +94,7 @@ export const aboutSectionSchema = z.object({
   pillars: z
     .array(
       z.object({
-        icon: z.enum(HOME_ICONS),
+        icon: z.enum(LUCIDE_ICON_NAMES),
         title: z.string().min(1, "Required").max(80),
         desc: z.string().min(1, "Required").max(300),
       })

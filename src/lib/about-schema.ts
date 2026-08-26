@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { LUCIDE_ICON_NAMES } from "./icons/lucide-icon-names";
+
 /**
  * The About page as one editable document. `layout` owns order and
  * visibility; `content` owns the words and pictures, keyed by section id so
@@ -11,14 +13,11 @@ export const ABOUT_SECTION_IDS = ["hero", "story", "committee", "closing", "what
 
 export type AboutSectionId = (typeof ABOUT_SECTION_IDS)[number];
 
-/**
- * Curated icon set for the "Where We Come From" cards. Kept small and named
- * (rather than accepting an arbitrary lucide icon string) so the admin form
- * can offer a plain dropdown and the public renderer never has to guess
- * whether a stored string is actually a valid icon — see lib/about-icons.ts
- * for the name -> component map shared by both.
- */
-export const ABOUT_ICONS = [
+/** The icon picker's quick-pick suggestions for the "Where We Come From"
+ *  cards — the set this section originally shipped with. Any lucide-react
+ *  icon is a valid choice (see LUCIDE_ICON_NAMES); these are just shown
+ *  first. */
+export const ABOUT_ICON_FAVORITES = [
   "History",
   "Target",
   "Heart",
@@ -30,7 +29,7 @@ export const ABOUT_ICONS = [
 ] as const;
 
 export const aboutCardSchema = z.object({
-  icon: z.enum(ABOUT_ICONS),
+  icon: z.enum(LUCIDE_ICON_NAMES),
   title: z.string().min(1, "Title is required").max(80),
   description: z.string().min(1, "Description is required").max(300),
 });

@@ -14,7 +14,7 @@ import {
   SectionTitle,
 } from "@/components/layout/section-heading";
 import { withAccent } from "@/components/layout/with-accent";
-import { ABOUT_ICON_MAP } from "@/lib/about-icons";
+import { LucideIcon } from "@/components/icons/lucide-icon";
 import { resolveSections } from "@/lib/page-layout";
 import { ABOUT_SECTION_META } from "@/lib/about-sections";
 import { DEFAULT_ABOUT_CONTENT, type AboutContentT, type AboutSectionId } from "@/lib/about-schema";
@@ -122,7 +122,6 @@ function AboutStorySection({
           viewport={{ once: true, margin: "-100px" }}
         >
           {content.cards.map((item, idx) => {
-            const Icon = ABOUT_ICON_MAP[item.icon];
             return (
               <motion.div
                 key={idx}
@@ -130,7 +129,7 @@ function AboutStorySection({
                 className="group bg-surface-2 p-7 transition-colors duration-300 hover:bg-muted/40 md:p-9"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface-1 text-primary transition-colors duration-300 group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-                  <Icon className="h-5 w-5" strokeWidth={1.6} />
+                  <LucideIcon name={item.icon} className="h-5 w-5" strokeWidth={1.6} />
                 </span>
                 <h3 className="mt-6 font-sans text-lg font-bold tracking-[-0.02em] text-foreground">{item.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.description}</p>

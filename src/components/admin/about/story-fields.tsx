@@ -1,13 +1,14 @@
 "use client";
 
-import { useFieldArray, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
+import { Controller, useFieldArray, type Control, type FieldErrors, type UseFormRegister } from "react-hook-form";
 import { MoveDown, MoveUp, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/admin/ui/field";
-import { ABOUT_ICONS, type AboutContentT } from "@/lib/about-schema";
+import { IconPicker } from "@/components/admin/ui/icon-picker";
+import { ABOUT_ICON_FAVORITES, type AboutContentT } from "@/lib/about-schema";
 
 /** The "Where We Come From" section's fields: heading and up to 6 cards. */
 export function AboutStoryFields({
@@ -64,16 +65,13 @@ export function AboutStoryFields({
             className="grid grid-cols-1 gap-4 py-5 first:pt-0 sm:py-6 md:grid-cols-[140px_1fr_1fr_auto] md:items-start"
           >
             <Field label="Icon" error={errors.content?.story?.cards?.[index]?.icon?.message}>
-              <select
-                {...register(`content.story.cards.${index}.icon` as const)}
-                className="h-9 w-full rounded-lg border border-muted/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              >
-                {ABOUT_ICONS.map((icon) => (
-                  <option key={icon} value={icon}>
-                    {icon}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name={`content.story.cards.${index}.icon` as const}
+                render={({ field }) => (
+                  <IconPicker value={field.value} onChange={field.onChange} favorites={ABOUT_ICON_FAVORITES} />
+                )}
+              />
             </Field>
             <Field label="Title" error={errors.content?.story?.cards?.[index]?.title?.message}>
               <Input

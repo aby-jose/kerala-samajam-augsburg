@@ -1,16 +1,17 @@
 import { z } from "zod";
 
 import { sectionHeadingFields } from "./section";
+import { LUCIDE_ICON_NAMES } from "../icons/lucide-icon-names";
 
 /**
- * Curated icon set for the benefit cards, same contract as ABOUT_ICONS: a
- * named tuple so the admin form offers a dropdown and the renderer never has
- * to guess whether a stored string is a real icon.
+ * The icon picker's quick-pick suggestions for the benefit cards — the set
+ * this section originally shipped with. Any lucide-react icon is a valid
+ * choice (see LUCIDE_ICON_NAMES); these are just shown first.
  *
  * The first six are the ones membership-client.tsx uses today; Users and
  * Ticket are there so an admin adding a benefit has something to pick.
  */
-export const MEMBERSHIP_ICONS = [
+export const MEMBERSHIP_ICON_FAVORITES = [
   "Globe",
   "HeartHandshake",
   "Sparkles",
@@ -49,7 +50,7 @@ export const membershipBenefitsSectionSchema = z.object({
   items: z
     .array(
       z.object({
-        icon: z.enum(MEMBERSHIP_ICONS),
+        icon: z.enum(LUCIDE_ICON_NAMES),
         title: z.string().min(1, "Required").max(80),
         description: z.string().min(1, "Required").max(300),
       })

@@ -15,6 +15,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "icons:generate": "node scripts/generate-lucide-icon-names.mjs",
     "seed:roles": "tsx prisma/seed-roles.ts",
     "fix:gallery-album-index": "tsx prisma/fix-gallery-album-index.ts",
     "email:preview": "tsx scripts/email-preview.ts",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useFieldArray, useForm, type UseFormRegister, type FieldErrors } from "react-hook-form";
+import { Controller, useFieldArray, useForm, type UseFormRegister, type FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/admin/ui/field";
+import { IconPicker } from "@/components/admin/ui/icon-picker";
 import { PageHeader } from "@/components/admin/ui/page-header";
 import { SectionCard } from "@/components/admin/home/section-card";
 import { useToast } from "@/components/ui/toast";
@@ -16,7 +17,7 @@ import { savePageContent } from "@/lib/page-content/actions";
 import { MEMBERSHIP_SECTION_META } from "@/lib/page-content/membership-sections";
 import {
   membershipContentSchema,
-  MEMBERSHIP_ICONS,
+  MEMBERSHIP_ICON_FAVORITES,
   type MembershipContentT,
   type MembershipSectionId,
 } from "@/lib/page-content/membership";
@@ -167,16 +168,17 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
                           label="Icon"
                           error={errors.content?.benefits?.items?.[i]?.icon?.message}
                         >
-                          <select
-                            {...register(`content.benefits.items.${i}.icon`)}
-                            className="h-9 w-full rounded-lg border border-muted/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-                          >
-                            {MEMBERSHIP_ICONS.map((icon) => (
-                              <option key={icon} value={icon}>
-                                {icon}
-                              </option>
-                            ))}
-                          </select>
+                          <Controller
+                            control={control}
+                            name={`content.benefits.items.${i}.icon`}
+                            render={({ field }) => (
+                              <IconPicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                favorites={MEMBERSHIP_ICON_FAVORITES}
+                              />
+                            )}
+                          />
                         </Field>
                         <div className="flex items-start justify-between gap-3">
                           <Field

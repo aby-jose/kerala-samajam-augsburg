@@ -493,7 +493,7 @@ describe("membership content schema", () => {
     ).toThrow();
   });
 
-  it("only accepts icons from the curated set", () => {
+  it("only accepts real lucide-react icon names", () => {
     expect(() =>
       membershipContentSchema.parse({
         ...DEFAULT_MEMBERSHIP,

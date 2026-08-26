@@ -12,7 +12,7 @@ import {
 } from "@/components/layout/section-heading";
 import { withAccent } from "@/components/layout/with-accent";
 import { DEFAULT_HOME_CONTENT, type HomeContentT } from "@/lib/home-schema";
-import { HOME_ICON_MAP } from "@/lib/home-icons";
+import { LucideIcon } from "@/components/icons/lucide-icon";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -213,7 +213,6 @@ export function AboutIntro({
             viewport={{ once: true, margin: "-60px" }}
           >
             {content.pillars.map((item, i) => {
-              const Icon = HOME_ICON_MAP[item.icon];
               return (
                 <motion.div
                   key={item.title}
@@ -228,7 +227,7 @@ export function AboutIntro({
 
                   <div className="flex items-center justify-between">
                     <span className="grid h-10 w-10 place-items-center rounded-xl border border-primary/10 bg-primary/[0.08] text-primary transition-colors duration-300 group-hover:border-primary/25 group-hover:bg-primary/[0.16]">
-                      <Icon strokeWidth={1.6} className="h-5 w-5" />
+                      <LucideIcon name={item.icon} strokeWidth={1.6} className="h-5 w-5" />
                     </span>
                     {/* Full-strength muted-foreground, not /50: at 10px this
                         is already right at the AA floor on a white surface —

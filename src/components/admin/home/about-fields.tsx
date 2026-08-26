@@ -1,14 +1,15 @@
 "use client";
 
-import { useFieldArray, type Control, type UseFormRegister, type FieldErrors, type UseFormSetValue, type UseFormWatch } from "react-hook-form";
+import { Controller, useFieldArray, type Control, type UseFormRegister, type FieldErrors, type UseFormSetValue, type UseFormWatch } from "react-hook-form";
 import { MoveDown, MoveUp, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field } from "@/components/admin/ui/field";
+import { IconPicker } from "@/components/admin/ui/icon-picker";
 import ImageUpload from "@/components/admin/image-upload";
-import { HOME_ICONS, type HomeContentT } from "@/lib/home-schema";
+import { HOME_ICON_FAVORITES, type HomeContentT } from "@/lib/home-schema";
 
 /**
  * The "who we are" section's fields: heading, facts, collage + quote, and
@@ -228,16 +229,13 @@ export function AboutFields({
             className="grid grid-cols-1 gap-4 md:grid-cols-[140px_1fr_1fr_auto] md:items-start"
           >
             <Field label="Icon" error={errors.content?.about?.pillars?.[index]?.icon?.message}>
-              <select
-                {...register(`content.about.pillars.${index}.icon` as const)}
-                className="h-9 w-full rounded-lg border border-muted/60 bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-              >
-                {HOME_ICONS.map((icon) => (
-                  <option key={icon} value={icon}>
-                    {icon}
-                  </option>
-                ))}
-              </select>
+              <Controller
+                control={control}
+                name={`content.about.pillars.${index}.icon` as const}
+                render={({ field }) => (
+                  <IconPicker value={field.value} onChange={field.onChange} favorites={HOME_ICON_FAVORITES} />
+                )}
+              />
             </Field>
             <Field label="Title" error={errors.content?.about?.pillars?.[index]?.title?.message}>
               <Input
