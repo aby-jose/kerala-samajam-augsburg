@@ -6,8 +6,8 @@ import { NOT_REVOKED, prisma } from "./prisma";
 import { requirePermission, requireUser } from "./guards";
 import { recordConsent } from "./consent-recorder";
 import { LegalSlug } from "./legal-schema";
-import { sendMail, templates } from "./email";
-import { adminEmailOrNull } from "./admin-contact";
+import { sendMail, sendMailBatch, templates } from "./email";
+import { superAdminEmails } from "./rbac/staff-queries";
 import { SUBSCRIPTION_STATUS } from "./membership-term";
 import { deleteFromCloudinary } from "./cloudinary";
 
@@ -274,26 +274,28 @@ export async function requestAccountDeletion() {
     });
   }
 
-  const committee = adminEmailOrNull();
-  if (committee) {
+  const committee = await superAdminEmails();
+  if (committee.length) {
     const activeMembership = await prisma.subscription.findFirst({
       where: { userId, status: SUBSCRIPTION_STATUS.ACTIVE, endDate: { gte: new Date() } },
       select: { id: true },
     });
 
-    await sendMail({
-      template: "privacy.deletion-admin-notice",
-      to: committee,
-      entityId: userId,
-      build: (ctx) =>
-        templates.privacy.deletionAdminNotice(ctx, {
-          memberName: user.name || "A member",
-          memberEmail: user.email || "unknown",
-          requestedAt,
-          deadline,
-          hasActiveMembership: !!activeMembership,
-        }),
-    });
+    await sendMailBatch(
+      committee.map((to) => ({
+        to,
+        entityId: userId,
+        build: (ctx) =>
+          templates.privacy.deletionAdminNotice(ctx, {
+            memberName: user.name || "A member",
+            memberEmail: user.email || "unknown",
+            requestedAt,
+            deadline,
+            hasActiveMembership: !!activeMembership,
+          }),
+      })),
+      { template: "privacy.deletion-admin-notice" }
+    );
   }
 
   revalidatePath("/profile");

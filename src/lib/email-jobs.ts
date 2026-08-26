@@ -16,8 +16,8 @@
 
 import { prisma } from "./prisma";
 import { getConfig } from "./config-utils";
-import { sendMail, sendMailBatch, templates } from "./email";
-import { adminEmailOrNull } from "./admin-contact";
+import { sendMailBatch, templates } from "./email";
+import { superAdminEmails } from "./rbac/staff-queries";
 import { paymentDueDate, paymentReferenceFor, SUBSCRIPTION_STATUS } from "./membership-term";
 
 export interface JobResult {
@@ -354,9 +354,9 @@ export async function runAdminDigest(): Promise<JobResult> {
   const config = await getConfig();
   if (!config.email.automated.adminDigest) return result;
 
-  const committee = adminEmailOrNull();
-  if (!committee) {
-    result.errors.push("ADMIN_EMAIL is not set");
+  const committee = await superAdminEmails();
+  if (!committee.length) {
+    result.errors.push("No Super Admin has an email address on file");
     return result;
   }
 
@@ -394,29 +394,33 @@ export async function runAdminDigest(): Promise<JobResult> {
     return result;
   }
 
-  const sent = await sendMail({
-    template: "payment.admin-digest",
-    to: committee,
-    entityId: `digest:${new Date().toISOString().slice(0, 10)}`,
-    once: true,
-    build: (ctx) =>
-      templates.payments.adminPaymentDigest(ctx, {
-        recorded: recordedSubs.length + recordedRegs.length,
-        recordedTotal,
-        outstanding: outstanding.length,
-        outstandingTotal: outstanding.reduce((sum, s) => sum + s.plan.price, 0),
-        overdue,
-        newApplications,
-      }),
-  });
+  // `once` is keyed on `(template, entityId)` alone — it has no idea how many
+  // recipients share a send, so a bare date key would let the first Super
+  // Admin's send mark the whole digest SENT and everyone after them skip.
+  // Suffixing with `to` keeps the retry-idempotency `once` exists for while
+  // still reaching every recipient.
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const outcome = await sendMailBatch(
+    committee.map((to) => ({
+      to,
+      entityId: `digest:${dateKey}:${to}`,
+      build: (ctx) =>
+        templates.payments.adminPaymentDigest(ctx, {
+          recorded: recordedSubs.length + recordedRegs.length,
+          recordedTotal,
+          outstanding: outstanding.length,
+          outstandingTotal: outstanding.reduce((sum, s) => sum + s.plan.price, 0),
+          overdue,
+          newApplications,
+        }),
+    })),
+    { template: "payment.admin-digest", once: true }
+  );
 
-  if (sent.skipped) result.skipped = 1;
-  else if (sent.ok) result.sent = 1;
-  else {
-    result.failed = 1;
-    if (sent.error) result.errors.push(sent.error);
-  }
-
+  result.sent = outcome.sent;
+  result.skipped = outcome.skipped;
+  result.failed = outcome.failed;
+  result.errors = outcome.errors;
   return result;
 }
 

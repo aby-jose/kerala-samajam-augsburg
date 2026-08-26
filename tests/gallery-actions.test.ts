@@ -28,9 +28,9 @@ vi.mock("@/lib/rbac/upload-folder", () => ({
   CONTRIBUTION_FOLDER_PREFIX: "kerala-samajam/contributions/",
 }));
 vi.mock("@/lib/upload-validation", () => ({ validateUpload: vi.fn() }));
-vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), templates: {} }));
+vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), sendMailBatch: vi.fn(), templates: {} }));
 vi.mock("@/lib/config-utils", () => ({ getConfig: vi.fn() }));
-vi.mock("@/lib/admin-contact", () => ({ adminEmail: vi.fn() }));
+vi.mock("@/lib/rbac/staff-queries", () => ({ superAdminEmails: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({
   NOT_REVOKED: {},

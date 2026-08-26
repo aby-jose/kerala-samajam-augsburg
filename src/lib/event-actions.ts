@@ -15,7 +15,7 @@ import { enforceRateLimit } from "./rate-limit";
 import { generateTicketId } from "./ticket";
 import { PAYMENT_METHODS, SUBSCRIPTION_STATUS, PENDING_STATUSES, isPaymentMethod, type PaymentMethod } from "./membership-term";
 import { sendMail, sendMailBatch, templates } from "./email";
-import { adminEmailOrNull } from "./admin-contact";
+import { superAdminEmails } from "./rbac/staff-queries";
 import { getCollectedRevenue } from "./revenue";
 import { percentChange } from "./format-stats";
 import type { Event, Registration } from "@prisma/client";
@@ -859,11 +859,10 @@ export async function cancelRegistration(registrationId: string) {
       }),
   });
 
-  const committee = adminEmailOrNull();
-  if (committee) {
-    await sendMail({
-      template: "event.registration-cancelled.admin",
-      to: committee,
+  const committee = await superAdminEmails();
+  await sendMailBatch(
+    committee.map((to) => ({
+      to,
       entityId: registration.id,
       build: (ctx) =>
         templates.events.registrationCancelledAdminNotice(ctx, {
@@ -873,8 +872,9 @@ export async function cancelRegistration(registrationId: string) {
           attendees: registration.attendees,
           hadPaid: registration.paymentStatus === "PAID",
         }),
-    });
-  }
+    })),
+    { template: "event.registration-cancelled.admin" }
+  );
 
   revalidatePath(`/events/${registration.event.slug}`);
   revalidatePath("/admin/registrations");

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { prisma } from "./prisma";
 import { requirePermission } from "./guards";
+import { superAdminEmails } from "./rbac/staff-queries";
 import { getConfig } from "./config-utils";
 import { EMAIL_LOG_PAGE_SIZE } from "./email-constants";
 import {
@@ -143,9 +144,9 @@ async function configWarnings(): Promise<string[]> {
     );
   }
 
-  if (!process.env.ADMIN_EMAIL?.trim()) {
+  if (!(await superAdminEmails()).length) {
     warnings.push(
-      "ADMIN_EMAIL is not set. Committee notifications have nowhere to go, and membership applications will fail outright."
+      "No Super Admin has an email address on file. Committee notifications have nowhere to go."
     );
   }
 

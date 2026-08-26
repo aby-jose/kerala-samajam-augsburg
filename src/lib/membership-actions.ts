@@ -12,10 +12,9 @@ import { can, requirePermission, requireUser } from "./guards";
 import { assertFeature } from "./feature-gate";
 import { describeAudit } from "./rbac/audit";
 import { assertAssignable, LockoutError } from "./rbac/lockout";
-import { superAdminCount } from "./rbac/staff-queries";
-import { sendMail, templates } from "./email";
+import { superAdminCount, superAdminEmails } from "./rbac/staff-queries";
+import { sendMail, sendMailBatch, templates } from "./email";
 import { getConfig } from "./config-utils";
-import { adminEmail, adminEmailOrNull } from "./admin-contact";
 import { recordDocumentConsents } from "./consent-recorder";
 import { deleteFromCloudinary } from "./cloudinary";
 import {
@@ -289,17 +288,20 @@ export async function createMembershipSubscription(data: {
       });
     }
 
-    await sendMail({
-      template: "membership.application-admin-notice",
-      to: adminEmail(),
-      entityId: subscription.id,
-      build: (ctx) =>
-        templates.membership.applicationAdminNotice(ctx, {
-          memberName,
-          memberEmail: memberEmail || "unknown",
-          planName: plan.name,
-        }),
-    });
+    const committee = await superAdminEmails();
+    await sendMailBatch(
+      committee.map((to) => ({
+        to,
+        entityId: subscription.id,
+        build: (ctx) =>
+          templates.membership.applicationAdminNotice(ctx, {
+            memberName,
+            memberEmail: memberEmail || "unknown",
+            planName: plan.name,
+          }),
+      })),
+      { template: "membership.application-admin-notice" }
+    );
   } else {
     // Acknowledge the application before demanding money for it. A standard
     // applicant previously went straight from the form to an invoice, so the
@@ -732,11 +734,14 @@ export async function getMembershipPaymentDetails() {
 export async function getAllMembers() {
   await requirePermission("members.view");
 
-  const notifyAddress = adminEmailOrNull();
+  // The members list is for the membership, not the committee — a Super
+  // Admin account showing up in it is the same "wrong person visible" bug
+  // that motivated `superAdminEmails` in the first place, just read backwards.
+  const committee = await superAdminEmails();
 
   const users = await prisma.user.findMany({
     where: {
-      email: { not: notifyAddress }
+      email: committee.length ? { notIn: committee } : undefined,
     },
     include: {
       subscriptions: {

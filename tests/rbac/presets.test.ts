@@ -24,6 +24,7 @@ const EXPECTED_READ_ONLY = [
   "events.view",
   "gallery.contributions.view",
   "gallery.view",
+  "inquiries.notify",
   "inquiries.view",
   "legal.consents.view",
   "legal.view",

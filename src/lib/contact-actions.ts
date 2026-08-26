@@ -2,11 +2,11 @@
 
 import { z } from "zod";
 import { prisma } from "./prisma";
-import { sendMail, templates } from "./email";
+import { sendMail, sendMailBatch, templates } from "./email";
 import { verifyCaptcha, generateCaptcha } from "./captcha";
 import { headers } from "next/headers";
 import { requirePermission } from "./guards";
-import { adminEmail } from "./admin-contact";
+import { staffEmailsWithPermission } from "./rbac/staff-queries";
 import { recordAnonymousConsent } from "./consent-recorder";
 
 const contactSchema = z.object({
@@ -91,17 +91,27 @@ export async function submitContactForm(formData: z.infer<typeof contactSchema>)
       console.error("Failed to record contact consent:", consentError);
     }
 
-    // 4. Notify the committee, and acknowledge to the sender.
+    // 4. Notify every staff member who holds `inquiries.notify` — not just one
+    // hardcoded address — and acknowledge to the sender.
     //
-    // Neither is allowed to fail the request: the message is already saved, so
-    // a mail outage should not tell a visitor their enquiry was lost. Failures
-    // are recorded in the email log instead of thrown.
-    await sendMail({
-      template: "contact.admin-notice",
-      to: adminEmail(),
-      entityId: savedMessage.id,
-      build: (ctx) => templates.contact.contactAdminNotice(ctx, { name, email, subject, message }),
-    });
+    // None of this is allowed to fail the request: the message is already
+    // saved, so a mail outage should not tell a visitor their enquiry was
+    // lost. Failures are recorded in the email log instead of thrown.
+    const recipients = await staffEmailsWithPermission("inquiries.notify");
+    if (recipients.length === 0) {
+      console.error(
+        "No staff hold inquiries.notify — contact form message has no notification recipient."
+      );
+    }
+
+    await sendMailBatch(
+      recipients.map((to) => ({
+        to,
+        entityId: savedMessage.id,
+        build: (ctx) => templates.contact.contactAdminNotice(ctx, { name, email, subject, message }),
+      })),
+      { template: "contact.admin-notice" }
+    );
 
     await sendMail({
       template: "contact.acknowledgement",

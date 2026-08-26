@@ -18,7 +18,7 @@ vi.mock("@/lib/membership-term", () => ({
   isPaymentMethod: vi.fn(),
 }));
 vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), sendMailBatch: vi.fn(), templates: {} }));
-vi.mock("@/lib/admin-contact", () => ({ adminEmailOrNull: vi.fn() }));
+vi.mock("@/lib/rbac/staff-queries", () => ({ superAdminEmails: vi.fn() }));
 vi.mock("@/lib/revenue", () => ({ getCollectedRevenue: vi.fn() }));
 vi.mock("@/lib/format-stats", () => ({ percentChange: vi.fn() }));
 

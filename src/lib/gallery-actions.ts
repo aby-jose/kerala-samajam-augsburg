@@ -12,9 +12,9 @@ import { can, requireAnyUser, requirePermission, requireUser } from "./guards";
 import { assertFeature } from "./feature-gate";
 import { CONTRIBUTION_FOLDER_PREFIX, resolveUploadFolder } from "./rbac/upload-folder";
 import { validateUpload } from "./upload-validation";
-import { sendMail, templates } from "./email";
+import { sendMail, sendMailBatch, templates } from "./email";
 import { getConfig } from "./config-utils";
-import { adminEmail } from "./admin-contact";
+import { superAdminEmails } from "./rbac/staff-queries";
 
 export async function uploadImageAction(formData: FormData, folder?: string) {
   await requireAnyUser();
@@ -484,20 +484,24 @@ export async function submitMediaContribution(data: {
     }
   });
 
-  // Notify Admin
+  // Notify every Super Admin. Never allowed to fail the upload — the
+  // contribution is already saved, so a mail outage should not lose it.
   if (!skipEmail) {
     // Read out here: the closure loses TypeScript's narrowing on `session.user`.
     const uploaderName = session.user.name || "A member";
-    await sendMail({
-      template: "gallery.contribution-admin-notice",
-      to: adminEmail(),
-      entityId: contribution.id,
-      build: (ctx) =>
-        templates.gallery.contributionAdminNotice(ctx, {
-          uploaderName,
-          albumTitle: album.title,
-        }),
-    });
+    const committee = await superAdminEmails();
+    await sendMailBatch(
+      committee.map((to) => ({
+        to,
+        entityId: contribution.id,
+        build: (ctx) =>
+          templates.gallery.contributionAdminNotice(ctx, {
+            uploaderName,
+            albumTitle: album.title,
+          }),
+      })),
+      { template: "gallery.contribution-admin-notice" }
+    );
   }
 
   return { success: true, contribution };
@@ -539,19 +543,22 @@ export async function submitBulkMediaContributions(albumId: string, items: {
     }))
   });
 
-  // Notify Admin ONCE
+  // Notify every Super Admin, once for the whole batch.
   const uploaderName = session.user.name || "A member";
-  await sendMail({
-    template: "gallery.contribution-admin-notice",
-    to: adminEmail(),
-    entityId: albumId,
-    build: (ctx) =>
-      templates.gallery.contributionAdminNotice(ctx, {
-        uploaderName,
-        albumTitle: album.title,
-        count: items.length,
-      }),
-  });
+  const committee = await superAdminEmails();
+  await sendMailBatch(
+    committee.map((to) => ({
+      to,
+      entityId: albumId,
+      build: (ctx) =>
+        templates.gallery.contributionAdminNotice(ctx, {
+          uploaderName,
+          albumTitle: album.title,
+          count: items.length,
+        }),
+    })),
+    { template: "gallery.contribution-admin-notice" }
+  );
 
   return { success: true, count: items.length };
 }

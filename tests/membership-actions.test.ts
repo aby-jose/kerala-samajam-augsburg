@@ -13,9 +13,8 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ publicAuthOptions: {} }));
 vi.mock("@/lib/guards", () => ({ requirePermission: vi.fn(), requireUser: vi.fn(), can: vi.fn() }));
 vi.mock("@/lib/rbac/audit", () => ({ describeAudit: vi.fn() }));
-vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), templates: {} }));
+vi.mock("@/lib/email", () => ({ sendMail: vi.fn(), sendMailBatch: vi.fn(), templates: {} }));
 vi.mock("@/lib/config-utils", () => ({ getConfig: vi.fn() }));
-vi.mock("@/lib/admin-contact", () => ({ adminEmail: vi.fn(), adminEmailOrNull: vi.fn() }));
 vi.mock("@/lib/consent-recorder", () => ({ recordDocumentConsents: vi.fn() }));
 vi.mock("@/lib/membership-term", () => ({
   PAYMENT_METHODS: [],

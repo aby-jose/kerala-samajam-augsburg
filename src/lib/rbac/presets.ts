@@ -61,7 +61,7 @@ export const ROLE_PRESETS: RolePreset[] = [
       "events.view",
       "gallery.view", "gallery.albums.edit", "gallery.media.upload",
       "legal.view",
-      "inquiries.view", "inquiries.manage",
+      "inquiries.view", "inquiries.notify", "inquiries.manage",
     ],
   },
   {

@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { fetchReels, isTokenRefreshDue, refreshLongLivedToken, recordSyncError } from "@/lib/instagram";
-import { sendMail, esc } from "@/lib/email";
+import { sendMailBatch, esc } from "@/lib/email";
 import { themed } from "@/lib/email/shell";
 import { notice } from "@/lib/email/blocks";
-import { adminEmailOrNull } from "@/lib/admin-contact";
+import { superAdminEmails } from "@/lib/rbac/staff-queries";
 
 /**
  * Instagram sync/token-refresh endpoint.
@@ -51,10 +51,9 @@ async function runTokenRefresh(): Promise<JobOutcome> {
     const message = error instanceof Error ? error.message : String(error);
 
     try {
-      const to = adminEmailOrNull();
-      if (to) {
-        await sendMail({
-          template: "instagram.token-refresh-failed",
+      const committee = await superAdminEmails();
+      await sendMailBatch(
+        committee.map((to) => ({
           to,
           build: (ctx) => {
             const t = themed(ctx);
@@ -76,8 +75,9 @@ async function runTokenRefresh(): Promise<JobOutcome> {
               ],
             };
           },
-        });
-      }
+        })),
+        { template: "instagram.token-refresh-failed" }
+      );
     } catch (mailError) {
       console.error("[instagram] token-refresh alert failed to send:", mailError);
     }

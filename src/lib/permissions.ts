@@ -77,6 +77,7 @@ export const PERMISSIONS = {
 
   // --- Inquiries ---
   "inquiries.view": { group: "Inquiries", label: "Read contact messages", mutates: false },
+  "inquiries.notify": { group: "Inquiries", label: "Receive contact form notifications by email", mutates: false },
   "inquiries.manage": { group: "Inquiries", label: "Mark messages read or archived", mutates: true },
   "inquiries.delete": { group: "Inquiries", label: "Delete messages", mutates: true },
 
