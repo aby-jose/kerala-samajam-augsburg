@@ -222,7 +222,7 @@ const baseOptions: Omit<NextAuthOptions, "providers"> = {
 
       const current = await prisma.user.findUnique({
         where: { id: token.id as string },
-        select: { role: true, emailVerified: true, passwordChangedAt: true },
+        select: { role: true, emailVerified: true, passwordChangedAt: true, name: true, image: true },
       });
 
       // Deleted or suspended: clear both role and id, matching the
@@ -257,6 +257,13 @@ const baseOptions: Omit<NextAuthOptions, "providers"> = {
 
       token.role = current.role;
       token.emailVerified = current.emailVerified;
+      // Kept in step with the same cadence as role/emailVerified — otherwise a
+      // member who edits their name or photo on `/profile` (which writes
+      // straight to the database) keeps seeing the old value anywhere the UI
+      // reads from the session — the navbar avatar and name — until the token
+      // happens to expire and they sign in again.
+      token.name = current.name;
+      token.picture = current.image;
       token.roleCheckedAt = Date.now();
       return token;
     },

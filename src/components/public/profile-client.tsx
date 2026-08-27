@@ -31,7 +31,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { formatDate, cn } from "@/lib/utils";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import MembershipSuccessOverlay from "./membership-success-overlay";
@@ -69,6 +69,10 @@ interface ProfileClientProps {
 
 export default function ProfileClient({ user, subscriptions, registrations }: ProfileClientProps) {
   const searchParams = useSearchParams();
+  // The navbar reads name/photo from the session, not the database, so a
+  // saved edit needs to push into the JWT too — otherwise it's correct here
+  // and stale everywhere else until the token's periodic refresh catches up.
+  const { update: updateSession } = useSession();
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -130,6 +134,7 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
       } else {
         setFormSuccess(true);
         setIsEditing(false);
+        updateSession();
         setTimeout(() => setFormSuccess(false), 3000);
       }
     });
@@ -170,6 +175,7 @@ export default function ProfileClient({ user, subscriptions, registrations }: Pr
           setFormError(updateResult.error);
         } else {
           setFormSuccess(true);
+          updateSession();
           setTimeout(() => setFormSuccess(false), 3000);
         }
       }
