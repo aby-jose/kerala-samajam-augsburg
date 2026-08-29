@@ -7,6 +7,7 @@ import { ConfigProvider } from "@/components/providers/config-provider";
 
 import { ToastProvider } from "@/components/ui/toast";
 import { CookieConsent } from "@/components/legal/cookie-consent";
+import { WhatsAppFab } from "@/components/layout/whatsapp-fab";
 import { ConsentGate } from "@/components/legal/consent-gate";
 import { MaintenanceScreen } from "@/components/layout/maintenance-screen";
 import { isMaintenanceLocked } from "@/lib/feature-gate";
@@ -55,6 +56,7 @@ export default async function PublicLayout({
               <Footer />
             </div>
             <CookieConsent />
+            <WhatsAppFab />
           </ConsentGate>
         </ToastProvider>
       </ConfigProvider>

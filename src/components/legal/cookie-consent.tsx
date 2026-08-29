@@ -22,6 +22,16 @@ export const OPEN_COOKIE_SETTINGS_EVENT = "ksa:open-cookie-settings";
 /** Fired after a choice is saved, so gated content can re-check. */
 export const COOKIE_CONSENT_CHANGED_EVENT = "ksa:cookie-consent-changed";
 
+/**
+ * Fired whenever this banner opens or closes, with `detail.open`.
+ *
+ * `COOKIE_CONSENT_CHANGED_EVENT` above is not a substitute: it only fires when
+ * a choice is *saved*, so the close button below — which dismisses a reopened
+ * panel without saving anything — is silent. Anything that has to stay out of
+ * this corner needs to hear about that dismissal too.
+ */
+export const COOKIE_BANNER_VISIBILITY_EVENT = "ksa:cookie-banner-visibility";
+
 function readConsentCookie(): StoredCookieConsent | null {
   if (typeof document === "undefined") return null;
 
@@ -91,6 +101,14 @@ export function CookieConsent() {
       media: existing.categories.media,
     });
   }, []);
+
+  // One place to announce visibility, rather than a dispatch beside every
+  // setOpen call — those drift apart the moment a new close path is added.
+  React.useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(COOKIE_BANNER_VISIBILITY_EVENT, { detail: { open } })
+    );
+  }, [open]);
 
   React.useEffect(() => {
     const reopen = () => {
