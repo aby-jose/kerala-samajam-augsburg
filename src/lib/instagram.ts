@@ -136,7 +136,22 @@ export async function fetchReels(): Promise<{ created: number; updated: number }
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Instagram media fetch failed: ${response.status}`);
+    // The status code alone (e.g. "400") isn't diagnosable — Meta's actual
+    // reason (bad parameter, permission, wrong node type, expired token...)
+    // is in the JSON body, under `error.message`. Surface that in the thrown
+    // message so it lands in lastSyncError and the admin banner, instead of
+    // needing a manual reproduction to find out why every time this fires.
+    const body = await response.text();
+    let detail = body;
+    try {
+      const parsed = JSON.parse(body) as { error?: { message?: string; type?: string; code?: number } };
+      if (parsed.error?.message) {
+        detail = `${parsed.error.message} (type: ${parsed.error.type ?? "?"}, code: ${parsed.error.code ?? "?"})`;
+      }
+    } catch {
+      // Body wasn't JSON — fall back to the raw text set above.
+    }
+    throw new Error(`Instagram media fetch failed: ${response.status} — ${detail}`);
   }
 
   const reels = parseReelsPage(await response.json());
