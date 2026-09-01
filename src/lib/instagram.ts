@@ -94,22 +94,23 @@ export function computeTokenExpiry(expiresInSeconds: number, now: Date = new Dat
 
 // --- Orchestrators (Prisma + network; not unit tested, per repo convention) --
 
-/** The live token, seeded from env into InstagramSyncState the first time
- *  there isn't one stored yet. See spec D3 for why it isn't kept in env alone. */
+/** The live token, read fresh from env on every call.
+ *
+ *  This used to seed into `InstagramSyncState.accessToken` on first run and
+ *  serve from there after (see spec D3) — that broke in practice: the weekly
+ *  token-refresh cron job (see `refreshLongLivedToken` below) would fire,
+ *  overwrite the DB-stored token with an Instagram-Login `IGAA…` token, and
+ *  silently reintroduce the exact host/token mismatch this module's file
+ *  comment warns against — even though the deployed `INSTAGRAM_ACCESS_TOKEN`
+ *  env var was correct the whole time. Reading env directly on every call
+ *  removes the DB as a place that value can drift from what's actually
+ *  configured. The tradeoff (env is static per deploy, so a rotated token
+ *  needs a redeploy to take effect) is fine for the current System User
+ *  token, which doesn't expire. */
 export async function getAccessToken(): Promise<string> {
-  const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
-  if (state?.accessToken) return state.accessToken;
-
-  const seed = process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
-  if (!seed) throw new Error("INSTAGRAM_ACCESS_TOKEN is not set");
-
-  await prisma.instagramSyncState.upsert({
-    where: { key: "current" },
-    update: { accessToken: seed },
-    create: { key: "current", accessToken: seed },
-  });
-
-  return seed;
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN?.trim();
+  if (!token) throw new Error("INSTAGRAM_ACCESS_TOKEN is not set");
+  return token;
 }
 
 /** Records (or clears) the last sync failure — called by both the manual

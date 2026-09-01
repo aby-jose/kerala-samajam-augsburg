@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
-import { fetchReels, isTokenRefreshDue, refreshLongLivedToken, recordSyncError } from "@/lib/instagram";
-import { sendMailBatch, esc } from "@/lib/email";
-import { themed } from "@/lib/email/shell";
-import { notice } from "@/lib/email/blocks";
-import { superAdminEmails } from "@/lib/rbac/staff-queries";
+import { fetchReels, recordSyncError } from "@/lib/instagram";
 
 /**
  * Instagram sync/token-refresh endpoint.
@@ -35,60 +30,22 @@ async function runSync(): Promise<JobOutcome> {
   }
 }
 
-async function runTokenRefresh(): Promise<JobOutcome> {
-  try {
-    const state = await prisma.instagramSyncState.findUnique({ where: { key: "current" } });
-    if (!state?.accessToken) {
-      return { job: "token-refresh", ok: true, message: "no token yet — skipped" };
-    }
-    if (!isTokenRefreshDue(state.tokenExpiresAt)) {
-      return { job: "token-refresh", ok: true, message: "not due yet" };
-    }
-
-    await refreshLongLivedToken();
-    return { job: "token-refresh", ok: true, message: "refreshed" };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
-    try {
-      const committee = await superAdminEmails();
-      await sendMailBatch(
-        committee.map((to) => ({
-          to,
-          build: (ctx) => {
-            const t = themed(ctx);
-            return {
-              subject: "Instagram token refresh failed",
-              previewText: "The Instagram Graph API token could not be refreshed automatically.",
-              eyebrow: "System alert",
-              title: "Instagram token refresh failed",
-              accentWord: "failed",
-              sections: [
-                {
-                  blocks: [
-                    notice(t, {
-                      title: "What happened",
-                      body: `The scheduled refresh job failed: ${esc(message)}. The current token has not expired yet, but this needs attention before it does.`,
-                    }),
-                  ],
-                },
-              ],
-            };
-          },
-        })),
-        { template: "instagram.token-refresh-failed" }
-      );
-    } catch (mailError) {
-      console.error("[instagram] token-refresh alert failed to send:", mailError);
-    }
-
-    return { job: "token-refresh", ok: false, message };
-  }
-}
-
+// There is no "token-refresh" job here anymore. It used to call
+// lib/instagram.ts's `refreshLongLivedToken` on a schedule — the correct
+// mechanism for the standalone Instagram-Login OAuth flow's short-lived
+// `IGAA…` tokens, but wrong for the Business System User's `EAA…` token this
+// app now uses, which doesn't expire. Leaving that job wired up was the
+// actual root cause of a 2026-09-01 outage: it kept firing, its "success"
+// path overwrote InstagramSyncState.accessToken with a refreshed legacy
+// IGAA token, and `getAccessToken()` (at the time) preferred that DB value
+// over env — silently reintroducing the host/token mismatch instagram.ts's
+// file comment warns about. `getAccessToken()` now reads
+// `INSTAGRAM_ACCESS_TOKEN` from env only, so nothing rotates it and nothing
+// needs to. `isTokenRefreshDue`/`refreshLongLivedToken` are kept in
+// lib/instagram.ts (not deleted) for if this ever moves back to the OAuth
+// flow they were built for.
 const JOBS: Record<string, () => Promise<JobOutcome>> = {
   sync: runSync,
-  "token-refresh": runTokenRefresh,
 };
 
 function authorise(request: NextRequest): string | null {
