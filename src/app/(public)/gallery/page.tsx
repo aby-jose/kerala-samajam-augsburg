@@ -1,6 +1,6 @@
 import React from "react";
-import { prisma } from "@/lib/prisma";
 import { requireFeature } from "@/lib/feature-gate";
+import { getPublishedGalleryAlbums } from "@/lib/gallery-actions";
 import { getPageContent } from "@/lib/page-content/actions";
 import type { GalleryContentT } from "@/lib/page-content/gallery";
 import { BreadcrumbJsonLd } from "@/components/seo/breadcrumb-jsonld";
@@ -21,18 +21,7 @@ export default async function GalleryPage() {
 
   const content = (await getPageContent("gallery")) as GalleryContentT;
 
-  const albums = await prisma.galleryAlbum.findMany({
-    where: { isPublished: true },
-    include: {
-      _count: {
-        select: { media: true }
-      },
-      event: {
-        select: { title: true, date: true }
-      }
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const albums = await getPublishedGalleryAlbums();
 
   // Flattened here rather than in the client so the component receives plain
   // data and the totals are counted once on the server.

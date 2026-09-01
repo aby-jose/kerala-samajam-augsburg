@@ -53,6 +53,7 @@ const UNGUARDED_ACTIONS: Record<string, string> = {
   getUpcomingEvents: "Public — published events only",
   getEventBySlug: "Public — published events only",
   getGalleryHighlights: "Public — published albums only",
+  getPublishedGalleryAlbums: "Public — published albums only, same category as getGalleryHighlights",
   getFeaturedReels: "Public — featured reels only, for the home page section",
   getActiveMembershipPlans: "Public — pricing page",
   getPublishedLegalSlugs: "Public — footer links",

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// unstable_cache: identity passthrough — tests want every call to reach the
+// mocked prisma fresh, not memoised across cases the way the real Data Cache
+// would (which isn't scoped to vi.resetModules() anyway).
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
+  unstable_cache: (fn: unknown) => fn,
+}));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ publicAuthOptions: {} }));
 vi.mock("@/lib/cloudinary", () => ({ uploadToCloudinary: vi.fn(), deleteFromCloudinary: vi.fn() }));

@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 import { deleteFromCloudinary, uploadToCloudinary } from "./cloudinary";
 import { eventSchema, type EventFormValues } from "./schemas";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -81,22 +81,39 @@ export async function getAdminEvents() {
  * The cut-off is the start of today rather than "now", so an event still
  * shows on its own day instead of disappearing the moment it begins.
  */
-export async function getUpcomingEvents() {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+/**
+ * Cached across requests for 30s (tag "upcoming-events"). /events is
+ * force-dynamic (see (public)/layout.tsx), so without this every concurrent
+ * visitor triggered its own live query; this lets a 30s window of traffic
+ * share one. Every write below that can change this list calls
+ * updateTag("upcoming-events"), so an admin's own change is visible
+ * immediately. The "today" cutoff can be up to 30s stale between
+ * regenerations — harmless at day granularity.
+ */
+const fetchUpcomingEvents = unstable_cache(
+  async () => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
 
-  return await prisma.event.findMany({
-    where: { isPublished: true, date: { gte: startOfToday } },
-    orderBy: { date: 'asc' },
-    include: {
-      // Logo + name now, not just an id — listing cards show the actual
-      // sponsor, not a generic "sponsored" flag.
-      sponsors: {
-        orderBy: { order: "asc" },
-        select: { id: true, name: true, logoUrl: true },
+    return prisma.event.findMany({
+      where: { isPublished: true, date: { gte: startOfToday } },
+      orderBy: { date: 'asc' },
+      include: {
+        // Logo + name now, not just an id — listing cards show the actual
+        // sponsor, not a generic "sponsored" flag.
+        sponsors: {
+          orderBy: { order: "asc" },
+          select: { id: true, name: true, logoUrl: true },
+        },
       },
-    },
-  });
+    });
+  },
+  ["upcoming-events"],
+  { revalidate: 30, tags: ["upcoming-events"] }
+);
+
+export async function getUpcomingEvents() {
+  return fetchUpcomingEvents();
 }
 
 export async function getEventBySlug(slug: string) {
@@ -211,6 +228,7 @@ export async function upsertEvent(data: EventFormValues) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   if (validated.slug) {
     revalidatePath(`/events/${validated.slug}`);
   }
@@ -288,6 +306,7 @@ export async function cancelEvent(id: string, reason?: string) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   revalidatePath(`/events/${event.slug}`);
 
   return { success: true, notified: outcome.sent, failed: outcome.failed };
@@ -319,6 +338,7 @@ export async function reinstateEvent(id: string) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   revalidatePath(`/events/${event.slug}`);
 
   return { success: true, notified: outcome.sent };
@@ -367,6 +387,7 @@ export async function deleteEvent(id: string) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   return { success: true, notified };
 }
 
@@ -380,6 +401,7 @@ export async function toggleEventPublish(id: string, isPublished: boolean) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   return { success: true, event };
 }
 
@@ -402,6 +424,7 @@ export async function toggleEventFull(id: string, registrationsFull: boolean) {
 
   revalidatePath("/admin/events");
   revalidatePath("/events");
+  updateTag("upcoming-events");
   revalidatePath(`/events/${event.slug}`);
   return { success: true, event };
 }
@@ -727,15 +750,18 @@ export async function registerForEvent(data: {
 
   // 4. Session Check if Required
   const session = await getServerSession(publicAuthOptions);
-  
-  // Check for active subscription
+
+  // Check for a subscription that is still running on the day of the event,
+  // not just today. Registering months ahead of a membership's expiry should
+  // not lock in the member rate for an event the membership won't cover by
+  // the time it actually happens.
   let hasActiveSubscription = false;
   if (session?.user?.id) {
     const sub = await prisma.subscription.findFirst({
       where: {
         userId: session.user.id as string,
         status: SUBSCRIPTION_STATUS.ACTIVE,
-        endDate: { gte: new Date() }
+        endDate: { gte: event.date }
       }
     });
     hasActiveSubscription = !!sub;

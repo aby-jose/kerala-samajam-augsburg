@@ -1,7 +1,7 @@
 "use server";
 
 import { cache } from "react";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 
 import { prisma } from "./prisma";
 import { requirePermission } from "./guards";
@@ -18,13 +18,27 @@ import { enforceHideable, repairLayout } from "./page-layout";
 import { pruneOrphanedCloudinaryUrls } from "./cloudinary";
 
 /**
+ * The Mongo read, cached across requests for 30s (tag "about-content"). The
+ * about page is force-dynamic (see (public)/layout.tsx), so without this
+ * every concurrent visitor triggered its own live fetch; this lets a 30s
+ * window of traffic share one. saveAboutContent() calls
+ * updateTag("about-content") on write, so an editor sees their own save
+ * immediately regardless of the TTL.
+ */
+const fetchAboutContentRecord = unstable_cache(
+  async () => prisma.aboutContent.findUnique({ where: { key: "current" } }),
+  ["about-content"],
+  { revalidate: 30, tags: ["about-content"] }
+);
+
+/**
  * The live About page content, or the built-in defaults if nothing has been
  * saved yet. Deduped per request like getHomeContent() — the public page and
  * the admin edit form can both call it without a duplicate DB round trip.
  */
 export const getAboutContent = cache(async (): Promise<AboutContentT> => {
   try {
-    const record = await prisma.aboutContent.findUnique({ where: { key: "current" } });
+    const record = await fetchAboutContentRecord();
     if (!record || !record.value) return DEFAULT_ABOUT_CONTENT;
 
     // A document saved before sections were orderable has no `layout` key: its
@@ -75,6 +89,7 @@ export async function saveAboutContent(data: AboutContentT) {
 
     revalidatePath("/about");
     revalidatePath("/admin/about");
+    updateTag("about-content");
     return { success: true };
   } catch (error) {
     console.error("Failed to save about content:", error);

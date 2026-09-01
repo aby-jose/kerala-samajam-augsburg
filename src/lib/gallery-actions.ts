@@ -5,7 +5,7 @@ import path from "path";
 import { NOT_REVOKED, prisma } from "./prisma";
 import cloudinary from "./cloudinary";
 import { enforceRateLimit } from "./rate-limit";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
 import { can, requireAnyUser, requirePermission, requireUser } from "./guards";
@@ -15,6 +15,29 @@ import { validateUpload } from "./upload-validation";
 import { sendMail, sendMailBatch, templates } from "./email";
 import { getConfig } from "./config-utils";
 import { superAdminEmails } from "./rbac/staff-queries";
+
+/**
+ * The published album list for the public gallery, cached across requests
+ * for 30s (tag "gallery-albums"). /gallery is force-dynamic (see
+ * (public)/layout.tsx), so without this every concurrent visitor triggered
+ * its own live query; this lets a 30s window of traffic share one. Every
+ * write below that can change what this list shows calls
+ * updateTag("gallery-albums"), so an admin's own change is visible
+ * immediately regardless of the TTL.
+ */
+export const getPublishedGalleryAlbums = unstable_cache(
+  async () =>
+    prisma.galleryAlbum.findMany({
+      where: { isPublished: true },
+      include: {
+        _count: { select: { media: true } },
+        event: { select: { title: true, date: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ["gallery-albums"],
+  { revalidate: 30, tags: ["gallery-albums"] }
+);
 
 export async function uploadImageAction(formData: FormData, folder?: string) {
   await requireAnyUser();
@@ -166,6 +189,7 @@ export async function createAlbum(data: {
     },
   });
   revalidatePath("/admin/gallery");
+  updateTag("gallery-albums");
   return { success: true, album };
 }
 
@@ -189,6 +213,7 @@ export async function updateAlbum(id: string, data: {
   });
   revalidatePath("/admin/gallery");
   revalidatePath(`/admin/gallery/${id}`);
+  updateTag("gallery-albums");
   return { success: true, album };
 }
 
@@ -250,6 +275,7 @@ export async function deleteAlbum(id: string) {
 
   revalidatePath("/admin/gallery");
   revalidatePath("/gallery");
+  updateTag("gallery-albums");
   return { success: true };
 }
 
@@ -285,6 +311,7 @@ export async function addMediaToAlbum(albumId: string, mediaItems: {
     }
     revalidatePath(`/admin/gallery/${albumId}`);
     revalidatePath("/gallery");
+    updateTag("gallery-albums");
     return { success: true };
   } catch (err: any) {
     console.error("Add media error:", err);
@@ -306,6 +333,7 @@ export async function deleteMedia(id: string, publicId: string) {
   });
   revalidatePath("/admin/gallery");
   revalidatePath("/gallery");
+  updateTag("gallery-albums");
   return { success: true };
 }
 
@@ -329,6 +357,7 @@ export async function bulkDeleteMedia(mediaItems: { id: string; publicId: string
 
     revalidatePath(`/admin/gallery/${albumId}`);
     revalidatePath("/gallery");
+    updateTag("gallery-albums");
     return { success: true };
   } catch (err: any) {
     console.error("Bulk delete error:", err);

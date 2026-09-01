@@ -4,6 +4,15 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { config: { findUnique: vi.fn() } },
 }));
 
+// unstable_cache: identity passthrough. The real one caches across a 10s
+// window keyed by tag, not by JS module instance — vi.resetModules() below
+// does not reset it, so without this mock a value resolved in an earlier
+// test case would still be served to a later one that mocks a different
+// prisma return.
+vi.mock("next/cache", () => ({
+  unstable_cache: (fn: unknown) => fn,
+}));
+
 // `getConfig` is wrapped in React's `cache()`, which memoises per request. In
 // a test there is no request scope, so each call re-runs the loader — but the
 // module is re-imported per test anyway to keep that guarantee independent of

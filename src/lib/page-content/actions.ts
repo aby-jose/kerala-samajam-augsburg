@@ -1,7 +1,7 @@
 "use server";
 
 import { cache } from "react";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 
 import { prisma } from "../prisma";
 import { requirePermission } from "../guards";
@@ -15,6 +15,21 @@ import {
 import { pruneOrphanedCloudinaryUrls } from "../cloudinary";
 
 /**
+ * The Mongo read, cached across requests for 30s (tag "page-content", shared
+ * across all slugs — an over-broad invalidation on save is cheap and rare).
+ * events/gallery/membership/contact are all force-dynamic (see
+ * (public)/layout.tsx), so without this every concurrent visitor triggered
+ * its own live fetch; this lets a 30s window of traffic share one per slug.
+ * savePageContent() calls updateTag("page-content") on write, so an
+ * editor sees their own save immediately regardless of the TTL.
+ */
+const fetchPageContentRecord = unstable_cache(
+  async (slug: PageSlug) => prisma.pageContent.findUnique({ where: { slug } }),
+  ["page-content"],
+  { revalidate: 30, tags: ["page-content"] }
+);
+
+/**
  * The live document for a page, or the built-in defaults if nothing has been
  * saved yet. Deduped per request like getAboutContent() — the public page and
  * the admin form can both call it without a duplicate round trip.
@@ -25,7 +40,7 @@ import { pruneOrphanedCloudinaryUrls } from "../cloudinary";
  */
 export const getPageContent = cache(async (slug: PageSlug): Promise<Record<string, unknown>> => {
   try {
-    const record = await prisma.pageContent.findUnique({ where: { slug } });
+    const record = await fetchPageContentRecord(slug);
     if (!record || !record.value) return mergePageContent(slug, undefined);
 
     return mergePageContent(slug, record.value);
@@ -58,6 +73,7 @@ export async function savePageContent(slug: string, data: unknown) {
 
     for (const path of PAGE_CONTENT[slug].revalidate) revalidatePath(path);
     revalidatePath(`/admin/pages/${slug}`);
+    updateTag("page-content");
 
     return { success: true };
   } catch (error) {

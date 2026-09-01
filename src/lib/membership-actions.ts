@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag, unstable_cache } from "next/cache";
 import { membershipPlanSchema, type MembershipPlanFormValues } from "./schemas";
 import { getServerSession } from "next-auth";
 import { publicAuthOptions } from "./auth";
@@ -41,11 +41,25 @@ export async function getMembershipPlans() {
   });
 }
 
-export async function getActiveMembershipPlans() {
-  return await prisma.membershipPlan.findMany({
+/**
+ * Cached across requests for 30s (tag "membership-plans"). /membership is
+ * force-dynamic (see (public)/layout.tsx), so without this every concurrent
+ * visitor triggered its own live query; this lets a 30s window of traffic
+ * share one. upsertMembershipPlan/deleteMembershipPlan/togglePlanStatus all
+ * call updateTag("membership-plans") on write, so an admin's own change
+ * is visible immediately.
+ */
+const fetchActiveMembershipPlans = unstable_cache(
+  async () => prisma.membershipPlan.findMany({
     where: { isActive: true },
     orderBy: { price: 'asc' }
-  });
+  }),
+  ["membership-plans"],
+  { revalidate: 30, tags: ["membership-plans"] }
+);
+
+export async function getActiveMembershipPlans() {
+  return fetchActiveMembershipPlans();
 }
 
 export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
@@ -74,6 +88,7 @@ export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
 
   revalidatePath("/admin/membership");
   revalidatePath("/membership");
+  updateTag("membership-plans");
   return { success: true };
 }
 
@@ -89,14 +104,16 @@ export async function deleteMembershipPlan(id: string) {
       where: { id },
       data: { isActive: false }
     });
+    updateTag("membership-plans");
     return { success: true, message: "Plan deactivated as it has active subscriptions." };
   }
 
   await prisma.membershipPlan.delete({
     where: { id },
   });
-  
+
   revalidatePath("/admin/membership");
+  updateTag("membership-plans");
   return { success: true };
 }
 
@@ -107,8 +124,9 @@ export async function togglePlanStatus(id: string, isActive: boolean) {
     where: { id },
     data: { isActive },
   });
-  
+
   revalidatePath("/admin/membership");
+  updateTag("membership-plans");
   revalidatePath("/membership");
   return { success: true };
 }
@@ -121,8 +139,13 @@ export async function togglePlanStatus(id: string, isActive: boolean) {
  * application that has not been paid for — those now carry no `endDate` at
  * all — so `hasPending` could never be true and an applicant was shown the
  * join form again.
+ *
+ * `asOf` defaults to now, but a caller pricing something that happens later —
+ * an event's member rate, say — should pass that date instead: a membership
+ * that is active today but lapses before the event is not "membership" for
+ * that purpose, and the plain default would say otherwise.
  */
-export async function checkCurrentMemberStatus() {
+export async function checkCurrentMemberStatus(asOf: Date | string = new Date()) {
   const session = await getServerSession(publicAuthOptions);
   if (!session?.user?.id) return { isMember: false, hasPending: false, status: null, plan: null };
 
@@ -132,7 +155,7 @@ export async function checkCurrentMemberStatus() {
     where: {
       userId,
       status: SUBSCRIPTION_STATUS.ACTIVE,
-      endDate: { gte: new Date() },
+      endDate: { gte: new Date(asOf) },
     },
     include: { plan: true },
   });
