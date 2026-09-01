@@ -25,7 +25,7 @@ import { superAdminEmails } from "./rbac/staff-queries";
  * updateTag("gallery-albums"), so an admin's own change is visible
  * immediately regardless of the TTL.
  */
-export const getPublishedGalleryAlbums = unstable_cache(
+const fetchPublishedGalleryAlbums = unstable_cache(
   async () =>
     prisma.galleryAlbum.findMany({
       where: { isPublished: true },
@@ -38,6 +38,22 @@ export const getPublishedGalleryAlbums = unstable_cache(
   ["gallery-albums"],
   { revalidate: 30, tags: ["gallery-albums"] }
 );
+
+export async function getPublishedGalleryAlbums() {
+  const albums = await fetchPublishedGalleryAlbums();
+
+  // unstable_cache round-trips its return value through JSON — on a cache
+  // hit every Date field comes back as a string, not a Date instance. A
+  // fresh (cache-miss) result already holds real Dates, and `new Date()` on
+  // one of those just clones it, so this normalizes both cases the same way
+  // rather than only patching the cached path.
+  return albums.map((album) => ({
+    ...album,
+    createdAt: new Date(album.createdAt),
+    updatedAt: new Date(album.updatedAt),
+    event: album.event ? { ...album.event, date: new Date(album.event.date) } : album.event,
+  }));
+}
 
 export async function uploadImageAction(formData: FormData, folder?: string) {
   await requireAnyUser();

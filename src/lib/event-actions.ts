@@ -113,7 +113,20 @@ const fetchUpcomingEvents = unstable_cache(
 );
 
 export async function getUpcomingEvents() {
-  return fetchUpcomingEvents();
+  const events = await fetchUpcomingEvents();
+
+  // unstable_cache round-trips its return value through JSON — on a cache
+  // hit every Date field comes back as a string, not a Date instance. A
+  // fresh (cache-miss) result already holds real Dates, and `new Date()` on
+  // one of those just clones it, so this normalizes both cases the same way
+  // rather than only patching the cached path.
+  return events.map((event) => ({
+    ...event,
+    date: new Date(event.date),
+    cancelledAt: event.cancelledAt ? new Date(event.cancelledAt) : event.cancelledAt,
+    createdAt: new Date(event.createdAt),
+    updatedAt: new Date(event.updatedAt),
+  }));
 }
 
 export async function getEventBySlug(slug: string) {

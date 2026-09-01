@@ -59,7 +59,18 @@ const fetchActiveMembershipPlans = unstable_cache(
 );
 
 export async function getActiveMembershipPlans() {
-  return fetchActiveMembershipPlans();
+  const plans = await fetchActiveMembershipPlans();
+
+  // unstable_cache round-trips its return value through JSON — on a cache
+  // hit every Date field comes back as a string, not a Date instance. A
+  // fresh (cache-miss) result already holds real Dates, and `new Date()` on
+  // one of those just clones it, so this normalizes both cases the same way
+  // rather than only patching the cached path.
+  return plans.map((plan) => ({
+    ...plan,
+    createdAt: new Date(plan.createdAt),
+    updatedAt: new Date(plan.updatedAt),
+  }));
 }
 
 export async function upsertMembershipPlan(data: MembershipPlanFormValues) {
