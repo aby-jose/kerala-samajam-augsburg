@@ -30,6 +30,7 @@ export const getConfig = cache(async (): Promise<SiteConfig> => {
         notifications: { ...defaultConfig.email.notifications, ...storedConfig.email?.notifications },
       },
       features: { ...defaultConfig.features, ...storedConfig.features },
+      membership: { ...defaultConfig.membership, ...storedConfig.membership },
       legal: { ...defaultConfig.legal, ...storedConfig.legal },
     };
   } catch (error) {

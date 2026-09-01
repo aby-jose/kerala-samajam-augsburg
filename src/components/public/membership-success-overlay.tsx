@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { formatDate, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { useConfig } from "@/components/providers/config-provider";
+import { establishedLine } from "@/lib/org-identity";
 
 interface MembershipSuccessOverlayProps {
   subscription: any;
@@ -15,6 +17,10 @@ interface MembershipSuccessOverlayProps {
 export default function MembershipSuccessOverlay({ subscription }: MembershipSuccessOverlayProps) {
   const [isVisible, setIsVisible] = useState(true);
   const router = useRouter();
+  // The sidebar is the card's letterhead — the name and the founding facts on
+  // it are the association's, so they come from Settings.
+  const config = useConfig();
+  const established = establishedLine(config);
 
   const handleClose = () => {
     setIsVisible(false);
@@ -59,13 +65,18 @@ export default function MembershipSuccessOverlay({ subscription }: MembershipSuc
                   </div>
                   <div className="space-y-1">
                      <p className="text-[8px] font-black uppercase tracking-[0.3em] text-white/40">Official Record</p>
-                     <p className="text-sm font-serif italic text-white/90">Kerala Samajam Augsburg</p>
+                     <p className="text-sm font-serif italic text-white/90">{config.siteName}</p>
                   </div>
                </div>
                
                <div className="pt-12 md:pt-0">
                   <p className="text-[7px] font-bold uppercase tracking-widest text-white/30 leading-relaxed">
-                     ESTABLISHED 2012 <br /> AUGSBURG, GERMANY
+                     {established.year && (
+                       <>
+                         {established.year} <br />
+                       </>
+                     )}
+                     {established.place}
                   </p>
                </div>
             </div>

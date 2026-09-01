@@ -47,6 +47,11 @@ export const membershipBenefitsSectionSchema = z.object({
   ...sectionHeadingFields,
   imageUrl: z.string().min(1, "An image is required"),
   imageAlt: z.string().min(1, "Alt text is required").max(160),
+  // The two stacked lines over the bottom of the image. Both optional: clear
+  // them and the overlay stops rendering rather than leaving an empty block
+  // sitting on the gradient.
+  imageCaption: z.string().max(120).optional().or(z.literal("")),
+  imageCaptionLabel: z.string().max(60).optional().or(z.literal("")),
   items: z
     .array(
       z.object({
@@ -109,6 +114,8 @@ export const DEFAULT_MEMBERSHIP: MembershipContentT = {
       lead: "Members get the invitations first, a say in how the Verein is run, and a vote at the general meeting. Beyond that, it is the simplest way to keep all of this going.",
       imageUrl: "/images/gallery/community_picnic.png",
       imageAlt: "KSA members at a community gathering in Augsburg",
+      imageCaption: "You won't be new here for long.",
+      imageCaptionLabel: "Become a member",
       items: [
         {
           icon: "Globe",

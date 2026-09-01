@@ -158,6 +158,20 @@ export function MembershipContentEditor({ initialData }: { initialData: Membersh
                   <Field label="Image alt text" error={errors.content?.benefits?.imageAlt?.message}>
                     <Textarea rows={3} {...register("content.benefits.imageAlt")} />
                   </Field>
+                  <Field
+                    label="Caption over the image"
+                    hint="Optional. Leave both caption fields empty to show the photo on its own."
+                    error={errors.content?.benefits?.imageCaption?.message}
+                  >
+                    <Input {...register("content.benefits.imageCaption")} />
+                  </Field>
+                  <Field
+                    label="Caption label"
+                    hint="Optional. The quieter second line under the caption."
+                    error={errors.content?.benefits?.imageCaptionLabel?.message}
+                  >
+                    <Input {...register("content.benefits.imageCaptionLabel")} />
+                  </Field>
                 </div>
 
                 <div className="space-y-4 border-t border-border pt-4">

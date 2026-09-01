@@ -1,4 +1,5 @@
 import type { SiteConfig } from "./config-schema";
+import { orgCity, orgLegalName } from "./org-identity";
 
 /**
  * JSON-LD builders for the public site.
@@ -32,7 +33,7 @@ export function websiteJsonLd(config: SiteConfig, url: string | undefined) {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: isPlaceholder(config.legal.entityName) ? config.siteName : config.legal.entityName,
+    name: orgLegalName(config),
     url,
   };
 }
@@ -71,7 +72,7 @@ export function organizationJsonLd(config: SiteConfig, url: string | undefined) 
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: isPlaceholder(legal.entityName) ? siteName : legal.entityName,
+    name: orgLegalName(config),
     // "Malayalee" is the other common spelling and "Samajam" is what these
     // associations actually call themselves — a search for either should
     // still land on the one Organization record.
@@ -80,6 +81,7 @@ export function organizationJsonLd(config: SiteConfig, url: string | undefined) 
     ...(url ? { url } : {}),
     ...(branding.logoUrl ? { logo: branding.logoUrl } : {}),
     ...(contactEmail ? { email: contactEmail } : {}),
+    ...(config.foundedYear?.trim() ? { foundingDate: config.foundedYear.trim() } : {}),
     ...(hasAddress
       ? {
           address: {
@@ -95,7 +97,7 @@ export function organizationJsonLd(config: SiteConfig, url: string | undefined) 
     // region — listing the state alongside the city says so without
     // overclaiming a city KSA doesn't actually serve.
     areaServed: [
-      { "@type": "City", name: legal.city || "Augsburg" },
+      { "@type": "City", name: orgCity(config) },
       { "@type": "State", name: "Bavaria" },
     ],
     ...(sameAs.length ? { sameAs } : {}),

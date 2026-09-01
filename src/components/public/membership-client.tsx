@@ -409,6 +409,11 @@ function MembershipBenefitsSection({
   content = DEFAULT_MEMBERSHIP.content.benefits,
   surface = "bg-surface-1",
 }: { content?: MembershipContentT["content"]["benefits"] } & SectionSurfaceProps) {
+  // Both overlay lines are optional in the CMS. Clearing them drops the block
+  // entirely so the photo is never covered by an empty caption.
+  const caption = content.imageCaption?.trim();
+  const captionLabel = content.imageCaptionLabel?.trim();
+
   return (
     <section className={cn("py-24 md:py-32", surface)}>
       <Container>
@@ -448,10 +453,16 @@ function MembershipBenefitsSection({
                   className="object-cover opacity-70 transition-transform duration-700 group-hover:scale-105"
                 />
                 <div className="absolute inset-0 bg-linear-to-t from-zinc-950 via-transparent to-transparent" />
-                <div className="absolute bottom-12 left-12 right-12 space-y-2">
-                   <p className="font-sans text-2xl font-extrabold leading-tight tracking-[-0.03em] text-white">Kerala in Augsburg,<br /> since 2012.</p>
-                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-white/60">Kerala Samajam Augsburg e.V.</p>
-                </div>
+                {(caption || captionLabel) && (
+                  <div className="absolute bottom-12 left-12 right-12 space-y-2">
+                     {caption && (
+                       <p className="font-sans text-2xl font-extrabold leading-tight tracking-[-0.03em] text-balance text-white">{caption}</p>
+                     )}
+                     {captionLabel && (
+                       <p className="text-sm font-medium tracking-[-0.01em] text-white/70">{captionLabel}</p>
+                     )}
+                  </div>
+                )}
              </div>
           </div>
         </div>

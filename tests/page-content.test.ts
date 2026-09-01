@@ -493,6 +493,35 @@ describe("membership content schema", () => {
     ).toThrow();
   });
 
+  it("accepts a benefits section with both image caption lines cleared", () => {
+    // The overlay is optional copy: an admin who empties both boxes wants the
+    // photo bare, not a validation error.
+    expect(() =>
+      membershipContentSchema.parse({
+        ...DEFAULT_MEMBERSHIP,
+        content: {
+          ...DEFAULT_MEMBERSHIP.content,
+          benefits: {
+            ...DEFAULT_MEMBERSHIP.content.benefits,
+            imageCaption: "",
+            imageCaptionLabel: "",
+          },
+        },
+      })
+    ).not.toThrow();
+  });
+
+  it("keeps a stored image caption and defaults one that was never saved", () => {
+    const merged = mergeMembershipContent({
+      benefits: { imageCaption: "See you at the next sadhya." },
+    });
+
+    expect(merged.benefits.imageCaption).toBe("See you at the next sadhya.");
+    expect(merged.benefits.imageCaptionLabel).toBe(
+      DEFAULT_MEMBERSHIP.content.benefits.imageCaptionLabel
+    );
+  });
+
   it("only accepts real lucide-react icon names", () => {
     expect(() =>
       membershipContentSchema.parse({

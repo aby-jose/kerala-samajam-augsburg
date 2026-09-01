@@ -44,6 +44,7 @@ import { ConsentCheckbox, LegalLink } from "@/components/legal/consent-checkbox"
 import { ConsentBlockedNotice, useLegalConsent } from "@/components/legal/consent-gate";
 import { Badge } from "@/components/ui/badge";
 import { updateProfile } from "@/lib/profile-actions";
+import { useConfig } from "@/components/providers/config-provider";
 import PaymentInstructions from "./payment-instructions";
 
 interface MembershipFormModalProps {
@@ -56,6 +57,7 @@ interface MembershipFormModalProps {
 type ModalState = "LOADING" | "ALREADY_MEMBER" | "PENDING_REVIEW" | "AWAITING_PAYMENT" | "REJECTED" | "FORM";
 
 type PaymentDetails = Awaited<ReturnType<typeof getMembershipPaymentDetails>>;
+
 
 export default function MembershipFormModal({ 
   isOpen, 
@@ -95,6 +97,13 @@ export default function MembershipFormModal({
 
   const isStudentPlan = plan.name.toLowerCase().includes("student");
   const isFamilyPlan = plan.name.toLowerCase().includes("family");
+
+  // How large a family plan may be, from Settings > Modules. The relation of
+  // each added slot is derived from these: the first `maxAdults` names are
+  // ADULT, the rest CHILD.
+  const { membership } = useConfig();
+  const maxAdults = membership.maxFamilyAdults;
+  const maxFamilyMembers = maxAdults + membership.maxFamilyChildren;
 
   // Initial Status Check
   useEffect(() => {
@@ -312,8 +321,8 @@ export default function MembershipFormModal({
   };
 
   const addFamilyMember = () => {
-    if (familyMembers.length >= 4) return;
-    const relation = familyMembers.filter(m => m.relation === 'ADULT').length < 2 ? 'ADULT' : 'CHILD';
+    if (familyMembers.length >= maxFamilyMembers) return;
+    const relation = familyMembers.filter(m => m.relation === 'ADULT').length < maxAdults ? 'ADULT' : 'CHILD';
     setFamilyMembers([...familyMembers, { name: "", relation }]);
   };
 
@@ -627,8 +636,8 @@ export default function MembershipFormModal({
                  {isFamilyPlan && (
                     <div className="space-y-6">
                        <div className="flex items-center justify-between">
-                          <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Family Members (Max 2 Adults, 2 Kids)</label>
-                          <Button variant="ghost" size="sm" onClick={addFamilyMember} className="h-8 text-[10px] font-bold text-primary hover:text-primary hover:bg-primary/5 uppercase tracking-widest"><Plus className="w-3 h-3 mr-1" /> Add</Button>
+                          <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Family Members (Max {membership.maxFamilyAdults} Adults, {membership.maxFamilyChildren} Kids)</label>
+                          <Button variant="ghost" size="sm" onClick={addFamilyMember} disabled={familyMembers.length >= maxFamilyMembers} className="h-8 text-[10px] font-bold text-primary hover:text-primary hover:bg-primary/5 uppercase tracking-widest"><Plus className="w-3 h-3 mr-1" /> Add</Button>
                        </div>
                        <div className="space-y-3">
                           {familyMembers.map((member, index) => (

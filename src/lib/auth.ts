@@ -8,6 +8,18 @@ import bcrypt from "bcrypt";
 import { verifyCaptcha } from "./captcha";
 import { clearPersistentRateLimit, persistentRateLimit } from "./rate-limit";
 import { SUSPENDED_ERROR, signInBlockReason } from "./auth-gate";
+import {
+  CAPTCHA_REQUIRED,
+  INVALID_CAPTCHA_ERROR,
+  LoginPortal,
+  loginFailureKeys,
+  readChallengeField,
+} from "./login-challenge";
+import {
+  clearLoginFailures,
+  isCaptchaRequired,
+  recordLoginFailure,
+} from "./login-attempts";
 
 /**
  * A real bcrypt hash of a value nobody can supply, compared against when no
@@ -59,6 +71,69 @@ const LOGIN_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const GENERIC_CREDENTIALS_ERROR = "Invalid email or password.";
 
 /**
+ * The client behind this attempt, as far as the proxy in front of us will say.
+ *
+ * next-auth hands `authorize` a trimmed request object; the headers are the
+ * only part of it that can tell two callers apart, and behind a proxy the
+ * socket address would be the proxy's anyway.
+ */
+function clientIpFrom(req?: { headers?: unknown }): string | null {
+  const headers = req?.headers as Record<string, string | string[] | undefined> | undefined;
+  if (!headers) return null;
+
+  const read = (name: string) => {
+    const value = headers[name];
+    return Array.isArray(value) ? value[0] : value;
+  };
+
+  return read("x-forwarded-for") ?? read("x-real-ip") ?? null;
+}
+
+/**
+ * Decide whether this attempt needs a security code, and check it if it has
+ * one. Returns the failure counters the attempt will be scored against.
+ *
+ * Runs before the password check and before the rate limiter, so a demand for
+ * a code costs neither a database lookup of the account nor an attempt slot —
+ * the person retries with the code and still has their full allowance.
+ */
+async function gateCaptcha({
+  portal,
+  email,
+  ip,
+  captchaId,
+  captchaCode,
+}: {
+  portal: LoginPortal;
+  email: string;
+  ip: string | null;
+  captchaId?: string;
+  captchaCode?: string;
+}): Promise<string[]> {
+  const failureKeys = loginFailureKeys(portal, email, ip);
+
+  // Normalised, not just truthiness-checked: an absent field arrives here as
+  // the string "undefined" — see `readChallengeField`.
+  const offeredId = readChallengeField(captchaId);
+  const offeredCode = readChallengeField(captchaCode);
+
+  // Checked whenever one is genuinely offered, not only when it is required:
+  // the screens only render the field once it is demanded, so a code arriving
+  // here is one the person was asked for.
+  if (offeredId && offeredCode) {
+    const isValid = await verifyCaptcha(offeredId, offeredCode);
+    if (!isValid) throw new Error(INVALID_CAPTCHA_ERROR);
+    return failureKeys;
+  }
+
+  if (await isCaptchaRequired(failureKeys)) {
+    throw new Error(CAPTCHA_REQUIRED);
+  }
+
+  return failureKeys;
+}
+
+/**
  * Shared credential check for both portals.
  *
  * `requireAdmin` decides whether this is the admin portal, where a non-admin
@@ -67,7 +142,7 @@ const GENERIC_CREDENTIALS_ERROR = "Invalid email or password.";
 async function authorizeCredentials(
   email: string,
   password: string,
-  { adminOnly }: { adminOnly: boolean }
+  { adminOnly, failureKeys }: { adminOnly: boolean; failureKeys: string[] }
 ) {
   const normalisedEmail = email.trim().toLowerCase();
   const attemptKey = `login:${adminOnly ? "admin" : "public"}:${normalisedEmail}`;
@@ -89,12 +164,23 @@ async function authorizeCredentials(
   const isPasswordValid = await bcrypt.compare(password, hash);
 
   if (!user || !user.password || !isPasswordValid) {
+    await recordLoginFailure(failureKeys);
     throw new Error(GENERIC_CREDENTIALS_ERROR);
   }
 
+  // A member who knows their password but knocks on the admin door is counted
+  // too: from the outside it is indistinguishable from a script working
+  // through a leaked list looking for one that happens to be an administrator.
   if (adminOnly && user.role !== "ADMIN") {
+    await recordLoginFailure(failureKeys);
     throw new Error(GENERIC_CREDENTIALS_ERROR);
   }
+
+  // The password was right, so whatever comes next is not a brute-force
+  // signal. Cleared here rather than after the checks below so that confirming
+  // an address or lifting a suspension does not leave a security code in front
+  // of the next sign-in.
+  await clearLoginFailures(failureKeys);
 
   // Suspension and email verification, in that order. Both are checked only
   // after the password matched, so neither can be used to probe for accounts.
@@ -321,21 +407,24 @@ export const publicAuthOptions: NextAuthOptions = {
         captchaId: { label: "Captcha ID", type: "text" },
         captchaCode: { label: "Captcha Code", type: "text" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Invalid credentials");
         }
 
-        // Verify Captcha for Sign In
-        if (credentials.captchaId && credentials.captchaCode) {
-          const isValid = await verifyCaptcha(credentials.captchaId, credentials.captchaCode);
-          if (!isValid) throw new Error("Invalid captcha code");
-        } else {
-          throw new Error("Security verification required");
-        }
+        // A code is asked for only once this address or this client has got
+        // the password wrong three times — see `login-challenge`.
+        const failureKeys = await gateCaptcha({
+          portal: "public",
+          email: credentials.email,
+          ip: clientIpFrom(req),
+          captchaId: credentials.captchaId,
+          captchaCode: credentials.captchaCode,
+        });
 
         return authorizeCredentials(credentials.email, credentials.password, {
           adminOnly: false,
+          failureKeys,
         });
       },
     }),
@@ -393,7 +482,7 @@ export const adminAuthOptions: NextAuthOptions = {
         // password check or the rate limiter — no point spending either on it.
         website: { label: "Website", type: "text" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error(GENERIC_CREDENTIALS_ERROR);
         }
@@ -403,18 +492,23 @@ export const adminAuthOptions: NextAuthOptions = {
         }
 
         // The admin portal is the higher-value target, so it gets the same
-        // captcha gate the public sign-in already has — credential-stuffing
-        // scripts can otherwise burn through the whole internet's leaked
-        // password lists without ever rendering a page.
-        if (credentials.captchaId && credentials.captchaCode) {
-          const isValid = await verifyCaptcha(credentials.captchaId, credentials.captchaCode);
-          if (!isValid) throw new Error("Invalid security code. Please try again.");
-        } else {
-          throw new Error("Security verification required.");
-        }
+        // captcha gate the public sign-in has — credential-stuffing scripts
+        // can otherwise burn through the whole internet's leaked password
+        // lists without ever rendering a page. It is held back until three
+        // failures, though: administrators sign in often, and a code on every
+        // visit is a toll paid by them and by nobody else. The honeypot above
+        // and the attempt limiter below still apply from the first try.
+        const failureKeys = await gateCaptcha({
+          portal: "admin",
+          email: credentials.email,
+          ip: clientIpFrom(req),
+          captchaId: credentials.captchaId,
+          captchaCode: credentials.captchaCode,
+        });
 
         return authorizeCredentials(credentials.email, credentials.password, {
           adminOnly: true,
+          failureKeys,
         });
       },
     }),

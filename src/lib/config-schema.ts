@@ -2,6 +2,12 @@ export interface SiteConfig {
   siteName: string;
   siteDescription: string;
   tagline: string;
+  /**
+   * Four-digit founding year, shown on the membership cards and published as
+   * the Organization's `foundingDate`. Blank means "not stated" — every reader
+   * drops its clause rather than printing an empty year.
+   */
+  foundedYear?: string;
   contactEmail: string;
   contactPhone?: string;
   address?: string;
@@ -54,6 +60,8 @@ export interface SiteConfig {
     enableMembership: boolean;
     maintenanceMode: boolean;
   };
+  /** Rules the membership application form enforces. */
+  membership: MembershipConfig;
   /**
    * Structured legal facts about the association.
    *
@@ -146,6 +154,27 @@ export const defaultNotificationEmailConfig: NotificationEmailConfig = {
   contactForm: true,
 };
 
+/**
+ * How large a family plan may be.
+ *
+ * The application form derives each added slot's relation from these: the
+ * first `maxFamilyAdults` names are recorded as ADULT, everything after that
+ * as CHILD, up to `maxFamilyChildren` of them. Raising a limit only affects
+ * applications made from then on — a family already on file keeps the names
+ * it was submitted with.
+ */
+export interface MembershipConfig {
+  /** Adults a family plan covers, besides nobody — the applicant is one of them. */
+  maxFamilyAdults: number;
+  /** Children a family plan covers. */
+  maxFamilyChildren: number;
+}
+
+export const defaultMembershipConfig: MembershipConfig = {
+  maxFamilyAdults: 2,
+  maxFamilyChildren: 5,
+};
+
 export interface LegalEntityConfig {
   /** Full registered name, e.g. "Kerala Samajam Augsburg e.V." */
   entityName: string;
@@ -216,6 +245,7 @@ export const defaultConfig: SiteConfig = {
   siteName: "Kerala Samajam Augsburg",
   siteDescription: "The official platform for the Malayali — Mallu — community in Augsburg, Bavaria, Germany.",
   tagline: "Connecting Hearts, Celebrating Culture",
+  foundedYear: "2012",
   contactEmail: "info@ksaugsburg.de",
   socials: {
     facebook: "https://facebook.com/ksaugsburg",
@@ -237,5 +267,6 @@ export const defaultConfig: SiteConfig = {
     enableMembership: true,
     maintenanceMode: false,
   },
+  membership: defaultMembershipConfig,
   legal: defaultLegalEntity,
 };

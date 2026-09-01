@@ -103,7 +103,16 @@ export function WhatsAppCta({
             <Link href="/contact" className="w-full sm:w-auto">
               <Button
                 variant="ghost"
-                className="h-12 w-full rounded-full border border-white/15 bg-white/[0.06] px-9 text-[14px] font-semibold text-white backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 hover:bg-white/15 hover:text-white sm:w-auto"
+                className={cn(
+                  "h-12 w-full rounded-full border px-9 text-[14px] font-semibold backdrop-blur-md transition-all duration-500 hover:-translate-y-0.5 sm:w-auto",
+                  // Same split as `Eyebrow`: the white treatment only reads on
+                  // surface-deep. Every page gives this section `surfaceMode:
+                  // "rotate"`, so in practice it lands on a near-white surface
+                  // — where a hardcoded `text-white` was invisible.
+                  tone === "dark"
+                    ? "border-white/15 bg-white/[0.06] text-white hover:bg-white/15 hover:text-white"
+                    : "border-border bg-surface-1/60 text-foreground hover:bg-surface-2 hover:text-foreground"
+                )}
               >
                 Ask a Question First
               </Button>

@@ -40,6 +40,13 @@ const settingsSchema = z.object({
   siteName: z.string().min(2, "Site name is required"),
   siteDescription: z.string().min(10, "Description must be at least 10 characters"),
   tagline: z.string().optional(),
+  // Blank is allowed and means "not stated" — every surface that shows the
+  // founding year drops its clause rather than printing an empty one.
+  foundedYear: z
+    .string()
+    .regex(/^$|^\d{4}$/, "Use a four-digit year, or leave blank")
+    .optional()
+    .or(z.literal("")),
   contactEmail: z.string().email("Invalid email address"),
   contactPhone: z.string().optional(),
   address: z.string().optional(),
@@ -85,6 +92,13 @@ const settingsSchema = z.object({
     enableGallery: z.boolean(),
     enableMembership: z.boolean(),
     maintenanceMode: z.boolean(),
+  }),
+  // No `.default()` on these, for the same reason as `boardMembers` below:
+  // getConfig() merges the defaults in, and a default here would split the
+  // schema's input and output types, which the resolver rejects.
+  membership: z.object({
+    maxFamilyAdults: z.number().int().min(1).max(10),
+    maxFamilyChildren: z.number().int().min(0).max(20),
   }),
   /**
    * Facts about the association that the legal documents pull in as
@@ -277,6 +291,18 @@ function SettingsPageContent() {
                       <div className="space-y-2">
                         <Label htmlFor="tagline" className="text-sm font-medium">Tagline</Label>
                         <Input id="tagline" {...register("tagline")} className="h-9 rounded-lg" placeholder="Connecting Hearts, Celebrating Culture" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="foundedYear" className="text-sm font-medium">Founded</Label>
+                        <Input id="foundedYear" {...register("foundedYear")} className="h-9 rounded-lg" placeholder="e.g. 2012" inputMode="numeric" maxLength={4} />
+                        {errors.foundedYear ? (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.foundedYear.message}</p>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">Shown on the membership cards and published to search engines. Leave blank to hide it.</p>
+                        )}
                       </div>
                     </div>
 
@@ -735,6 +761,49 @@ function SettingsPageContent() {
                           checked={watch("features.enableMembership")}
                           onCheckedChange={(val) => setValue("features.enableMembership", val)}
                         />
+                      </div>
+
+                      {/* Sits under the member-portal switch because it only
+                          matters while that is on — the family plan is part
+                          of the portal, not a module of its own. */}
+                      <div className="space-y-3 py-4">
+                        <div className="space-y-0.5">
+                          <h4 className="font-sans text-sm font-medium text-foreground">Family plan size</h4>
+                          <p className="text-xs text-muted-foreground">
+                            How many people an applicant may name on a family membership, besides
+                            themselves. Existing applications keep the names they were submitted with.
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-4 sm:max-w-md sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Adults</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              max={10}
+                              disabled={!watch("features.enableMembership")}
+                              {...register("membership.maxFamilyAdults", { valueAsNumber: true })}
+                              className="h-9 rounded-lg"
+                            />
+                            {errors.membership?.maxFamilyAdults && (
+                              <p className="text-xs text-red-500">{errors.membership.maxFamilyAdults.message}</p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Children</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={20}
+                              disabled={!watch("features.enableMembership")}
+                              {...register("membership.maxFamilyChildren", { valueAsNumber: true })}
+                              className="h-9 rounded-lg"
+                            />
+                            {errors.membership?.maxFamilyChildren && (
+                              <p className="text-xs text-red-500">{errors.membership.maxFamilyChildren.message}</p>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-between gap-4 py-4">

@@ -13,6 +13,7 @@ import {
   getNewCaptcha,
 } from "@/lib/auth-actions";
 import { EMAIL_NOT_VERIFIED } from "@/lib/auth-gate";
+import { CAPTCHA_AFTER_FAILURES, CAPTCHA_REQUIRED } from "@/lib/login-challenge";
 import { useToast } from "@/components/ui/toast";
 import { SignupConsent } from "@/components/legal/consent-checkbox";
 import { RefreshCw } from "lucide-react";
@@ -56,12 +57,28 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
   const [captchaInput, setCaptchaInput] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  /**
+   * Failed sign-ins in this modal.
+   *
+   * Only decides whether to *show* the code field — the server keeps its own
+   * count, per address and per client, and is the thing that actually enforces
+   * it. This one exists so that the common case (same browser, three wrong
+   * passwords in a row) reveals the field on the next attempt rather than
+   * after a wasted round trip. A reload resets it, and the server then answers
+   * the next attempt with `CAPTCHA_REQUIRED`, which sets it back.
+   */
+  const [failedLogins, setFailedLogins] = useState(0);
+
+  // Signing up is still gated from the first attempt: a fresh account has no
+  // failure history to judge it by, and scripted registrations are the thing
+  // the code is there to stop.
+  const showCaptcha =
+    view === "signup" || (view === "login" && failedLogins >= CAPTCHA_AFTER_FAILURES);
 
   // Prevent background scroll
   React.useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
-      refreshCaptcha();
     } else {
       document.body.style.overflow = "unset";
     }
@@ -70,9 +87,21 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
     };
   }, [isOpen]);
 
+  /**
+   * Fetch a code only when one is on screen, and a fresh one whenever the
+   * field appears or the view changes. A challenge is single-use and expires
+   * after five minutes, so a code issued on open and left sitting through a
+   * detour to "forgot password" would fail anyway.
+   */
   React.useEffect(() => {
-    if (isOpen) refreshCaptcha();
-  }, [view]);
+    if (!isOpen) return;
+    if (showCaptcha) {
+      refreshCaptcha();
+    } else {
+      setCaptcha(null);
+      setCaptchaInput("");
+    }
+  }, [isOpen, view, showCaptcha]);
 
   const refreshCaptcha = async () => {
     const data = await getNewCaptcha();
@@ -96,24 +125,38 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
         const result = await signIn("credentials", {
           email,
           password,
-          captchaId: captcha?.id,
-          captchaCode: captchaInput,
+          // Spread rather than `captchaId: showCaptcha ? … : undefined`.
+          // next-auth encodes this object with `URLSearchParams`, which turns
+          // an undefined value into the string "undefined" instead of dropping
+          // the key — which the server then reads as a wrong code.
+          ...(showCaptcha ? { captchaId: captcha?.id ?? "", captchaCode: captchaInput } : {}),
           redirect: false,
         }, {
           // @ts-ignore
           basePath: "/api/auth"
         });
 
-        if (result?.error === EMAIL_NOT_VERIFIED) {
+        if (result?.error === CAPTCHA_REQUIRED) {
+          // The server has seen failures this browser has not — a reload, or
+          // another tab. Reveal the field and let them try again; the attempt
+          // never reached the password check, so nothing was spent on it.
+          setFailedLogins((count) => Math.max(count, CAPTCHA_AFTER_FAILURES));
+          // Already showing means the code never arrived — a fetch that
+          // failed, or a challenge that expired on screen. Get a fresh one.
+          if (showCaptcha) refreshCaptcha();
+          toast.error("Enter the security code below to continue.", 6000);
+        } else if (result?.error === EMAIL_NOT_VERIFIED) {
           // The password was right; only the address is unconfirmed. Given a
           // little longer on screen than a plain failure — it carries an
           // instruction, not just a verdict.
+          setFailedLogins(0);
           toast.error(`Confirm your email first — we sent a link to ${email}.`, 6000);
-          refreshCaptcha();
         } else if (result?.error) {
+          setFailedLogins((count) => count + 1);
           toast.error(result.error);
-          refreshCaptcha();
+          if (showCaptcha) refreshCaptcha();
         } else {
+          setFailedLogins(0);
           onClose();
           onSuccess?.();
         }
@@ -134,9 +177,10 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
             result.message || "Account created — check your email to confirm the address.",
             6000
           );
+          // No manual refresh — the sign-in view has no code field to fill,
+          // and the effect above clears the spent challenge.
           setView("login");
           setAcceptedTerms(false);
-          refreshCaptcha();
         }
       } else if (view === "forgot-password") {
         const result = await requestPasswordReset(email);
@@ -425,8 +469,10 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                       )}
                     </AnimatePresence>
 
-                    {/* Captcha Section */}
-                    {view !== "forgot-password" && (
+                    {/* Security code — see `login-challenge`. On the sign-in
+                        view it appears only after three failed attempts, so
+                        the ordinary visit never meets it. */}
+                    {showCaptcha && (
                       <div className="pb-6">
                         <div className="flex items-center gap-3">
                           <div className="flex-1 h-12 md:h-14 bg-muted/30 border border-border/60 rounded-xl flex items-center justify-center relative overflow-hidden group/cap">
@@ -452,7 +498,11 @@ export function LoginModal({ isOpen, onClose, onSuccess }: LoginModalProps) {
                             required
                           />
                         </div>
-                        <p className="mt-2 px-1 text-[10px] text-muted-foreground">Type the code shown above to continue.</p>
+                        <p className="mt-2 px-1 text-[10px] text-muted-foreground">
+                          {view === "login"
+                            ? "A few attempts have failed — type the code above to continue."
+                            : "Type the code shown above to continue."}
+                        </p>
                       </div>
                     )}
 

@@ -15,11 +15,16 @@ import { cn } from "@/lib/utils";
 import { useConfig } from "@/components/providers/config-provider";
 import { getNewCaptcha, resendVerification } from "@/lib/auth-actions";
 import { EMAIL_NOT_VERIFIED } from "@/lib/auth-gate";
+import { CAPTCHA_AFTER_FAILURES, CAPTCHA_REQUIRED } from "@/lib/login-challenge";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(1, "Password is required"),
-  captchaCode: z.string().min(1, "Enter the code shown above"),
+  // Optional in the schema because the field is not on screen for most
+  // sign-ins — it appears only after three failures. Required-ness is decided
+  // in `onSubmit`, where whether it is showing is known, and again on the
+  // server, which is the only count that an attacker cannot reset.
+  captchaCode: z.string().optional(),
   // Honeypot — left blank by a human, filled in by a script that fills every
   // field it finds. Not validated here (a visible error would give it away);
   // checked in onSubmit and again on the server.
@@ -63,6 +68,14 @@ function AdminLoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
   const [captcha, setCaptcha] = useState<{ id: string; code: string } | null>(null);
+  /**
+   * Failed sign-ins on this page. Decides whether the code field is shown;
+   * the server keeps the count that decides whether it is *checked*, per
+   * address and per client, so clearing this by reloading buys nothing — the
+   * next attempt comes back as `CAPTCHA_REQUIRED` and puts the field back.
+   */
+  const [failedLogins, setFailedLogins] = useState(0);
+  const showCaptcha = failedLogins >= CAPTCHA_AFTER_FAILURES;
 
   const searchParams = useSearchParams();
   const isLogout = searchParams.get("logout") === "true";
@@ -79,19 +92,25 @@ function AdminLoginForm() {
     setValue("captchaCode", "");
   };
 
-  // Fetched fresh whenever the login form comes into view — on mount, and
-  // again coming back from "forgot password" — rather than server-rendered:
-  // the code has to match whatever the database handed out for this session,
-  // so it can only come from a client call. A code left over from minutes ago
-  // spent on the reset flow would just expire and fail anyway.
+  // Fetched fresh whenever the field comes into view — when the third failure
+  // reveals it, and again coming back from "forgot password" — rather than
+  // server-rendered: the code has to match whatever the database handed out
+  // for this session, so it can only come from a client call. A code left over
+  // from minutes ago spent on the reset flow would just expire and fail.
   useEffect(() => {
-    if (view === "login") refreshCaptcha();
-  }, [view]);
+    if (view === "login" && showCaptcha) {
+      refreshCaptcha();
+    } else {
+      setCaptcha(null);
+      setValue("captchaCode", "");
+    }
+  }, [view, showCaptcha]);
 
   const {
     register,
     handleSubmit,
     setValue,
+    setError: setFieldError,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -105,6 +124,11 @@ function AdminLoginForm() {
       return;
     }
 
+    if (showCaptcha && !data.captchaCode?.trim()) {
+      setFieldError("captchaCode", { message: "Enter the code shown above" });
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -113,29 +137,45 @@ function AdminLoginForm() {
         redirect: false,
         email: data.email,
         password: data.password,
-        captchaId: captcha?.id,
-        captchaCode: data.captchaCode,
+        // Spread rather than `captchaId: showCaptcha ? … : undefined`.
+        // next-auth encodes this object with `URLSearchParams`, which turns an
+        // undefined value into the string "undefined" instead of dropping the
+        // key — which the server then reads as a wrong code.
+        ...(showCaptcha
+          ? { captchaId: captcha?.id ?? "", captchaCode: data.captchaCode ?? "" }
+          : {}),
       }, {
         // @ts-ignore
         basePath: "/api/admin/auth"
       });
 
-      if (result?.error === EMAIL_NOT_VERIFIED) {
+      if (result?.error === CAPTCHA_REQUIRED) {
+        // The server has counted failures this page has not — a reload, or
+        // another client on the same address. Reveal the field and let them
+        // try again; the attempt stopped before the password check, so it cost
+        // neither an attempt slot nor a failure.
+        setFailedLogins((count) => Math.max(count, CAPTCHA_AFTER_FAILURES));
+        // Already showing means the code never arrived — a fetch that failed,
+        // or a challenge that expired on screen. Get a fresh one.
+        if (showCaptcha) refreshCaptcha();
+        setError("Enter the security code below to continue.");
+      } else if (result?.error === EMAIL_NOT_VERIFIED) {
         // The admin portal has no other way back in — there is no second
         // administrator to ask, so the recovery has to be on this screen.
+        setFailedLogins(0);
         setUnverifiedEmail(data.email);
         setResendSent(false);
-        refreshCaptcha();
       } else if (result?.error) {
+        setFailedLogins((count) => count + 1);
         setError(result.error);
-        refreshCaptcha();
+        if (showCaptcha) refreshCaptcha();
       } else {
         router.push("/admin/dashboard");
         router.refresh();
       }
     } catch (err) {
       setError("Something went wrong. Please try again.");
-      refreshCaptcha();
+      if (showCaptcha) refreshCaptcha();
     } finally {
       setIsLoading(false);
     }
@@ -353,6 +393,10 @@ function AdminLoginForm() {
                       )}
                     </div>
 
+                    {/* Only from the fourth attempt on — see `login-challenge`.
+                        Administrators sign in often, and a code on every visit
+                        is a toll paid by them and by nobody else. */}
+                    {showCaptcha && (
                     <div className="space-y-1.5">
                       <Label htmlFor="captchaCode" className={labelClasses}>Security code</Label>
                       <div className="flex items-center gap-2">
@@ -383,6 +427,7 @@ function AdminLoginForm() {
                         <p className={fieldErrorClasses}>{errors.captchaCode.message}</p>
                       )}
                     </div>
+                    )}
                   </div>
 
                   {error && (
