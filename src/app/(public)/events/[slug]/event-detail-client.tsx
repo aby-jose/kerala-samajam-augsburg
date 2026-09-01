@@ -89,7 +89,10 @@ export function EventDetailClient({ event }: { event: EventDetail }) {
 
   useEffect(() => {
     let cancelled = false;
-    checkCurrentMemberStatus()
+    // The member rate applies only if the membership is still running on the
+    // event's date, not just today — so status is checked as of then, matching
+    // what `registerForEvent` actually charges.
+    checkCurrentMemberStatus(event.date)
       .then((status) => {
         if (!cancelled) setMemberStatus(status);
       })
@@ -99,7 +102,7 @@ export function EventDetailClient({ event }: { event: EventDetail }) {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [session, event.date]);
 
   const rise: Variants = {
     hidden: { opacity: 0, y: reduced ? 0 : 20 },
