@@ -11,13 +11,27 @@
  * against the documented REST endpoints, matching the pattern already used
  * for the Pollinations.ai call in event-actions.ts.
  *
- * Talks to `graph.instagram.com`, not `graph.facebook.com` — this account
- * was set up via Meta's standalone "Instagram API with Instagram Login"
- * (no linked Facebook Page), whose `IGAA…` tokens are only valid on that
- * host. The Facebook-Login variant (Page-linked, `EAA…` tokens, §11 of the
- * design doc) uses `graph.facebook.com` instead and is NOT what this talks
- * to — don't "fix" the host back without checking which flow the live
- * token actually came from.
+ * Talks to `graph.facebook.com`, not `graph.instagram.com` — this account
+ * authenticates via a Meta Business System User whose `EAA…` token is only
+ * valid on that host. The account itself started life as a standalone
+ * Business Portfolio asset with no linked Facebook Page, which the classic
+ * Graph API permissions a System User carries (`instagram_basic`,
+ * `pages_show_list`, `pages_read_engagement`) cannot reach on their own —
+ * a Facebook Page ("Kerala Samajam Augsburg", id 1247613621776740) was
+ * created and connected to it (Instagram → Account Center → linked
+ * accounts) specifically so this flow would have a route in. The
+ * alternative — the standalone "Instagram API with Instagram Login" /
+ * "Business Login for Instagram" OAuth flow, `IGAA…` tokens on
+ * `graph.instagram.com`, granted via `instagram_business_basic` — is NOT
+ * what this talks to. Don't "fix" the host back without confirming the
+ * live token actually came from that flow instead.
+ *
+ * The System User token has no expiry (`expires_at: 0` — Business Settings
+ * grants it that way), so `refreshLongLivedToken` below — which only knows
+ * the Instagram-Login flow's `ig_refresh_token` grant — does not apply and
+ * is never reached: the token is seeded with a far-future `tokenExpiresAt`
+ * so `isTokenRefreshDue` stays false. Keep the function around for if this
+ * ever moves back to the standalone flow.
  */
 
 import { prisma } from "./prisma";
@@ -119,7 +133,7 @@ export async function fetchReels(): Promise<{ created: number; updated: number }
   // One page only: the most recent 50 media items of ALL types (reels are
   // filtered out of that set by parseReelsPage). Enough to surface recent
   // reels every sync, but it will not backfill an entire historical archive.
-  const url = `https://graph.instagram.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
+  const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${businessAccountId}/media?fields=${MEDIA_FIELDS}&limit=50&access_token=${token}`;
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Instagram media fetch failed: ${response.status}`);
