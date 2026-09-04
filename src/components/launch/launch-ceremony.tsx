@@ -1,9 +1,11 @@
 "use client";
 
 import { Container } from "@/components/layout/container";
+import { ConfettiCanvas } from "./confetti-canvas";
 import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
 import { PreShow } from "./pre-show";
+import { TitleCard } from "./title-card";
 import { useCeremony } from "./use-ceremony";
 import type { SiteConfig } from "@/lib/config-schema";
 
@@ -21,6 +23,7 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
   return (
     <div className="relative min-h-svh w-full overflow-hidden bg-[hsl(0_0%_6%)] text-white">
       <Curtain state={status.state} />
+      <ConfettiCanvas active={status.state === "CELEBRATING"} originX={0.5} originY={0.45} />
 
       {/* Stage atmosphere — the same vignette and film grain the home page hero
           uses, so the ceremony reads as the same production as the site it is
@@ -49,6 +52,9 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
           <PreShow config={config} armed={status.armed} onTrigger={trigger} />
         )}
         {status.state === "COUNT_IN" && <CountIn count={status.count} />}
+        {(status.state === "CELEBRATING" || status.state === "SHOWCASE") && (
+          <TitleCard config={config} />
+        )}
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
           <button
