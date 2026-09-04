@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
-import { ceremonyFeatures, qrTarget } from "@/lib/ceremony-showcase";
+import { ceremonyFeatures, type QrTarget } from "@/lib/ceremony-showcase";
 import type { SiteConfig } from "@/lib/config-schema";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -16,10 +16,19 @@ const EASE = [0.16, 1, 0.3, 1] as const;
  * fifteen metres away, and H tolerates roughly a third of the code being
  * unreadable — which is the difference between a room full of successful scans
  * and a room full of people giving up.
+ *
+ * The target arrives as a prop, resolved on the server: the variable behind it
+ * is not exposed to the client bundle, so resolving it here would always fail.
  */
-export function ShowcasePanel({ config }: { config: SiteConfig }) {
+export function ShowcasePanel({
+  config,
+  qr,
+}: {
+  config: SiteConfig;
+  qr: QrTarget;
+}) {
   const [qrImage, setQrImage] = useState<string | null>(null);
-  const target = qrTarget();
+  const target = qr;
   const features = ceremonyFeatures(config);
   const url = target.ok ? target.url : null;
 

@@ -9,6 +9,7 @@ import { PreShow } from "./pre-show";
 import { ShowcasePanel } from "./showcase-panel";
 import { TitleCard } from "./title-card";
 import { useCeremony } from "./use-ceremony";
+import type { QrTarget } from "@/lib/ceremony-showcase";
 import type { SiteConfig } from "@/lib/config-schema";
 
 /**
@@ -18,12 +19,24 @@ import type { SiteConfig } from "@/lib/config-schema";
  * appearance. Composition roots that also own layout, QR generation, audio and
  * operator controls are how the draft version of this page reached 406 lines
  * and became impossible to rehearse one beat at a time.
+ *
+ * `qr` is resolved on the server in `app/launch/page.tsx` and passed in, rather
+ * than computed here: the environment variable behind it is server-only.
  */
-export function LaunchCeremony({ config }: { config: SiteConfig }) {
+export function LaunchCeremony({
+  config,
+  qr,
+}: {
+  config: SiteConfig;
+  qr: QrTarget;
+}) {
   const { status, arm, trigger, reset } = useCeremony();
 
   return (
-    <div className="relative min-h-svh w-full overflow-hidden bg-[hsl(0_0%_6%)] text-white">
+    // `overflow-x-hidden`, not `overflow-hidden`: on a 1024x768 hall projector
+    // the showcase QR panel is taller than the viewport, and clipping it is
+    // worse than letting it scroll.
+    <div className="relative min-h-svh w-full overflow-x-hidden bg-[hsl(0_0%_6%)] text-white">
       <Curtain state={status.state} />
       <ConfettiCanvas active={status.state === "CELEBRATING"} originX={0.5} originY={0.45} />
 
@@ -57,12 +70,13 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
         {(status.state === "CELEBRATING" || status.state === "SHOWCASE") && (
           <TitleCard config={config} compact={status.state === "SHOWCASE"} />
         )}
-        {status.state === "SHOWCASE" && <ShowcasePanel config={config} />}
+        {status.state === "SHOWCASE" && <ShowcasePanel config={config} qr={qr} />}
       </Container>
 
       <OperatorBar
         state={status.state}
         armed={status.armed}
+        qr={qr}
         onArm={arm}
         onReset={reset}
       />

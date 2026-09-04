@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { qrTarget } from "@/lib/ceremony-showcase";
+import type { QrTarget } from "@/lib/ceremony-showcase";
 import { launchAudio } from "@/lib/launch-audio";
 import type { CeremonyState } from "@/lib/ceremony-timing";
 import { cn } from "@/lib/utils";
@@ -31,11 +31,14 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
 export function OperatorBar({
   state,
   armed,
+  qr,
   onArm,
   onReset,
 }: {
   state: CeremonyState;
   armed: boolean;
+  /** Resolved on the server — the variable behind it is not in the client bundle. */
+  qr: QrTarget;
   onArm: (armed: boolean) => void;
   onReset: () => void;
 }) {
@@ -43,7 +46,7 @@ export function OperatorBar({
   const [fullscreen, setFullscreen] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
 
-  const target = qrTarget();
+  const target = qr;
 
   useEffect(() => {
     void document.fonts?.ready.then(() => setFontsReady(true));
