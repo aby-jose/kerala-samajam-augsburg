@@ -36,7 +36,11 @@ export function LaunchCeremony({
     // `overflow-x-hidden`, not `overflow-hidden`: on a 1024x768 hall projector
     // the showcase QR panel is taller than the viewport, and clipping it is
     // worse than letting it scroll.
-    <div className="relative min-h-svh w-full overflow-x-hidden bg-[hsl(0_0%_6%)] text-white">
+    // The ground is a barely-warm near-black rather than a neutral one: it
+    // carries the curtain's crimson hue at a tenth of its saturation, so the
+    // stage reads as a dark theatre with the house lights down instead of a
+    // generic dark web page.
+    <div className="relative min-h-svh w-full overflow-x-hidden bg-[hsl(346_10%_7%)] text-white">
       <Curtain state={status.state} />
       <ConfettiCanvas active={status.state === "CELEBRATING"} originX={0.5} originY={0.45} />
 
@@ -46,6 +50,18 @@ export function LaunchCeremony({
           as non-composited, and this has to hold a steady 60fps on whatever
           machine is driving the projector. */}
       <div aria-hidden className="pointer-events-none absolute inset-0 z-10">
+        {/* The wash — a low pool of warm light on the stage, sitting under the
+            vignette so the vignette still closes the corners down. It is a
+            single static radial gradient for the same reason as everything
+            else in this block: a moving light would be lovely and would cost
+            the frame budget the projector does not have. */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 62% 50% at 50% 44%, hsl(346 60% 34% / 0.22) 0%, hsl(346 55% 24% / 0.09) 45%, transparent 74%)",
+          }}
+        />
         <div
           className="absolute inset-0"
           style={{

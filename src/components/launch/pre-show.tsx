@@ -8,6 +8,7 @@ import { Eyebrow } from "@/components/layout/section-heading";
 import { ceremonyAt } from "@/lib/ceremony-timing";
 import type { SiteConfig } from "@/lib/config-schema";
 import { cn } from "@/lib/utils";
+import { pleats } from "./cloth";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -88,19 +89,37 @@ export function PreShow({
         </p>
       )}
 
+      {/* The Unveil control is a piece of the curtain, not a web button.
+          Same crimson family as the panels, a quieter pass of the same pleats,
+          and the kasavu selvedge repeated as a hairline along the bottom edge
+          — so the chief guest is pressing the cloth itself. A glowing pill
+          would be the one generic object on a stage made of fabric, which is
+          exactly how it read.
+          Disabled, it drops all of that: no texture, no crimson, a plain
+          hairline. Inert has to look inert from the back of the hall. */}
       <button
         type="button"
         onClick={onTrigger}
         disabled={!armed}
         aria-label={armed ? "Unveil the website" : "Stage locked"}
         className={cn(
-          "mt-4 rounded-2xl px-12 py-6 font-sans text-2xl font-extrabold tracking-[-0.02em] transition-all",
+          "relative mt-4 flex h-[92px] w-[288px] items-center justify-center overflow-hidden rounded-[3px]",
+          "font-sans text-2xl font-extrabold tracking-[0.06em]",
+          "transition-[transform,background-color,box-shadow] duration-200 ease-out",
+          "sm:h-[120px] sm:w-[380px] sm:text-[2rem]",
           armed
-            ? "bg-primary text-white shadow-[0_0_60px_-10px_hsl(346.8_77.2%_49.8%)] hover:scale-[1.03] active:scale-[0.98]"
-            : "cursor-not-allowed border border-white/10 bg-white/5 text-white/30"
+            ? "border-b-2 border-b-[#D4A537] bg-[hsl(346_62%_27%)] text-white shadow-[0_10px_22px_-14px_rgba(0,0,0,0.9)] hover:-translate-y-[2px] hover:bg-[hsl(346_62%_31%)] hover:shadow-[0_18px_30px_-16px_rgba(0,0,0,0.95)] active:translate-y-px active:shadow-[0_6px_14px_-12px_rgba(0,0,0,0.9)]"
+            : "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/30"
         )}
       >
-        {armed ? "Unveil" : "Stage locked"}
+        {armed && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{ backgroundImage: pleats(2) }}
+          />
+        )}
+        <span className="relative">{armed ? "Unveil" : "Stage locked"}</span>
       </button>
 
       {armed && (
