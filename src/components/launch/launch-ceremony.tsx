@@ -1,6 +1,7 @@
 "use client";
 
 import { Container } from "@/components/layout/container";
+import { Curtain } from "./curtain";
 import { useCeremony } from "./use-ceremony";
 import type { SiteConfig } from "@/lib/config-schema";
 
@@ -17,6 +18,8 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
 
   return (
     <div className="relative min-h-svh w-full overflow-hidden bg-[hsl(0_0%_6%)] text-white">
+      <Curtain state={status.state} />
+
       {/* Stage atmosphere — the same vignette and film grain the home page hero
           uses, so the ceremony reads as the same production as the site it is
           unveiling. Static, never animated: Lighthouse flags animated filters
