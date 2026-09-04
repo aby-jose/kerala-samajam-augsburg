@@ -4,6 +4,7 @@ import { Container } from "@/components/layout/container";
 import { ConfettiCanvas } from "./confetti-canvas";
 import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
+import { OperatorBar } from "./operator-bar";
 import { PreShow } from "./pre-show";
 import { ShowcasePanel } from "./showcase-panel";
 import { TitleCard } from "./title-card";
@@ -57,32 +58,14 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
           <TitleCard config={config} compact={status.state === "SHOWCASE"} />
         )}
         {status.state === "SHOWCASE" && <ShowcasePanel config={config} />}
-
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
-          <button
-            onClick={() => arm(!status.armed)}
-            className="rounded-xl border border-white/15 px-4 py-2"
-          >
-            {status.armed ? "Locked stage: armed" : "Locked stage: locked"}
-          </button>
-          <button
-            onClick={trigger}
-            className="rounded-xl bg-primary px-4 py-2 font-semibold"
-          >
-            Trigger
-          </button>
-          <button
-            onClick={reset}
-            className="rounded-xl border border-white/15 px-4 py-2"
-          >
-            Reset
-          </button>
-        </div>
-
-        <p className="text-xs text-white/40">
-          Space to trigger • 1-5 to jump to a beat • R to reset
-        </p>
       </Container>
+
+      <OperatorBar
+        state={status.state}
+        armed={status.armed}
+        onArm={arm}
+        onReset={reset}
+      />
     </div>
   );
 }
