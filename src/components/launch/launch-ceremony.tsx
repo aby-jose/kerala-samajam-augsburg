@@ -1,6 +1,7 @@
 "use client";
 
 import { Container } from "@/components/layout/container";
+import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
 import { useCeremony } from "./use-ceremony";
 import type { SiteConfig } from "@/lib/config-schema";
@@ -51,9 +52,7 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
         <p className="font-sans text-5xl font-extrabold tracking-[-0.035em]">
           {status.state}
         </p>
-        {status.state === "COUNT_IN" && (
-          <p className="font-sans text-8xl font-extrabold">{status.count}</p>
-        )}
+        {status.state === "COUNT_IN" && <CountIn count={status.count} />}
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
           <button
