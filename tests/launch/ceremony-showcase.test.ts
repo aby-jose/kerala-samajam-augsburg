@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ceremonyFeatures, qrTarget } from "@/lib/ceremony-showcase";
 import { defaultConfig } from "@/lib/config-schema";
 
-const ORIGINAL = process.env.NEXT_PUBLIC_APP_URL;
+const ORIGINAL_APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const ORIGINAL_SITE_URL = process.env.SITE_URL;
 
 beforeEach(() => {
   delete process.env.NEXT_PUBLIC_APP_URL;
@@ -10,8 +11,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  if (ORIGINAL === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
-  else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL;
+  if (ORIGINAL_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+  else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_APP_URL;
+
+  if (ORIGINAL_SITE_URL === undefined) delete process.env.SITE_URL;
+  else process.env.SITE_URL = ORIGINAL_SITE_URL;
 });
 
 describe("qrTarget", () => {
@@ -48,12 +52,16 @@ describe("ceremonyFeatures", () => {
         enableMembership: true,
       },
     };
-    expect(ceremonyFeatures(config).map((f) => f.key)).toEqual([
+    const features = ceremonyFeatures(config);
+    expect(features.map((f) => f.key)).toEqual([
       "events",
       "membership",
       "gallery",
       "about",
     ]);
+    features.forEach((feature) => {
+      expect(feature).not.toHaveProperty("governedBy");
+    });
   });
 
   it("does not advertise membership on stage when the module is off", () => {
@@ -61,7 +69,11 @@ describe("ceremonyFeatures", () => {
       ...defaultConfig,
       features: { ...defaultConfig.features, enableMembership: false },
     };
-    expect(ceremonyFeatures(config).map((f) => f.key)).not.toContain("membership");
+    const features = ceremonyFeatures(config);
+    expect(features.map((f) => f.key)).not.toContain("membership");
+    features.forEach((feature) => {
+      expect(feature).not.toHaveProperty("governedBy");
+    });
   });
 
   it("does not advertise the gallery when the module is off", () => {
@@ -69,7 +81,11 @@ describe("ceremonyFeatures", () => {
       ...defaultConfig,
       features: { ...defaultConfig.features, enableGallery: false },
     };
-    expect(ceremonyFeatures(config).map((f) => f.key)).not.toContain("gallery");
+    const features = ceremonyFeatures(config);
+    expect(features.map((f) => f.key)).not.toContain("gallery");
+    features.forEach((feature) => {
+      expect(feature).not.toHaveProperty("governedBy");
+    });
   });
 
   it("always keeps events and about, which have no module switch", () => {
@@ -81,6 +97,10 @@ describe("ceremonyFeatures", () => {
         enableMembership: false,
       },
     };
-    expect(ceremonyFeatures(config).map((f) => f.key)).toEqual(["events", "about"]);
+    const features = ceremonyFeatures(config);
+    expect(features.map((f) => f.key)).toEqual(["events", "about"]);
+    features.forEach((feature) => {
+      expect(feature).not.toHaveProperty("governedBy");
+    });
   });
 });
