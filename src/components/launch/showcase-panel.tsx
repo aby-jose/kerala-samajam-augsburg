@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import QRCode from "qrcode";
-import { ceremonyFeatures, type QrTarget } from "@/lib/ceremony-showcase";
+import { ceremonyFeatures, displayUrl, type QrTarget } from "@/lib/ceremony-showcase";
 import type { SiteConfig } from "@/lib/config-schema";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -14,22 +14,17 @@ const CREAM = "#F5EFE6";
 /**
  * What the hall looks at while they get their phones out.
  *
- * Two things leave this room in someone's head: the address, and a scan. So
- * the address is the headline — set at the size a poster would use, spanning
- * the composition — and the QR is the largest object under it. Everything else
- * on this screen is deliberately quiet: the four site areas are a list of
- * hairline-separated lines, not four bordered cards competing with the code
- * they sit beside, and there is no "Scan to open" label because a QR under a
- * printed URL does not need to be told apart from anything.
+ * One plate, three bands, in the order a person needs them: the address they
+ * just watched being typed, the code that saves them typing it, and what they
+ * will find. Everything sits inside a single hairline border on a shared grid
+ * — nothing floats loose on the stage, and the two columns share a baseline —
+ * because at projector scale a composition that drifts reads as an accident.
  *
  * The QR is generated at error-correction level H. A projector's keystone
- * correction and focus both work against a scan from fifteen metres away, and
- * H tolerates roughly a third of the code being unreadable — which is the
- * difference between a room full of successful scans and a room full of people
- * giving up.
- *
- * Everything is sized in vmin/clamp rather than pixels: this has to hold on a
- * 1920x1080 projector and on a 1024x768 one without clipping either.
+ * correction and focus both work against a scan from fifteen metres, and H
+ * tolerates roughly a third of the code being unreadable, which is the
+ * difference between a room of successful scans and a room of people giving
+ * up.
  *
  * The target arrives as a prop, resolved on the server: the variable behind it
  * is not exposed to the client bundle, so resolving it here would always fail.
@@ -42,9 +37,8 @@ export function ShowcasePanel({
   qr: QrTarget;
 }) {
   const [qrImage, setQrImage] = useState<string | null>(null);
-  const target = qr;
   const features = ceremonyFeatures(config);
-  const url = target.ok ? target.url : null;
+  const url = qr.ok ? qr.url : null;
 
   useEffect(() => {
     if (!url) return;
@@ -52,102 +46,108 @@ export function ShowcasePanel({
     QRCode.toDataURL(url, {
       errorCorrectionLevel: "H",
       width: 1024,
-      margin: 3,
+      margin: 2,
       color: { dark: "#0A0A0A", light: "#FFFFFF" },
     })
       .then(setQrImage)
       .catch(() => setQrImage(null));
   }, [url]);
 
+  if (!qr.ok) {
+    return (
+      <div className="w-full max-w-[70vmin] rounded-[1.2vmin] border border-primary/45 bg-primary/10 p-[3vmin] text-left">
+        <p className="font-sans text-[2.4vmin] font-extrabold text-white">
+          No QR code — the site address is not configured
+        </p>
+        <p className="mt-[1vmin] text-[1.8vmin] leading-relaxed text-white/70">{qr.reason}</p>
+      </div>
+    );
+  }
+
+  const codeSize = "clamp(10rem, 27vmin, 22rem)";
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 28 }}
+      initial={{ opacity: 0, y: 24 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 1, ease: EASE, delay: 0.15 }}
-      className="flex w-full max-w-6xl flex-col items-center gap-[4vmin] text-left"
+      transition={{ duration: 0.8, ease: EASE }}
+      className="w-full overflow-hidden rounded-[1.6vmin] border backdrop-blur-[2px]"
+      style={{
+        maxWidth: "min(92vw, 118vmin)",
+        borderColor: "rgba(245,239,230,0.22)",
+        backgroundColor: "rgba(0,0,0,0.34)",
+      }}
     >
-      {target.ok ? (
-        /* The single thing a person carries out of the hall. Printed at
-           poster scale so it is readable from the back row, and legible
-           enough to type for anyone whose camera will not scan. */
+      {/* Band 1 — the address, exactly as it was typed. */}
+      <div
+        className="border-b px-[3.5vmin] py-[3vmin] text-center"
+        style={{ borderColor: "rgba(245,239,230,0.16)" }}
+      >
         <p
-          className="w-full text-center font-sans font-extrabold leading-[1.02] tracking-[-0.035em] break-words"
-          style={{ color: CREAM, fontSize: "clamp(2.5rem, 6vw, 5.5rem)" }}
+          className="font-sans font-extrabold leading-none tracking-[-0.035em] break-all"
+          style={{ color: CREAM, fontSize: "clamp(1.9rem, 5.2vmin, 4.6rem)" }}
         >
-          {target.url.replace(/^https:\/\//, "")}
+          {displayUrl(qr.url)}
         </p>
-      ) : (
-        <div className="w-full rounded-2xl border border-primary/40 bg-primary/10 p-6 text-left">
-          <p className="font-sans text-base font-extrabold text-white">
-            No QR code — the site address is not configured
-          </p>
-          <p className="mt-2 text-sm leading-relaxed text-white/70">
-            {target.reason}
-          </p>
-        </div>
-      )}
+      </div>
 
-      <div className="flex w-full flex-col items-center gap-[4vmin] md:flex-row md:items-center md:gap-[5vmin]">
-        {target.ok && (
-          <div
-            className="shrink-0 rounded-md p-[1.6vmin] shadow-2xl"
-            style={{ backgroundColor: CREAM }}
-          >
+      {/* Band 2 — the code, and what is behind it. Two columns, one baseline. */}
+      <div className="flex flex-col items-stretch gap-[3.5vmin] px-[3.5vmin] py-[3.5vmin] md:flex-row">
+        <div className="flex shrink-0 flex-col items-center gap-[1.4vmin]">
+          <div className="rounded-[1vmin] p-[1.4vmin]" style={{ backgroundColor: CREAM }}>
             {qrImage ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={qrImage}
-                alt={`QR code linking to ${target.url}`}
+                alt={`QR code linking to ${qr.url}`}
                 className="block object-contain"
-                style={{
-                  width: "clamp(11rem, 23vmin, 19rem)",
-                  height: "clamp(11rem, 23vmin, 19rem)",
-                }}
+                style={{ width: codeSize, height: codeSize }}
               />
             ) : (
-              <div
-                style={{
-                  width: "clamp(11rem, 23vmin, 19rem)",
-                  height: "clamp(11rem, 23vmin, 19rem)",
-                }}
-              />
+              <div style={{ width: codeSize, height: codeSize }} />
             )}
           </div>
-        )}
-
-        <div className="flex w-full min-w-0 flex-col gap-[2.5vmin]">
-          {/* A list, not cards. No borders, no fills, no icons — the hairlines
-              do all the separating that four short lines need. */}
-          <ul className="w-full divide-y divide-white/10">
-            {features.map((feature) => (
-              <li
-                key={feature.key}
-                className="flex flex-col gap-x-3 gap-y-0.5 py-[1.4vmin] sm:flex-row sm:items-baseline"
-              >
-                <p
-                  className="font-sans text-[clamp(1rem,1.7vmin,1.5rem)] font-semibold tracking-[-0.015em]"
-                  style={{ color: CREAM }}
-                >
-                  {feature.title}
-                </p>
-                <p className="text-[clamp(0.875rem,1.4vmin,1.25rem)] leading-relaxed text-white/55">
-                  {feature.blurb}
-                </p>
-              </li>
-            ))}
-          </ul>
-
-          {/* Same tab, on purpose: this is the operator's way back to the site
-              on the machine driving the projector, not a share link. Restrained
-              enough that it never competes with the code beside it. */}
-          <Link
-            href="/"
-            className="inline-flex w-fit items-center rounded-md border px-[2.2vmin] py-[1.2vmin] font-sans text-[clamp(0.875rem,1.5vmin,1.25rem)] font-semibold tracking-[-0.01em] transition-colors hover:bg-[#F5EFE6]/10"
-            style={{ borderColor: "rgba(245,239,230,0.45)", color: CREAM }}
-          >
-            Open the website
-          </Link>
+          <p className="font-sans text-[1.7vmin] font-semibold tracking-[-0.01em] text-white/55">
+            Point your camera here
+          </p>
         </div>
+
+        {/* A list, not cards: four short lines need hairlines, not four boxes
+            competing with the code beside them. */}
+        <ul
+          className="flex min-w-0 flex-1 flex-col justify-center divide-y"
+          style={{ borderColor: "rgba(245,239,230,0.14)" }}
+        >
+          {features.map((feature) => (
+            <li
+              key={feature.key}
+              className="flex flex-col gap-x-[1.6vmin] gap-y-[0.3vmin] py-[1.8vmin] first:pt-0 last:pb-0 sm:flex-row sm:items-baseline"
+              style={{ borderColor: "rgba(245,239,230,0.14)" }}
+            >
+              <p
+                className="w-[27vmin] shrink-0 font-sans text-[2.05vmin] font-bold tracking-[-0.015em]"
+                style={{ color: CREAM }}
+              >
+                {feature.title}
+              </p>
+              <p className="text-[1.9vmin] leading-snug text-white/55">{feature.blurb}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Band 3 — the way in, for the machine driving the projector. */}
+      <div
+        className="border-t px-[3.5vmin] py-[2.4vmin] text-center"
+        style={{ borderColor: "rgba(245,239,230,0.16)" }}
+      >
+        <Link
+          href="/"
+          className="inline-flex items-center rounded-full border px-[3.4vmin] py-[1.4vmin] font-sans text-[2vmin] font-bold tracking-[-0.01em] transition-colors hover:bg-[#F5EFE6]/12"
+          style={{ borderColor: "rgba(245,239,230,0.5)", color: CREAM }}
+        >
+          Open the website
+        </Link>
       </div>
     </motion.div>
   );

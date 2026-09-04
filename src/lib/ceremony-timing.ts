@@ -10,14 +10,37 @@ export type CeremonyState =
   | "PRESHOW"
   | "COUNT_IN"
   | "PARTING"
+  | "BROWSER"
   | "CELEBRATING"
   | "SHOWCASE";
 
+/** The beats, in the order they run. The rehearsal jump keys index this. */
+export const CEREMONY_ORDER: CeremonyState[] = [
+  "PRESHOW",
+  "COUNT_IN",
+  "PARTING",
+  "BROWSER",
+  "CELEBRATING",
+  "SHOWCASE",
+];
+
 /** The count-in starts here and steps down to 1, then the curtain moves. */
-export const COUNT_IN_FROM = 3;
+export const COUNT_IN_FROM = 10;
 export const COUNT_IN_STEP_MS = 900;
-export const PARTING_MS = 1600;
-export const CELEBRATING_MS = 4000;
+export const PARTING_MS = 2800;
+
+/**
+ * The browser beat: a cursor crosses to the address bar, clicks, types the
+ * address a character at a time, and hits Go. Broken out so the typing can be
+ * paced against it rather than guessed.
+ */
+export const BROWSER_CURSOR_MS = 1300;
+export const BROWSER_TYPE_MS = 2600;
+export const BROWSER_SUBMIT_MS = 900;
+export const BROWSER_MS =
+  BROWSER_CURSOR_MS + BROWSER_TYPE_MS + BROWSER_SUBMIT_MS + 700;
+
+export const CELEBRATING_MS = 6000;
 
 /**
  * How long each state lasts before advancing on its own.
@@ -30,6 +53,7 @@ export const CEREMONY_TIMING: Record<CeremonyState, number | null> = {
   PRESHOW: null,
   COUNT_IN: COUNT_IN_FROM * COUNT_IN_STEP_MS,
   PARTING: PARTING_MS,
+  BROWSER: BROWSER_MS,
   CELEBRATING: CELEBRATING_MS,
   SHOWCASE: null,
 };

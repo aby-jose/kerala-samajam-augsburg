@@ -23,6 +23,19 @@ export const INITIAL_CEREMONY: CeremonyStatus = {
 };
 
 /**
+ * What each timed beat hands over to.
+ *
+ * COUNT_IN is absent on purpose: it advances a numeral at a time through TICK,
+ * and only the last tick moves the state on. PRESHOW and SHOWCASE are absent
+ * because they wait for a person.
+ */
+const NEXT: Partial<Record<CeremonyState, CeremonyState>> = {
+  PARTING: "BROWSER",
+  BROWSER: "CELEBRATING",
+  CELEBRATING: "SHOWCASE",
+};
+
+/**
  * Every transition decision the ceremony makes.
  *
  * Pure and React-free on purpose. This runs once, live, in front of a hall,
@@ -54,10 +67,10 @@ export function ceremonyReducer(
       if (status.count <= 1) return { ...status, state: "PARTING" };
       return { ...status, count: status.count - 1 };
 
-    case "ADVANCE":
-      if (status.state === "PARTING") return { ...status, state: "CELEBRATING" };
-      if (status.state === "CELEBRATING") return { ...status, state: "SHOWCASE" };
-      return status;
+    case "ADVANCE": {
+      const next = NEXT[status.state];
+      return next ? { ...status, state: next } : status;
+    }
 
     case "RESET":
       // Deliberately drops `armed`. Rehearsing then walking away must not
@@ -65,14 +78,12 @@ export function ceremonyReducer(
       return INITIAL_CEREMONY;
 
     case "JUMP":
-      // Landing back on PRESHOW re-locks the stage, exactly as RESET does.
-      // Jumping is a rehearsal control, and rehearsing must never leave a live
-      // stage one stray spacebar from firing.
+      // A jump that lands on PRESHOW re-locks, for the same reason RESET does.
       return {
         ...status,
         state: action.to,
-        armed: action.to === "PRESHOW" ? false : status.armed,
         count: COUNT_IN_FROM,
+        armed: action.to === "PRESHOW" ? false : status.armed,
       };
 
     default:

@@ -127,7 +127,7 @@ export function useCeremony(): {
   }, []);
 
   // Keyboard. Space and Enter drive the ceremony. The rehearsal controls all
-  // require ALT — Alt+1 to Alt+5 jump to a beat, Alt+R resets — because a
+  // require ALT — Alt+1 to Alt+6 jump to a beat, Alt+R resets — because a
   // single stray unmodified `r` mid-ceremony would drop the stage back to a
   // LOCKED pre-show, and the operator would then have to find and click Arm
   // while the hall watched.
@@ -136,6 +136,7 @@ export function useCeremony(): {
       "PRESHOW",
       "COUNT_IN",
       "PARTING",
+      "BROWSER",
       "CELEBRATING",
       "SHOWCASE",
     ];

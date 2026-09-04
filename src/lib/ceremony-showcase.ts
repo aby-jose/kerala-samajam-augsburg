@@ -80,3 +80,17 @@ export function ceremonyFeatures(config: SiteConfig): CeremonyFeature[] {
     (f) => !f.governedBy || config.features[f.governedBy]
   ).map((f) => ({ key: f.key, title: f.title, blurb: f.blurb }));
 }
+
+/**
+ * The address as the hall should read it, and as anyone would type it.
+ *
+ * `siteUrl()` yields the canonical origin, which has no `www.` and carries a
+ * scheme nobody says out loud. On a projector the useful string is the one a
+ * person would put in an address bar, so the scheme goes and `www.` is added
+ * when it is missing. The QR still encodes the canonical URL — this is for
+ * human eyes only.
+ */
+export function displayUrl(url: string): string {
+  const host = url.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  return host.startsWith("www.") ? host : `www.${host}`;
+}

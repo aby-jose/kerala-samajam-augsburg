@@ -3,57 +3,51 @@
 import type { CSSProperties } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { PARTING_MS, type CeremonyState } from "@/lib/ceremony-timing";
-import { crests, deepFolds, pleats } from "./cloth";
+import { foldStops } from "./cloth";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * How far the cloth gathers as it opens.
+ * How much of each half survives as a leg once the curtain is drawn.
  *
- * A real curtain does not slide sideways as a rigid board. It hangs on a
- * track, the leading carrier is pulled towards the wall, and every pleat
- * behind it bunches into a stack. `scaleX` down to 0.62 about a leading-edge
- * origin is that compression: the panel narrows towards the edge that is doing
- * the travelling, exactly as the folds do.
+ * A stage curtain does not leave. It is pulled to the walls and bunches there
+ * for the rest of the evening, framing whatever is on the stage. Scaling each
+ * half about its OUTER edge is exactly that draw: the leading edge travels
+ * from centre to wall, and every fold behind it compresses into the stack.
  */
-const GATHER_SCALE = 0.62;
-
-/** The tilt, in degrees. It pivots at the top, because that is where the track is. */
-const OPEN_ROTATE = 2.5;
+const LEG_SCALE = 0.15;
 
 /**
- * How far each half travels, as a percentage of its own width (= 50vw).
+ * Each half is wider than half the screen, so the two OVERLAP at the centre.
  *
- * Scaling about the LEADING edge leaves that edge wherever the translate puts
- * it, so the gather buys no free distance: the edge still has to cross the
- * whole half-width, and then some, because the tilt swings the bottom of it
- * back towards the screen.
- *
- * With W = 50vw, H = 100vh and the origin at the panel's leading edge, the
- * rightmost point of the open left half is its bottom leading corner:
- *
- *   x_max = W + GATHER_SCALE * sin(2.5deg) * H + translate  <= 0
- *   translate <= -(W + 0.027 * H)
- *
- * i.e. as a fraction of W:  |translate| >= 1 + 0.027 * (H / W).
- *
- * H/W is twice the viewport's height:width ratio — 1.125 on a 16:9 screen,
- * 1.5 on the 4:3 hall projector, ~4.3 on a phone held portrait. 124% clears
- * all of them and holds until H/W = 8.9, a viewport more than four times
- * taller than it is wide. (104% did not: it left a ~9px sliver of cloth down
- * the outside of a 1920x1080 screen, and a hair more on 1024x768.)
- *
- * The OUTER edges are safe by construction rather than by margin. Framer
- * drives x, scaleX and rotate off the same eased progress u, so the outer edge
- * sits at `W * u * ((1 - GATHER_SCALE) - OPEN_X / 100)` = `-0.86 * W * u`: the
- * gather pulls it inwards by at most 0.38W while the translate has already
- * carried it 1.24W outwards. Negative for every u > 0, so the outer screen
- * edges stay covered for the whole sweep and no strip of bare stage ever opens
- * up behind the cloth. At u = 1 the panel spans -1.10W..-0.24W, clear of the
- * screen by a quarter of its own width.
+ * Two panels butted edge to edge leave a hard vertical seam straight down the
+ * middle of the projection — a join no real curtain has, because real panels
+ * lap. 54% each gives an 8% lap: the right panel hangs in front of the left,
+ * and the shadow it casts is what the eye reads as depth instead of a line.
  */
-const OPEN_X = 124;
+const HALF_W = 54;
 
+const VALANCE_VH = 13;
+const GOLD = "#C9A227";
+
+function Stops({ stops }: { stops: ReturnType<typeof foldStops> }) {
+  return (
+    <>
+      {stops.map((s, i) => (
+        <stop key={i} offset={`${s.at}%`} stopColor={s.color} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * One half of the traveller.
+ *
+ * The cloth is an SVG so it can carry two things CSS cannot: a low-frequency
+ * displacement that lets the folds wander off the vertical the way hanging
+ * fabric does, and a fine noise pass for the nap of the velvet. Both are
+ * rasterised once; the container is the only thing that ever moves.
+ */
 function Half({
   side,
   open,
@@ -64,142 +58,205 @@ function Half({
   reduced: boolean;
 }) {
   const isLeft = side === "left";
-  const phase = isLeft ? 0 : 3;
+  const id = `curtain-${side}`;
+  const stops = foldStops(isLeft ? 0 : 3);
 
-  // Spelled out per side rather than built with a computed key, so the
-  // transform origin can share the object without widening its type.
+  // Anchored at the outer edge, so the draw compresses the folds toward the wall.
   const anchor: CSSProperties = isLeft
-    ? { left: 0, transformOrigin: "100% 0%" }
-    : { right: 0, transformOrigin: "0% 0%" };
+    ? { left: 0, transformOrigin: "0% 50%" }
+    : { right: 0, transformOrigin: "100% 50%" };
 
   return (
     <motion.div
-      className="absolute inset-y-0 w-1/2"
-      style={anchor}
-      // Explicitly closed, never `initial={false}`. The rehearsal jump keys
-      // remount this component straight into PARTING; with no initial state the
-      // halves snap open with no motion, which is the one thing the jump keys
-      // exist to let the operator watch. On the first PRESHOW mount `open` is
-      // false, so initial and animate agree and nothing moves.
-      initial={{ x: 0, scaleX: 1, rotate: 0 }}
-      animate={
-        open
-          ? {
-              x: isLeft ? `-${OPEN_X}%` : `${OPEN_X}%`,
-              scaleX: GATHER_SCALE,
-              rotate: isLeft ? -OPEN_ROTATE : OPEN_ROTATE,
-            }
-          : { x: 0, scaleX: 1, rotate: 0 }
-      }
-      // Reduced motion shortens the travel; it never removes it. The curtain is
-      // the content of this beat, not decoration — skipping it leaves the hall
-      // looking at an empty stage while the sweep plays.
-      transition={{ duration: reduced ? 0.4 : PARTING_MS / 1000, ease: EASE }}
+      className="absolute inset-y-0 will-change-transform"
+      style={{ width: `${HALF_W}%`, ...anchor }}
+      // Explicitly closed, never `initial={false}`: the rehearsal jump keys
+      // remount this straight into PARTING, and with no initial state it would
+      // snap open with no motion — the one thing the jump keys exist to show.
+      initial={{ scaleX: 1 }}
+      animate={{ scaleX: open ? LEG_SCALE : 1 }}
+      // Reduced motion shortens the draw; it never removes it. The curtain is
+      // the content of this beat, not decoration.
+      transition={{ duration: reduced ? 0.5 : PARTING_MS / 1000, ease: EASE }}
     >
-      {/* Base cloth — deep crimson, darker than the brand primary so the
-          primary still reads as the accent against it. */}
-      <div className="absolute inset-0 bg-[hsl(346_60%_22%)]" />
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox="0 0 1000 1000"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id={`${id}-folds`} x1="0" x2="1" y1="0" y2="0">
+            <Stops stops={stops} />
+          </linearGradient>
+          {/* Hanging: shadow under the valance, weight at the hem. */}
+          <linearGradient id={`${id}-hang`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#000" stopOpacity="0.66" />
+            <stop offset="0.15" stopColor="#000" stopOpacity="0" />
+            <stop offset="0.8" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.6" />
+          </linearGradient>
+          {/* The lap. The left panel lies UNDER the right, so it takes a wide,
+              soft shadow across its leading edge; the right panel's leading
+              edge is in the light and takes a thin highlight. Together they
+              read as one panel in front of another instead of a seam. */}
+          <linearGradient id={`${id}-lap`} x1="0" x2="1" y1="0" y2="0">
+            {isLeft ? (
+              <>
+                <stop offset="0.72" stopColor="#000" stopOpacity="0" />
+                <stop offset="1" stopColor="#000" stopOpacity="0.42" />
+              </>
+            ) : (
+              <>
+                <stop offset="0" stopColor="#fff" stopOpacity="0.05" />
+                <stop offset="0.05" stopColor="#fff" stopOpacity="0" />
+              </>
+            )}
+          </linearGradient>
+          {/* Folds wander: a very low-frequency warp pushes the vertical folds
+              a little off true, more so lower down where the cloth is freer. */}
+          <filter id={`${id}-drape`} x="-6%" y="-6%" width="112%" height="112%">
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="0.0045 0.0018"
+              numOctaves="2"
+              seed={isLeft ? 3 : 11}
+              result="warp"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="warp"
+              scale="26"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+          {/* The nap. */}
+          <filter id={`${id}-nap`}>
+            <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed={isLeft ? 5 : 17} />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+        </defs>
 
-      {/* The weave. Three passes on three periods that never line up — see
-          `./cloth`. Background layers paint topmost-first, so the narrow crests
-          sit over the broad folds, which sit over the base bands. Different
-          phase per side, so the halves are not mirror images of each other. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: [
-            crests(phase + 1),
-            deepFolds(phase),
-            pleats(phase),
-          ].join(", "),
-        }}
-      />
+        {/* Oversized so the displaced edges never expose the stage behind. */}
+        <rect x="-60" y="-60" width="1120" height="1120" fill={`url(#${id}-folds)`} filter={`url(#${id}-drape)`} />
+        <rect x="0" y="0" width="1000" height="1000" filter={`url(#${id}-nap)`} opacity="0.1" style={{ mixBlendMode: "overlay" }} />
+        <rect x="0" y="0" width="1000" height="1000" fill={`url(#${id}-hang)`} />
+        <rect x="0" y="0" width="1000" height="1000" fill={`url(#${id}-lap)`} />
+      </svg>
 
-      {/* Sheen — a soft vertical highlight, offset per side so the halves are
-          lit from the same imaginary source rather than mirrored. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background: isLeft
-            ? "linear-gradient(90deg, rgba(0,0,0,0.5) 0%, transparent 45%, rgba(255,255,255,0.07) 78%, rgba(0,0,0,0.35) 100%)"
-            : "linear-gradient(90deg, rgba(0,0,0,0.35) 0%, rgba(255,255,255,0.05) 22%, transparent 55%, rgba(0,0,0,0.5) 100%)",
-        }}
-      />
-
-      {/* Volume — an inner shadow down both outer edges, so the panel reads as
-          a body of cloth curving away rather than a flat rectangle. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          boxShadow:
-            "inset 18px 0 34px -18px rgba(0,0,0,0.85), inset -18px 0 34px -18px rgba(0,0,0,0.85)",
-        }}
-      />
-
-      {/* The one kasavu thread, on the leading edge. One line reads as a
-          selvedge; two or three read as tinsel. */}
-      <div
-        className="absolute inset-y-0 w-[3px] bg-[#D4A537] shadow-[0_0_18px_rgba(212,165,55,0.6)]"
-        style={{ [isLeft ? "right" : "left"]: 0 }}
+      {/* Bunched cloth is in its own shadow. Fades in as the leg gathers. */}
+      <motion.div
+        className="absolute inset-0 bg-black"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: open ? 0.4 : 0 }}
+        transition={{ duration: reduced ? 0.5 : PARTING_MS / 1000, ease: EASE }}
       />
     </motion.div>
   );
 }
 
 /**
- * The valance — the pelmet band across the top of the house.
+ * The scalloped lower edge of the valance across a 1000-unit-wide box.
+ * `y` is the height of the points between swags; each swag dips below them.
+ */
+function swag(y: number, depth: number, count = 5): string {
+  const w = 1000 / count;
+  let d = `M0 ${y}`;
+  for (let i = 0; i < count; i++) {
+    const x0 = i * w;
+    d += ` Q ${x0 + w / 2} ${y + depth * 2} ${x0 + w} ${y}`;
+  }
+  return d;
+}
+
+/**
+ * The valance — the pelmet across the top of the proscenium.
  *
- * Without it the cloth floats: two panels with nothing holding them up. This is
- * the rigging. It is a darker crimson than the panels because it stands in
- * front of them and out of the wash, it carries its own gathered folds, and it
- * drops a shadow onto the cloth below so the panels read as hanging behind it.
+ * Fixed, because in a real house it is fixed: only the traveller runs. It
+ * stays for the whole evening and, with the two legs, is what frames the
+ * showcase as a stage rather than a web page.
  *
- * It does not move when the halves part, because in a real house it cannot —
- * the pelmet is fixed to the proscenium and only the traveler track runs. It is
- * rendered after the halves inside the same `z-[15]` layer, so it paints over
- * them by document order, which also covers the few pixels of top corner the
- * halves expose as their tilt swings in.
+ * Gold is ONE clean braid following the scallop, and nothing else. A dashed
+ * bullion fringe with tassels was tried and read as hazard tape from any
+ * distance — the alternating gold and dark scanned as stripes long before it
+ * scanned as thread. At projector scale a single line of trim is the only
+ * gold that survives.
  */
 function Valance() {
+  const stops = foldStops(5, 30);
+  const edge = swag(72, 15);
+
   return (
-    <div
-      className="absolute inset-x-0 top-0 h-[8vh] bg-[hsl(346_58%_16%)]"
-      style={{
-        backgroundImage: [
-          "linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.5) 100%)",
-          crests(5),
-          pleats(5),
-        ].join(", "),
-        boxShadow: "0 16px 30px -8px rgba(0,0,0,0.75)",
-      }}
-    />
+    <>
+      <svg
+        className="absolute inset-x-0 top-0 w-full"
+        style={{ height: `${VALANCE_VH}vh` }}
+        viewBox="0 0 1000 110"
+        preserveAspectRatio="none"
+        aria-hidden
+      >
+        <defs>
+          <linearGradient id="valance-folds" x1="0" x2="1" y1="0" y2="0">
+            <Stops stops={stops} />
+          </linearGradient>
+          <linearGradient id="valance-shade" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor="#000" stopOpacity="0.45" />
+            <stop offset="0.35" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.55" />
+          </linearGradient>
+          <filter id="valance-drape" x="-6%" y="-20%" width="112%" height="140%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.006 0.02" numOctaves="2" seed="23" result="warp" />
+            <feDisplacementMap in="SourceGraphic" in2="warp" scale="9" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+          <clipPath id="valance-clip">
+            <path d={`${edge} L1000 0 L0 0 Z`} />
+          </clipPath>
+        </defs>
+
+        <g clipPath="url(#valance-clip)">
+          <rect x="-40" y="-20" width="1080" height="150" fill="url(#valance-folds)" filter="url(#valance-drape)" />
+          <rect x="0" y="0" width="1000" height="110" fill="url(#valance-shade)" />
+        </g>
+
+        {/* One braid. Drawn twice: a dark line a hair below to seat it against
+            the cloth, then the gold itself. */}
+        <path d={swag(73.5, 15)} fill="none" stroke="#000" strokeOpacity="0.5" strokeWidth="4" />
+        <path d={edge} fill="none" stroke={GOLD} strokeWidth="2.6" strokeOpacity="0.9" />
+      </svg>
+
+      {/* The valance casts onto whatever is below it — cloth or stage. */}
+      <div
+        className="absolute inset-x-0"
+        style={{
+          top: `${VALANCE_VH}vh`,
+          height: "7vh",
+          background: "linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0))",
+        }}
+      />
+    </>
   );
 }
 
 /**
- * The curtain is the backdrop, not a lid.
+ * The house curtain.
  *
- * It sits at `z-[15]` — above the stage atmosphere (`z-10`) and below the
- * projected content (`z-20`), so the pre-show logo, the clock, the Unveil
- * button and the 3-2-1 all read in FRONT of the cloth. It then parts to reveal
- * the title card behind it. Rendering it over the content would hide the very
- * button the chief guest has to press.
+ * Sits at `z-[15]`: above the stage atmosphere (`z-10`) and the STAGE layer
+ * (`z-[12]`, where the browser, title card and showcase live), and below the
+ * FRONT layer (`z-20`, the pre-show and the count-in). So before the reveal
+ * the logo, clock and Unveil button read in front of the closed cloth, and
+ * when the cloth draws it uncovers what was already standing behind it.
  *
- * Kept mounted through PARTING so the halves animate out; removed entirely
- * afterwards so it can never intercept a click on the showcase beneath. The
- * valance goes with it.
+ * Always mounted. The legs and the valance stay for the whole evening.
  */
 export function Curtain({ state }: { state: CeremonyState }) {
-  const reduced = useReducedMotion();
-
-  if (state === "CELEBRATING" || state === "SHOWCASE") return null;
-
-  const open = state === "PARTING";
+  const reduced = Boolean(useReducedMotion());
+  const open = state !== "PRESHOW" && state !== "COUNT_IN";
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-[15]">
-      <Half side="left" open={open} reduced={Boolean(reduced)} />
-      <Half side="right" open={open} reduced={Boolean(reduced)} />
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
+      <Half side="left" open={open} reduced={reduced} />
+      <Half side="right" open={open} reduced={reduced} />
       <Valance />
     </div>
   );

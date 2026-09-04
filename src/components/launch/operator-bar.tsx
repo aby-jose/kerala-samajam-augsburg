@@ -27,7 +27,7 @@ const SHORTCUTS: [string, string][] = [
   ["Alt+S", "test sound"],
   ["Alt+F", "fullscreen"],
   ["Alt+R", "reset"],
-  ["Alt+1..5", "jump to a beat"],
+  ["Alt+1..6", "jump to a beat"],
 ];
 
 function Shortcut({ keys, action }: { keys: string; action: string }) {

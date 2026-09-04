@@ -4,16 +4,20 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Countdown } from "@/components/layout/countdown";
-import { Eyebrow } from "@/components/layout/section-heading";
 import { ceremonyAt } from "@/lib/ceremony-timing";
 import type { SiteConfig } from "@/lib/config-schema";
 import { cn } from "@/lib/utils";
-import { pleats } from "./cloth";
+import { velvetCss } from "./cloth";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * What the projector shows for the twenty minutes before anything happens.
+ * The house before the show: closed curtain, the association's name, and the
+ * control the chief guest will press.
+ *
+ * Everything is sized in vmin. This is read from the back of a hall on an
+ * unknown projector, where the useful unit is a fraction of the screen, and
+ * a desktop-sized logo and button vanish into the cloth.
  *
  * The clock is atmosphere and nothing else — it never triggers the ceremony.
  * Ceremonies start late, and a page that fires itself on a schedule fires into
@@ -31,22 +35,9 @@ export function PreShow({
   const at = ceremonyAt();
   // `Countdown` renders nothing once its target passes, which on a ceremony
   // running ten minutes behind would leave the stage blank at the exact moment
-  // the hall looks up. Decide up front whether there is a future moment to
-  // count towards, and hold a line instead when there is not.
-  //
-  // `Date.now()` can't be read during render — it's impure, and a request
-  // straddling the ceremony instant would compute a different value during
-  // SSR than at first client paint, causing a hydration mismatch. So "now"
-  // lives in state instead: unset until an effect populates it after mount,
-  // then refreshed every second so the page keeps re-evaluating on its own —
-  // it sits on a projector for twenty minutes and must flip over to
-  // "Beginning shortly" by itself once the clock runs out. While `now` is
-  // still null (server render and first paint) we fall back to that same
-  // held line rather than guessing, which also removes the mismatch.
-  //
-  // This holds the Date itself rather than a boolean so the JSX below narrows:
-  // a separate `const upcoming = at !== null && ...` does not narrow `at`, and
-  // `targetDate={at}` would fail to compile against `Date | null`.
+  // the hall looks up. So "now" lives in state — set after mount and refreshed
+  // every second so the page flips to "Beginning shortly" on its own — and the
+  // Date itself is held rather than a boolean so `targetDate` narrows.
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -63,69 +54,71 @@ export function PreShow({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 1.2, ease: EASE }}
-      className="flex flex-col items-center gap-8 text-center"
+      className="flex flex-col items-center gap-[3.2vmin] text-center"
     >
       <Image
         src={config.branding.logoUrl || "/images/logo.png"}
         alt={config.siteName}
-        width={96}
-        height={96}
-        className="h-20 w-auto"
+        width={256}
+        height={256}
+        className="h-[15vmin] w-auto drop-shadow-[0_2vmin_3vmin_rgba(0,0,0,0.6)]"
         priority
       />
 
-      <Eyebrow tone="dark">Grand Inauguration</Eyebrow>
+      <h1 className="font-sans text-[5.6vmin] font-extrabold leading-none tracking-[-0.035em] text-white drop-shadow-[0_0.4vmin_1.6vmin_rgba(0,0,0,0.7)]">
+        {config.siteName}
+      </h1>
 
       {upcoming ? (
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm uppercase tracking-[0.22em] text-white/50">
+        <div className="flex flex-col items-center gap-[2vmin]">
+          <p className="font-serif text-[2.6vmin] italic leading-none tracking-[-0.015em] text-white/75">
             The unveiling begins in
           </p>
           <Countdown targetDate={upcoming} />
         </div>
       ) : (
-        <p className="font-sans text-2xl font-extrabold tracking-[-0.035em] text-white/80">
+        <p className="font-serif text-[2.8vmin] italic leading-none tracking-[-0.015em] text-white/75">
           Beginning shortly
         </p>
       )}
 
-      {/* The Unveil control is a piece of the curtain, not a web button.
-          Same crimson family as the panels, a quieter pass of the same pleats,
-          and the kasavu selvedge repeated as a hairline along the bottom edge
-          — so the chief guest is pressing the cloth itself. A glowing pill
-          would be the one generic object on a stage made of fabric, which is
-          exactly how it read.
-          Disabled, it drops all of that: no texture, no crimson, a plain
-          hairline. Inert has to look inert from the back of the hall. */}
-      <button
-        type="button"
-        onClick={onTrigger}
-        disabled={!armed}
-        aria-label={armed ? "Unveil the website" : "Stage locked"}
-        className={cn(
-          "relative mt-4 flex h-[92px] w-[288px] items-center justify-center overflow-hidden rounded-[3px]",
-          "font-sans text-2xl font-extrabold tracking-[0.06em]",
-          "transition-[transform,background-color,box-shadow] duration-200 ease-out",
-          "sm:h-[120px] sm:w-[380px] sm:text-[2rem]",
-          armed
-            ? "border-b-2 border-b-[#D4A537] bg-[hsl(346_62%_27%)] text-white shadow-[0_10px_22px_-14px_rgba(0,0,0,0.9)] hover:-translate-y-[2px] hover:bg-[hsl(346_62%_31%)] hover:shadow-[0_18px_30px_-16px_rgba(0,0,0,0.95)] active:translate-y-px active:shadow-[0_6px_14px_-12px_rgba(0,0,0,0.9)]"
-            : "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/30"
-        )}
-      >
-        {armed && (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-40"
-            style={{ backgroundImage: pleats(2) }}
-          />
-        )}
-        <span className="relative">{armed ? "Unveil" : "Stage locked"}</span>
-      </button>
+      {/* The Unveil control is a piece of the curtain, not a web button: the
+          same velvet, the kasavu braid repeated as a hairline along its foot.
 
+          It is absent entirely while the stage is locked. "Stage locked" is
+          operator language, and a dead grey plate in the middle of a closed
+          curtain is the one thing on this screen that would look broken to a
+          hall that has just sat down. The operator can see the lock state in
+          the Alt+O panel, which is where it belongs. */}
       {armed && (
-        <p className="text-xs text-white/40">
-          Press the button, or the spacebar
-        </p>
+        <>
+          <button
+            type="button"
+            onClick={onTrigger}
+            aria-label="Unveil the website"
+            className={cn(
+              "relative mt-[2vmin] flex h-[9.5vmin] w-[34vmin] items-center justify-center overflow-hidden rounded-[0.4vmin]",
+              "font-sans text-[3.4vmin] font-extrabold tracking-[0.04em] text-white",
+              "shadow-[0_1.4vmin_3vmin_-1vmin_rgba(0,0,0,0.9)] transition-[transform,filter] duration-200 ease-out",
+              "hover:-translate-y-[0.2vmin] hover:brightness-110 active:translate-y-[0.1vmin] active:brightness-95"
+            )}
+            style={{ backgroundImage: velvetCss(2, 7) }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-black/35"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-[0.35vmin] bg-[#C9A227]"
+            />
+            <span className="relative drop-shadow-[0_0.2vmin_0.6vmin_rgba(0,0,0,0.8)]">
+              Unveil
+            </span>
+          </button>
+
+          <p className="text-[1.5vmin] text-white/45">Press the button, or the spacebar</p>
+        </>
       )}
     </motion.div>
   );

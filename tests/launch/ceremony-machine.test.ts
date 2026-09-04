@@ -37,14 +37,13 @@ describe("ceremonyReducer", () => {
     expect(again).toEqual(ticked);
   });
 
-  it("counts 3 to 1 and then parts the curtain", () => {
+  it("counts down from COUNT_IN_FROM to 1 and then parts the curtain", () => {
     let s = ceremonyReducer(armed, { type: "TRIGGER" });
-    expect(s.count).toBe(3);
-    s = ceremonyReducer(s, { type: "TICK" });
-    expect(s.count).toBe(2);
-    s = ceremonyReducer(s, { type: "TICK" });
-    expect(s.count).toBe(1);
-    s = ceremonyReducer(s, { type: "TICK" });
+    for (let expected = COUNT_IN_FROM; expected >= 1; expected--) {
+      expect(s.state).toBe("COUNT_IN");
+      expect(s.count).toBe(expected);
+      s = ceremonyReducer(s, { type: "TICK" });
+    }
     expect(s.state).toBe("PARTING");
   });
 
@@ -52,8 +51,10 @@ describe("ceremonyReducer", () => {
     expect(ceremonyReducer(armed, { type: "TICK" })).toEqual(armed);
   });
 
-  it("advances parting to celebrating to showcase", () => {
+  it("advances parting to browser to celebrating to showcase", () => {
     let s: CeremonyStatus = { ...armed, state: "PARTING" };
+    s = ceremonyReducer(s, { type: "ADVANCE" });
+    expect(s.state).toBe("BROWSER");
     s = ceremonyReducer(s, { type: "ADVANCE" });
     expect(s.state).toBe("CELEBRATING");
     s = ceremonyReducer(s, { type: "ADVANCE" });

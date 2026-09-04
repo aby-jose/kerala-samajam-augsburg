@@ -51,7 +51,7 @@ export function ConfettiCanvas({
     const colors = ["#E11D48", "#D4A537", "#F5EFE6", "#FFFFFF"];
 
     const pieces: ConfettiPiece[] = [];
-    const count = 350;
+    const count = 620;
 
     const startX = width * originX;
     const startY = height * originY;
@@ -66,7 +66,7 @@ export function ConfettiCanvas({
         y: startY + (Math.random() - 0.5) * 40,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 6,
-        size: shapeType === "ribbon" ? 14 + Math.random() * 12 : 7 + Math.random() * 9,
+        size: shapeType === "ribbon" ? 22 + Math.random() * 18 : 11 + Math.random() * 13,
         color: colors[Math.floor(Math.random() * colors.length)],
         rotation: Math.random() * 360,
         rotationSpeed: (Math.random() - 0.5) * 12,
