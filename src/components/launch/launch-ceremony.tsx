@@ -3,6 +3,7 @@
 import { Container } from "@/components/layout/container";
 import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
+import { PreShow } from "./pre-show";
 import { useCeremony } from "./use-ceremony";
 import type { SiteConfig } from "@/lib/config-schema";
 
@@ -44,14 +45,9 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
       </div>
 
       <Container className="relative z-20 flex min-h-svh flex-col items-center justify-center gap-6 text-center">
-        <p className="text-xs uppercase tracking-[0.22em] text-white/50">
-          {config.siteName}
-        </p>
-
-        {/* Placeholder scaffolding — replaced beat by beat in Tasks 6-11. */}
-        <p className="font-sans text-5xl font-extrabold tracking-[-0.035em]">
-          {status.state}
-        </p>
+        {status.state === "PRESHOW" && (
+          <PreShow config={config} armed={status.armed} onTrigger={trigger} />
+        )}
         {status.state === "COUNT_IN" && <CountIn count={status.count} />}
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
