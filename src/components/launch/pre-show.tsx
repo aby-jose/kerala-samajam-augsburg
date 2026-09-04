@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Countdown } from "@/components/layout/countdown";
 import { Eyebrow } from "@/components/layout/section-heading";
@@ -32,10 +33,29 @@ export function PreShow({
   // the hall looks up. Decide up front whether there is a future moment to
   // count towards, and hold a line instead when there is not.
   //
+  // `Date.now()` can't be read during render — it's impure, and a request
+  // straddling the ceremony instant would compute a different value during
+  // SSR than at first client paint, causing a hydration mismatch. So "now"
+  // lives in state instead: unset until an effect populates it after mount,
+  // then refreshed every second so the page keeps re-evaluating on its own —
+  // it sits on a projector for twenty minutes and must flip over to
+  // "Beginning shortly" by itself once the clock runs out. While `now` is
+  // still null (server render and first paint) we fall back to that same
+  // held line rather than guessing, which also removes the mismatch.
+  //
   // This holds the Date itself rather than a boolean so the JSX below narrows:
   // a separate `const upcoming = at !== null && ...` does not narrow `at`, and
   // `targetDate={at}` would fail to compile against `Date | null`.
-  const upcoming = at && at.getTime() > Date.now() ? at : null;
+  const [now, setNow] = useState<number | null>(null);
+
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const upcoming = at && now !== null && at.getTime() > now ? at : null;
 
   return (
     <motion.div

@@ -78,5 +78,5 @@ const FEATURES: (CeremonyFeature & { governedBy?: FeatureSwitch })[] = [
 export function ceremonyFeatures(config: SiteConfig): CeremonyFeature[] {
   return FEATURES.filter(
     (f) => !f.governedBy || config.features[f.governedBy]
-  ).map(({ governedBy: _governedBy, ...feature }) => feature);
+  ).map((f) => ({ key: f.key, title: f.title, blurb: f.blurb }));
 }
