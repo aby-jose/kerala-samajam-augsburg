@@ -83,9 +83,7 @@ export function LaunchCeremony({
           <PreShow config={config} armed={status.armed} onTrigger={trigger} />
         )}
         {status.state === "COUNT_IN" && <CountIn count={status.count} />}
-        {(status.state === "CELEBRATING" || status.state === "SHOWCASE") && (
-          <TitleCard config={config} compact={status.state === "SHOWCASE"} />
-        )}
+        {status.state === "CELEBRATING" && <TitleCard config={config} />}
         {status.state === "SHOWCASE" && <ShowcasePanel config={config} qr={qr} />}
       </Container>
 
