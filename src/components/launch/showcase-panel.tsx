@@ -64,7 +64,9 @@ export function ShowcasePanel({
     );
   }
 
-  const codeSize = "clamp(10rem, 27vmin, 22rem)";
+  // Sized against the room, not the layout: this is scanned from up to
+  // fifteen metres, and the plate had vertical headroom going spare.
+  const codeSize = "clamp(11rem, 33vmin, 26rem)";
 
   return (
     <motion.div
