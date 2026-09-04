@@ -75,3 +75,10 @@ errors*.txt
 # Rendered email gallery from `npm run email:preview`. Regenerated on demand
 # and large enough to bury a real diff.
 /.email-preview/
+
+# Nilavilakku lamp footage pulled while exploring the launch ceremony: 240 PNG
+# frames plus mp4/webm, 101 MB in total. The ceremony design settled on a
+# typographic title card and uses none of it, and large media here has no
+# working deploy path anyway — the hero video has the same unsolved problem at
+# a tenth the size. Ignored so it cannot be committed by a stray `git add -A`.
+/public/lamp/
