@@ -20,7 +20,7 @@ export function CountIn({ count }: { count: number }) {
           initial={{ opacity: 0, scale: 1.5 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.85 }}
-          transition={{ duration: 0.45, ease: EASE }}
+          transition={{ duration: 0.25, ease: EASE }}
           className="block font-sans font-extrabold leading-none tracking-[-0.05em] text-white tabular-nums"
           style={{ fontSize: "38vmin" }}
         >

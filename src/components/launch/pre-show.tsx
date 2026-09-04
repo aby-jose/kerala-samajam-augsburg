@@ -72,7 +72,7 @@ export function PreShow({
         type="button"
         onClick={onTrigger}
         disabled={!armed}
-        aria-label="Unveil the website"
+        aria-label={armed ? "Unveil the website" : "Stage locked"}
         className={cn(
           "mt-4 rounded-2xl px-12 py-6 font-sans text-2xl font-extrabold tracking-[-0.02em] transition-all",
           armed
