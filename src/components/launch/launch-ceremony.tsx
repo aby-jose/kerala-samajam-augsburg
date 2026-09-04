@@ -5,6 +5,7 @@ import { ConfettiCanvas } from "./confetti-canvas";
 import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
 import { PreShow } from "./pre-show";
+import { ShowcasePanel } from "./showcase-panel";
 import { TitleCard } from "./title-card";
 import { useCeremony } from "./use-ceremony";
 import type { SiteConfig } from "@/lib/config-schema";
@@ -53,8 +54,9 @@ export function LaunchCeremony({ config }: { config: SiteConfig }) {
         )}
         {status.state === "COUNT_IN" && <CountIn count={status.count} />}
         {(status.state === "CELEBRATING" || status.state === "SHOWCASE") && (
-          <TitleCard config={config} />
+          <TitleCard config={config} compact={status.state === "SHOWCASE"} />
         )}
+        {status.state === "SHOWCASE" && <ShowcasePanel config={config} />}
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-sm">
           <button
