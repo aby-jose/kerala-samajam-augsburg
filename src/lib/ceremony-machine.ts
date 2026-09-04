@@ -65,7 +65,15 @@ export function ceremonyReducer(
       return INITIAL_CEREMONY;
 
     case "JUMP":
-      return { ...status, state: action.to, count: COUNT_IN_FROM };
+      // Landing back on PRESHOW re-locks the stage, exactly as RESET does.
+      // Jumping is a rehearsal control, and rehearsing must never leave a live
+      // stage one stray spacebar from firing.
+      return {
+        ...status,
+        state: action.to,
+        armed: action.to === "PRESHOW" ? false : status.armed,
+        count: COUNT_IN_FROM,
+      };
 
     default:
       return status;

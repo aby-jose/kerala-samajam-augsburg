@@ -77,6 +77,20 @@ describe("ceremonyReducer", () => {
     expect(next.state).toBe("CELEBRATING");
   });
 
+  it("keeps the stage armed when jumping to a beat that is not PRESHOW", () => {
+    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+    const next = ceremonyReducer(s, { type: "JUMP", to: "PARTING" });
+    expect(next.state).toBe("PARTING");
+    expect(next.armed).toBe(true);
+  });
+
+  it("re-locks the stage when jumping back to PRESHOW, matching RESET", () => {
+    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+    const next = ceremonyReducer(s, { type: "JUMP", to: "PRESHOW" });
+    expect(next.state).toBe("PRESHOW");
+    expect(next.armed).toBe(false);
+  });
+
   it("leaves PRESHOW and SHOWCASE with no duration, since both wait for a person", () => {
     expect(CEREMONY_TIMING.PRESHOW).toBeNull();
     expect(CEREMONY_TIMING.SHOWCASE).toBeNull();
