@@ -27,20 +27,36 @@ function pleats(phase: number): string {
   return `linear-gradient(90deg, ${stops.join(", ")})`;
 }
 
-function Half({ side, open }: { side: "left" | "right"; open: boolean }) {
+function Half({
+  side,
+  open,
+  reduced,
+}: {
+  side: "left" | "right";
+  open: boolean;
+  reduced: boolean;
+}) {
   const isLeft = side === "left";
 
   return (
     <motion.div
       className="absolute inset-y-0 w-1/2 origin-top"
       style={{ [isLeft ? "left" : "right"]: 0 }}
-      initial={false}
+      // Explicitly closed, never `initial={false}`. The rehearsal jump keys
+      // remount this component straight into PARTING; with no initial state the
+      // halves snap open with no motion, which is the one thing the jump keys
+      // exist to let the operator watch. On the first PRESHOW mount `open` is
+      // false, so initial and animate agree and nothing moves.
+      initial={{ x: 0, rotate: 0 }}
       animate={
         open
           ? { x: isLeft ? "-104%" : "104%", rotate: isLeft ? -2.5 : 2.5 }
           : { x: 0, rotate: 0 }
       }
-      transition={{ duration: PARTING_MS / 1000, ease: EASE }}
+      // Reduced motion shortens the travel; it never removes it. The curtain is
+      // the content of this beat, not decoration — skipping it leaves the hall
+      // looking at an empty stage while the sweep plays.
+      transition={{ duration: reduced ? 0.4 : PARTING_MS / 1000, ease: EASE }}
     >
       {/* Base cloth — deep crimson, darker than the brand primary so the
           primary still reads as the accent against it. */}
@@ -74,7 +90,13 @@ function Half({ side, open }: { side: "left" | "right"; open: boolean }) {
 }
 
 /**
- * The curtain sits above the stage until the moment it does not.
+ * The curtain is the backdrop, not a lid.
+ *
+ * It sits at `z-[15]` — above the stage atmosphere (`z-10`) and below the
+ * projected content (`z-20`), so the pre-show logo, the clock, the Unveil
+ * button and the 3-2-1 all read in FRONT of the cloth. It then parts to reveal
+ * the title card behind it. Rendering it over the content would hide the very
+ * button the chief guest has to press.
  *
  * Kept mounted through PARTING so the halves animate out; removed entirely
  * afterwards so it can never intercept a click on the showcase beneath.
@@ -86,14 +108,10 @@ export function Curtain({ state }: { state: CeremonyState }) {
 
   const open = state === "PARTING";
 
-  // Reduced motion shortens the travel rather than removing it. The curtain is
-  // the content here, not decoration — cutting it leaves an empty stage.
-  if (reduced && open) return null;
-
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-40">
-      <Half side="left" open={open} />
-      <Half side="right" open={open} />
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[15]">
+      <Half side="left" open={open} reduced={Boolean(reduced)} />
+      <Half side="right" open={open} reduced={Boolean(reduced)} />
     </div>
   );
 }
