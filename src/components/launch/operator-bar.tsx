@@ -74,7 +74,10 @@ export function OperatorBar({
     return (
       <div className="fixed bottom-4 right-4 z-50">
         <button
-          onClick={onReset}
+          onClick={(e) => {
+            onReset();
+            e.currentTarget.blur();
+          }}
           className="rounded-lg border border-white/10 bg-black/60 px-3 py-1.5 text-xs text-white/40 backdrop-blur hover:text-white"
         >
           Re-arm
@@ -101,19 +104,28 @@ export function OperatorBar({
 
         <div className="flex items-center gap-2">
           <button
-            onClick={testSound}
+            onClick={(e) => {
+              testSound();
+              e.currentTarget.blur();
+            }}
             className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:text-white"
           >
             Test sound
           </button>
           <button
-            onClick={toggleFullscreen}
+            onClick={(e) => {
+              toggleFullscreen();
+              e.currentTarget.blur();
+            }}
             className="rounded-lg border border-white/10 px-3 py-1.5 text-white/70 hover:text-white"
           >
             Fullscreen
           </button>
           <button
-            onClick={() => onArm(!armed)}
+            onClick={(e) => {
+              onArm(!armed);
+              e.currentTarget.blur();
+            }}
             className={cn(
               "rounded-lg px-3 py-1.5 font-semibold",
               armed
