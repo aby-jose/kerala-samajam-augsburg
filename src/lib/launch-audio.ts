@@ -7,6 +7,7 @@
 
 class LaunchAudioController {
   private ctx: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
   private isMuted: boolean = false;
 
   /**
@@ -44,6 +45,57 @@ class LaunchAudioController {
   }
 
   /**
+   * The one node every cue is routed through.
+   *
+   * Nothing connects to `ctx.destination` directly any more. A single master
+   * gain is what makes `stopAll()` possible: the fanfare alone runs about 5.2
+   * seconds, and an operator rehearsing thirty times otherwise stacks thirty
+   * overlapping fanfares with no way to silence them.
+   *
+   * Returns null rather than throwing if the node cannot be made — same
+   * contract as `getContext()`.
+   */
+  private masterFor(ctx: AudioContext): GainNode | null {
+    try {
+      if (!this.masterGain) {
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(1, ctx.currentTime);
+        gain.connect(ctx.destination);
+        this.masterGain = gain;
+      }
+      return this.masterGain;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Cut everything that is currently sounding.
+   *
+   * Silences the master gain and drops it. Web Audio gives no way to cancel
+   * already-scheduled sources, so the next cue builds a fresh master and the
+   * old one — with every in-flight oscillator still hanging off it — is muted
+   * and disconnected. Deliberately does NOT call `getContext()`: stopping
+   * should never be the thing that creates a context.
+   */
+  public stopAll(): void {
+    const ctx = this.ctx;
+    const gain = this.masterGain;
+    this.masterGain = null;
+
+    if (!ctx || !gain) return;
+
+    try {
+      gain.gain.cancelScheduledValues(ctx.currentTime);
+      gain.gain.setValueAtTime(0, ctx.currentTime);
+      gain.disconnect();
+    } catch {
+      // Already disconnected, or a context in a state that refuses. Either way
+      // the node is off the graph as far as this controller is concerned.
+    }
+  }
+
+  /**
    * Called from the operator's first click, and only from there.
    *
    * Browsers refuse to produce sound until the page has had a real user
@@ -72,6 +124,8 @@ class LaunchAudioController {
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
+    const out = this.masterFor(ctx);
+    if (!out) return;
 
     try {
       const now = ctx.currentTime;
@@ -86,7 +140,7 @@ class LaunchAudioController {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(out);
 
       osc.start(now);
       osc.stop(now + 0.18);
@@ -103,6 +157,8 @@ class LaunchAudioController {
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
+    const out = this.masterFor(ctx);
+    if (!out) return;
 
     try {
       const now = ctx.currentTime;
@@ -131,7 +187,7 @@ class LaunchAudioController {
 
       noise.connect(filter);
       filter.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(out);
 
       noise.start(now);
       noise.stop(now + duration);
@@ -147,6 +203,8 @@ class LaunchAudioController {
     if (this.isMuted) return;
     const ctx = this.getContext();
     if (!ctx) return;
+    const out = this.masterFor(ctx);
+    if (!out) return;
 
     try {
       const now = ctx.currentTime;
@@ -168,7 +226,7 @@ class LaunchAudioController {
         gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(out);
 
         osc.start(t);
         osc.stop(t + 0.22);
@@ -197,7 +255,7 @@ class LaunchAudioController {
 
         osc.connect(filter);
         filter.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(out);
 
         osc.start(padStart);
         osc.stop(padStart + 5.2);
@@ -224,7 +282,7 @@ class LaunchAudioController {
         gain.gain.exponentialRampToValueAtTime(0.0001, chimeTime + 1.2);
 
         osc.connect(gain);
-        gain.connect(ctx.destination);
+        gain.connect(out);
 
         osc.start(chimeTime);
         osc.stop(chimeTime + 1.3);
@@ -240,6 +298,8 @@ class LaunchAudioController {
   public playTestTone() {
     const ctx = this.getContext();
     if (!ctx) return;
+    const out = this.masterFor(ctx);
+    if (!out) return;
 
     try {
       const now = ctx.currentTime;
@@ -254,7 +314,7 @@ class LaunchAudioController {
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(out);
 
       osc.start(now);
       osc.stop(now + 0.55);

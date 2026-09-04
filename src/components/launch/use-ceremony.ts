@@ -37,8 +37,19 @@ export function useCeremony(): {
   }, []);
 
   const trigger = useCallback(() => dispatch({ type: "TRIGGER" }), []);
-  const reset = useCallback(() => dispatch({ type: "RESET" }), []);
-  const jump = useCallback((to: CeremonyState) => dispatch({ type: "JUMP", to }), []);
+
+  // Both of these leave a beat early, and the fanfare alone runs about 5.2
+  // seconds. Without cutting the audio, an operator rehearsing repeatedly ends
+  // up with several fanfares playing over one another.
+  const reset = useCallback(() => {
+    launchAudio.stopAll();
+    dispatch({ type: "RESET" });
+  }, []);
+
+  const jump = useCallback((to: CeremonyState) => {
+    launchAudio.stopAll();
+    dispatch({ type: "JUMP", to });
+  }, []);
 
   // Count-in: one tick per step, each with its own beat.
   useEffect(() => {
@@ -69,6 +80,10 @@ export function useCeremony(): {
   // minutes does not sleep in the minute before the ceremony. Best-effort:
   // Safari has no support and a refusal here must not break anything.
   //
+  // Re-requested whenever the document becomes visible again: browsers release
+  // the lock the moment the page is hidden, so one alt-tab during setup would
+  // otherwise leave the projector free to sleep for the rest of the evening.
+  //
   // Typed structurally rather than with `WakeLockSentinel` / `navigator.wakeLock`:
   // those exist only in newer TypeScript DOM libs, and pinning the build to one
   // is not worth it for a progressive enhancement.
@@ -88,7 +103,7 @@ export function useCeremony(): {
 
         const sentinel = await wakeLock.request("screen");
         if (cancelled) {
-          void sentinel.release();
+          void sentinel.release().catch(() => {});
           return;
         }
         wakeLockRef.current = sentinel;
@@ -97,16 +112,25 @@ export function useCeremony(): {
       }
     }
 
+    function onVisibility() {
+      if (document.visibilityState === "visible") void hold();
+    }
+
     void hold();
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       cancelled = true;
-      void wakeLockRef.current?.release();
+      document.removeEventListener("visibilitychange", onVisibility);
+      void wakeLockRef.current?.release().catch(() => {});
       wakeLockRef.current = null;
     };
   }, []);
 
-  // Keyboard. Space and Enter drive the ceremony; 1-5 jump to a beat for
-  // rehearsal; R re-arms.
+  // Keyboard. Space and Enter drive the ceremony. The rehearsal controls all
+  // require ALT — Alt+1 to Alt+5 jump to a beat, Alt+R resets — because a
+  // single stray unmodified `r` mid-ceremony would drop the stage back to a
+  // LOCKED pre-show, and the operator would then have to find and click Arm
+  // while the hall watched.
   useEffect(() => {
     const BEATS: CeremonyState[] = [
       "PRESHOW",
@@ -120,11 +144,22 @@ export function useCeremony(): {
       if (e.target instanceof HTMLInputElement) return;
       if (e.target instanceof HTMLTextAreaElement) return;
 
-      if (e.code === "Space" || e.code === "Enter") {
+      if (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter") {
+        // Hands off anything focusable. After clicking "Armed — press to lock"
+        // that button holds focus, and swallowing Space here would fire the
+        // ceremony instead of locking it — and would leave Test sound,
+        // Fullscreen and Re-arm keyboard-inoperable. The browser's native
+        // "Space activates the focused button" does the right thing in every
+        // one of those cases, the Unveil button included.
+        const el = e.target instanceof HTMLElement ? e.target : null;
+        if (el?.closest("button, a, input, textarea, select")) return;
+
         e.preventDefault();
         trigger();
         return;
       }
+
+      if (!e.altKey) return;
 
       if (e.key.toLowerCase() === "r") {
         reset();
