@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { PARTING_MS, type CeremonyState } from "@/lib/ceremony-timing";
 import { foldStops } from "./cloth";
+import { GOLD, openingInset } from "./stage-geometry";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
@@ -11,24 +12,24 @@ const EASE = [0.16, 1, 0.3, 1] as const;
  * How much of each half survives as a leg once the curtain is drawn.
  *
  * A stage curtain does not leave. It is pulled to the walls and bunches there
- * for the rest of the evening, framing whatever is on the stage. Scaling each
- * half about its OUTER edge is exactly that draw: the leading edge travels
- * from centre to wall, and every fold behind it compresses into the stack.
+ * for the rest of the evening. Scaling each half about its OUTER edge is
+ * exactly that draw: the leading edge travels from centre to pillar, and every
+ * fold behind it compresses into the stack.
  */
-const LEG_SCALE = 0.15;
+const LEG_SCALE = 0.13;
 
 /**
- * Each half is wider than half the screen, so the two OVERLAP at the centre.
+ * Each half is wider than half the opening, so the two OVERLAP at the centre.
  *
- * Two panels butted edge to edge leave a hard vertical seam straight down the
- * middle of the projection — a join no real curtain has, because real panels
- * lap. 54% each gives an 8% lap: the right panel hangs in front of the left,
- * and the shadow it casts is what the eye reads as depth instead of a line.
+ * Two panels butted edge to edge leave a hard vertical seam down the middle of
+ * the projection — a join no real curtain has, because real panels lap. 54%
+ * each gives an 8% lap: the right panel hangs in front of the left, and the
+ * shadow it casts is what the eye reads as depth instead of a line.
  */
 const HALF_W = 54;
 
-const VALANCE_VH = 13;
-const GOLD = "#C9A227";
+/** Height of the kasavu hem, as a percentage of the cloth. */
+const HEM_H = 9;
 
 function Stops({ stops }: { stops: ReturnType<typeof foldStops> }) {
   return (
@@ -60,8 +61,10 @@ function Half({
   const isLeft = side === "left";
   const id = `curtain-${side}`;
   const stops = foldStops(isLeft ? 0 : 3);
+  const hemY = 1000 - HEM_H * 10;
 
-  // Anchored at the outer edge, so the draw compresses the folds toward the wall.
+  // Anchored at the outer edge, so the draw compresses the folds toward the
+  // pillar rather than sliding the panel off the stage.
   const anchor: CSSProperties = isLeft
     ? { left: 0, transformOrigin: "0% 50%" }
     : { right: 0, transformOrigin: "100% 50%" };
@@ -89,17 +92,16 @@ function Half({
           <linearGradient id={`${id}-folds`} x1="0" x2="1" y1="0" y2="0">
             <Stops stops={stops} />
           </linearGradient>
-          {/* Hanging: shadow under the valance, weight at the hem. */}
+          {/* Hanging: shadow under the beam, weight gathering at the hem. */}
           <linearGradient id={`${id}-hang`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#000" stopOpacity="0.66" />
-            <stop offset="0.15" stopColor="#000" stopOpacity="0" />
-            <stop offset="0.8" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.6" />
+            <stop offset="0" stopColor="#000" stopOpacity="0.72" />
+            <stop offset="0.14" stopColor="#000" stopOpacity="0" />
+            <stop offset="0.82" stopColor="#000" stopOpacity="0" />
+            <stop offset="1" stopColor="#000" stopOpacity="0.5" />
           </linearGradient>
-          {/* The lap. The left panel lies UNDER the right, so it takes a wide,
+          {/* The lap. The left panel lies UNDER the right, so it takes a wide
               soft shadow across its leading edge; the right panel's leading
-              edge is in the light and takes a thin highlight. Together they
-              read as one panel in front of another instead of a seam. */}
+              edge is in the light and takes a thin highlight. */}
           <linearGradient id={`${id}-lap`} x1="0" x2="1" y1="0" y2="0">
             {isLeft ? (
               <>
@@ -112,6 +114,16 @@ function Half({
                 <stop offset="0.05" stopColor="#fff" stopOpacity="0" />
               </>
             )}
+          </linearGradient>
+          {/* Kasavu: the gold zari border. Woven metal, so it is banded rather
+              than a flat fill — the same folds that shade the velvet catch it. */}
+          <linearGradient id={`${id}-kasavu`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0" stopColor={GOLD.dark} />
+            <stop offset="0.12" stopColor={GOLD.pale} />
+            <stop offset="0.3" stopColor={GOLD.mid} />
+            <stop offset="0.52" stopColor={GOLD.bright} />
+            <stop offset="0.78" stopColor={GOLD.mid} />
+            <stop offset="1" stopColor={GOLD.dark} />
           </linearGradient>
           {/* Folds wander: a very low-frequency warp pushes the vertical folds
               a little off true, more so lower down where the cloth is freer. */}
@@ -131,7 +143,6 @@ function Half({
               yChannelSelector="G"
             />
           </filter>
-          {/* The nap. */}
           <filter id={`${id}-nap`}>
             <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed={isLeft ? 5 : 17} />
             <feColorMatrix type="saturate" values="0" />
@@ -140,16 +151,40 @@ function Half({
 
         {/* Oversized so the displaced edges never expose the stage behind. */}
         <rect x="-60" y="-60" width="1120" height="1120" fill={`url(#${id}-folds)`} filter={`url(#${id}-drape)`} />
-        <rect x="0" y="0" width="1000" height="1000" filter={`url(#${id}-nap)`} opacity="0.1" style={{ mixBlendMode: "overlay" }} />
-        <rect x="0" y="0" width="1000" height="1000" fill={`url(#${id}-hang)`} />
-        <rect x="0" y="0" width="1000" height="1000" fill={`url(#${id}-lap)`} />
+        <rect width="1000" height="1000" filter={`url(#${id}-nap)`} opacity="0.1" style={{ mixBlendMode: "overlay" }} />
+
+        <rect width="1000" height="1000" fill={`url(#${id}-hang)`} />
+
+        {/* The kasavu hem, drawn AFTER the hanging shadow rather than under
+            it. Underneath, the shadow that gives the cloth its weight was
+            also draining the gold, and woven zari came out as a grey band. */}
+        <g>
+          <rect y={hemY - 5} width="1000" height="5" fill="#000" opacity="0.5" />
+          <rect y={hemY} width="1000" height={HEM_H * 10} fill={`url(#${id}-kasavu)`} />
+          {/* Only the folds shade it, and only lightly: metal thread catches
+              the same light the velvet does, but it does not go matte. */}
+          <rect
+            y={hemY}
+            width="1000"
+            height={HEM_H * 10}
+            fill={`url(#${id}-folds)`}
+            opacity="0.2"
+            style={{ mixBlendMode: "multiply" }}
+          />
+          {[0.14, 0.27, 0.68, 0.86].map((f) => (
+            <rect key={f} y={hemY + HEM_H * 10 * f} width="1000" height="3" fill={GOLD.dark} opacity="0.6" />
+          ))}
+          <rect y={hemY + 6} width="1000" height="2.5" fill={GOLD.pale} opacity="0.75" />
+        </g>
+
+        <rect width="1000" height="1000" fill={`url(#${id}-lap)`} />
       </svg>
 
       {/* Bunched cloth is in its own shadow. Fades in as the leg gathers. */}
       <motion.div
         className="absolute inset-0 bg-black"
         initial={{ opacity: 0 }}
-        animate={{ opacity: open ? 0.4 : 0 }}
+        animate={{ opacity: open ? 0.42 : 0 }}
         transition={{ duration: reduced ? 0.5 : PARTING_MS / 1000, ease: EASE }}
       />
     </motion.div>
@@ -157,107 +192,25 @@ function Half({
 }
 
 /**
- * The scalloped lower edge of the valance across a 1000-unit-wide box.
- * `y` is the height of the points between swags; each swag dips below them.
- */
-function swag(y: number, depth: number, count = 5): string {
-  const w = 1000 / count;
-  let d = `M0 ${y}`;
-  for (let i = 0; i < count; i++) {
-    const x0 = i * w;
-    d += ` Q ${x0 + w / 2} ${y + depth * 2} ${x0 + w} ${y}`;
-  }
-  return d;
-}
-
-/**
- * The valance — the pelmet across the top of the proscenium.
+ * The house curtain, filling the pavilion's opening.
  *
- * Fixed, because in a real house it is fixed: only the traveller runs. It
- * stays for the whole evening and, with the two legs, is what frames the
- * showcase as a stage rather than a web page.
- *
- * Gold is ONE clean braid following the scallop, and nothing else. A dashed
- * bullion fringe with tassels was tried and read as hazard tape from any
- * distance — the alternating gold and dark scanned as stripes long before it
- * scanned as thread. At projector scale a single line of trim is the only
- * gold that survives.
- */
-function Valance() {
-  const stops = foldStops(5, 30);
-  const edge = swag(72, 15);
-
-  return (
-    <>
-      <svg
-        className="absolute inset-x-0 top-0 w-full"
-        style={{ height: `${VALANCE_VH}vh` }}
-        viewBox="0 0 1000 110"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        <defs>
-          <linearGradient id="valance-folds" x1="0" x2="1" y1="0" y2="0">
-            <Stops stops={stops} />
-          </linearGradient>
-          <linearGradient id="valance-shade" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#000" stopOpacity="0.45" />
-            <stop offset="0.35" stopColor="#000" stopOpacity="0" />
-            <stop offset="1" stopColor="#000" stopOpacity="0.55" />
-          </linearGradient>
-          <filter id="valance-drape" x="-6%" y="-20%" width="112%" height="140%">
-            <feTurbulence type="fractalNoise" baseFrequency="0.006 0.02" numOctaves="2" seed="23" result="warp" />
-            <feDisplacementMap in="SourceGraphic" in2="warp" scale="9" xChannelSelector="R" yChannelSelector="G" />
-          </filter>
-          <clipPath id="valance-clip">
-            <path d={`${edge} L1000 0 L0 0 Z`} />
-          </clipPath>
-        </defs>
-
-        <g clipPath="url(#valance-clip)">
-          <rect x="-40" y="-20" width="1080" height="150" fill="url(#valance-folds)" filter="url(#valance-drape)" />
-          <rect x="0" y="0" width="1000" height="110" fill="url(#valance-shade)" />
-        </g>
-
-        {/* One braid. Drawn twice: a dark line a hair below to seat it against
-            the cloth, then the gold itself. */}
-        <path d={swag(73.5, 15)} fill="none" stroke="#000" strokeOpacity="0.5" strokeWidth="4" />
-        <path d={edge} fill="none" stroke={GOLD} strokeWidth="2.6" strokeOpacity="0.9" />
-      </svg>
-
-      {/* The valance casts onto whatever is below it — cloth or stage. */}
-      <div
-        className="absolute inset-x-0"
-        style={{
-          top: `${VALANCE_VH}vh`,
-          height: "7vh",
-          background: "linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0))",
-        }}
-      />
-    </>
-  );
-}
-
-/**
- * The house curtain.
- *
- * Sits at `z-[15]`: above the stage atmosphere (`z-10`) and the STAGE layer
- * (`z-[12]`, where the browser, title card and showcase live), and below the
- * FRONT layer (`z-20`, the pre-show and the count-in). So before the reveal
- * the logo, clock and Unveil button read in front of the closed cloth, and
- * when the cloth draws it uncovers what was already standing behind it.
- *
- * Always mounted. The legs and the valance stay for the whole evening.
+ * Confined to the opening rather than the whole screen, so the pillars and the
+ * carved beam frame it and the garlands hang in front of it. Always mounted:
+ * the legs stay bunched against the pillars for the rest of the evening, the
+ * way a real traveller does.
  */
 export function Curtain({ state }: { state: CeremonyState }) {
   const reduced = Boolean(useReducedMotion());
   const open = state !== "PRESHOW" && state !== "COUNT_IN";
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 z-[15] overflow-hidden">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute z-[15] overflow-hidden"
+      style={openingInset}
+    >
       <Half side="left" open={open} reduced={reduced} />
       <Half side="right" open={open} reduced={reduced} />
-      <Valance />
     </div>
   );
 }

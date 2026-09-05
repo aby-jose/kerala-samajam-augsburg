@@ -22,7 +22,7 @@ export function CountIn({ count }: { count: number }) {
           exit={{ opacity: 0, scale: 0.85 }}
           transition={{ duration: 0.25, ease: EASE }}
           className="block font-sans font-extrabold leading-none tracking-[-0.05em] text-white tabular-nums"
-          style={{ fontSize: "38vmin" }}
+          style={{ fontSize: "30vmin" }}
         >
           {count}
         </motion.span>
