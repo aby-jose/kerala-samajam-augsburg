@@ -66,7 +66,7 @@ export function ShowcasePanel({
 
   // Sized against the room, not the layout: this is scanned from up to
   // fifteen metres, and the plate had vertical headroom going spare.
-  const codeSize = "clamp(8rem, 28vmin, 19rem)";
+  const codeSize = "clamp(11rem, 33vmin, 26rem)";
 
   return (
     <motion.div
@@ -75,28 +75,28 @@ export function ShowcasePanel({
       transition={{ duration: 0.8, ease: EASE }}
       className="w-full overflow-hidden rounded-[1.6vmin] border backdrop-blur-[2px]"
       style={{
-        maxWidth: "100%",
+        maxWidth: "min(92vw, 118vmin)",
         borderColor: "rgba(245,239,230,0.22)",
         backgroundColor: "rgba(0,0,0,0.34)",
       }}
     >
       {/* Band 1 — the address, exactly as it was typed. */}
       <div
-        className="border-b px-[2.4vmin] py-[1.35vmin] text-center"
+        className="border-b px-[3.5vmin] py-[3vmin] text-center"
         style={{ borderColor: "rgba(245,239,230,0.16)" }}
       >
         <p
           className="font-sans font-extrabold leading-none tracking-[-0.035em] break-all"
-          style={{ color: CREAM, fontSize: "clamp(1.3rem, 4.2vmin, 3.4rem)" }}
+          style={{ color: CREAM, fontSize: "clamp(1.9rem, 5.2vmin, 4.6rem)" }}
         >
           {displayUrl(qr.url)}
         </p>
       </div>
 
       {/* Band 2 — the code, and what is behind it. Two columns, one baseline. */}
-      <div className="flex flex-col items-stretch gap-[2.6vmin] px-[2.6vmin] py-[1.75vmin] md:flex-row">
-        <div className="flex shrink-0 flex-col items-center gap-[1vmin]">
-          <div className="rounded-[0.8vmin] p-[1vmin]" style={{ backgroundColor: CREAM }}>
+      <div className="flex flex-col items-stretch gap-[3.5vmin] px-[3.5vmin] py-[3.5vmin] md:flex-row">
+        <div className="flex shrink-0 flex-col items-center gap-[1.4vmin]">
+          <div className="rounded-[1vmin] p-[1.4vmin]" style={{ backgroundColor: CREAM }}>
             {qrImage ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -109,7 +109,7 @@ export function ShowcasePanel({
               <div style={{ width: codeSize, height: codeSize }} />
             )}
           </div>
-          <p className="font-sans text-[1.55vmin] font-semibold tracking-[-0.01em] text-white/55">
+          <p className="font-sans text-[1.7vmin] font-semibold tracking-[-0.01em] text-white/55">
             Point your camera here
           </p>
         </div>
@@ -123,16 +123,16 @@ export function ShowcasePanel({
           {features.map((feature) => (
             <li
               key={feature.key}
-              className="flex flex-col gap-x-[1.6vmin] gap-y-[0.3vmin] py-[1.35vmin] first:pt-0 last:pb-0 sm:flex-row sm:items-baseline"
+              className="flex flex-col gap-x-[1.6vmin] gap-y-[0.3vmin] py-[1.8vmin] first:pt-0 last:pb-0 sm:flex-row sm:items-baseline"
               style={{ borderColor: "rgba(245,239,230,0.14)" }}
             >
               <p
-                className="w-[26vmin] shrink-0 font-sans text-[2vmin] font-bold tracking-[-0.015em]"
+                className="w-[27vmin] shrink-0 font-sans text-[2.05vmin] font-bold tracking-[-0.015em]"
                 style={{ color: CREAM }}
               >
                 {feature.title}
               </p>
-              <p className="text-[1.8vmin] leading-snug text-white/55">{feature.blurb}</p>
+              <p className="text-[1.9vmin] leading-snug text-white/55">{feature.blurb}</p>
             </li>
           ))}
         </ul>
@@ -140,12 +140,12 @@ export function ShowcasePanel({
 
       {/* Band 3 — the way in, for the machine driving the projector. */}
       <div
-        className="border-t px-[2.4vmin] py-[1.15vmin] text-center"
+        className="border-t px-[3.5vmin] py-[2.4vmin] text-center"
         style={{ borderColor: "rgba(245,239,230,0.16)" }}
       >
         <Link
           href="/"
-          className="inline-flex items-center rounded-full border px-[3vmin] py-[1.2vmin] font-sans text-[1.85vmin] font-bold tracking-[-0.01em] transition-colors hover:bg-[#F5EFE6]/12"
+          className="inline-flex items-center rounded-full border px-[3.4vmin] py-[1.4vmin] font-sans text-[2vmin] font-bold tracking-[-0.01em] transition-colors hover:bg-[#F5EFE6]/12"
           style={{ borderColor: "rgba(245,239,230,0.5)", color: CREAM }}
         >
           Open the website

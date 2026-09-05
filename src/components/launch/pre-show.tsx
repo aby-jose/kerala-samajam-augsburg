@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Countdown } from "@/components/layout/countdown";
 import { ceremonyAt } from "@/lib/ceremony-timing";
+import type { SiteConfig } from "@/lib/config-schema";
 import { cn } from "@/lib/utils";
 import { velvetCss } from "./cloth";
 
@@ -22,9 +24,11 @@ const EASE = [0.16, 1, 0.3, 1] as const;
  * a room that is not ready.
  */
 export function PreShow({
+  config,
   armed,
   onTrigger,
 }: {
+  config: SiteConfig;
   armed: boolean;
   onTrigger: () => void;
 }) {
@@ -52,19 +56,28 @@ export function PreShow({
       transition={{ duration: 1.2, ease: EASE }}
       className="flex flex-col items-center gap-[3.2vmin] text-center"
     >
-      {/* No logo and no name here. Both are carved into the pavilion above —
-          the mark hangs in the gable and the association's name is on the
-          beam — and repeating them on the cloth would be the same words twice
-          on one screen. */}
+      <Image
+        src={config.branding.logoUrl || "/images/logo.png"}
+        alt={config.siteName}
+        width={256}
+        height={256}
+        className="h-[15vmin] w-auto drop-shadow-[0_2vmin_3vmin_rgba(0,0,0,0.6)]"
+        priority
+      />
+
+      <h1 className="font-sans text-[5.6vmin] font-extrabold leading-none tracking-[-0.035em] text-white drop-shadow-[0_0.4vmin_1.6vmin_rgba(0,0,0,0.7)]">
+        {config.siteName}
+      </h1>
+
       {upcoming ? (
         <div className="flex flex-col items-center gap-[2vmin]">
-          <p className="font-serif text-[3vmin] italic leading-none tracking-[-0.015em] text-white/75">
+          <p className="font-serif text-[2.6vmin] italic leading-none tracking-[-0.015em] text-white/75">
             The unveiling begins in
           </p>
           <Countdown targetDate={upcoming} />
         </div>
       ) : (
-        <p className="font-serif text-[3.4vmin] italic leading-none tracking-[-0.015em] text-white/75">
+        <p className="font-serif text-[2.8vmin] italic leading-none tracking-[-0.015em] text-white/75">
           Beginning shortly
         </p>
       )}
@@ -84,8 +97,8 @@ export function PreShow({
             onClick={onTrigger}
             aria-label="Unveil the website"
             className={cn(
-              "relative mt-[2vmin] flex h-[11vmin] w-[40vmin] items-center justify-center overflow-hidden rounded-[0.4vmin]",
-              "font-sans text-[4vmin] font-extrabold tracking-[0.04em] text-white",
+              "relative mt-[2vmin] flex h-[9.5vmin] w-[34vmin] items-center justify-center overflow-hidden rounded-[0.4vmin]",
+              "font-sans text-[3.4vmin] font-extrabold tracking-[0.04em] text-white",
               "shadow-[0_1.4vmin_3vmin_-1vmin_rgba(0,0,0,0.9)] transition-[transform,filter] duration-200 ease-out",
               "hover:-translate-y-[0.2vmin] hover:brightness-110 active:translate-y-[0.1vmin] active:brightness-95"
             )}
@@ -104,7 +117,7 @@ export function PreShow({
             </span>
           </button>
 
-          <p className="text-[1.8vmin] text-white/45">Press the button, or the spacebar</p>
+          <p className="text-[1.5vmin] text-white/45">Press the button, or the spacebar</p>
         </>
       )}
     </motion.div>

@@ -6,13 +6,11 @@ import { CountIn } from "./count-in";
 import { Curtain } from "./curtain";
 import { FireworksCanvas } from "./fireworks-canvas";
 import { OperatorBar } from "./operator-bar";
-import { Pavilion } from "./pavilion";
 import { PreShow } from "./pre-show";
 import { ShowcasePanel } from "./showcase-panel";
 import { TitleCard } from "./title-card";
 import { useCeremony } from "./use-ceremony";
 import { displayUrl, type QrTarget } from "@/lib/ceremony-showcase";
-import { contentInset } from "./stage-geometry";
 import type { SiteConfig } from "@/lib/config-schema";
 
 /**
@@ -22,18 +20,16 @@ import type { SiteConfig } from "@/lib/config-schema";
  * means anything if there is something behind it:
  *
  *   z-10   atmosphere — wash, vignette, grain
- *   z-11   fireworks — behind the stage, so a burst never lands on the QR,
- *          and behind the pavilion, so they read as bursting ON the stage
+ *   z-11   fireworks — BEHIND the stage, so a burst never lands on the QR
  *   z-12   STAGE — address bar, title card, showcase: behind the cloth
- *   z-15   the curtain: two legs, filling the pavilion's opening
- *   z-16   the pavilion — roof, beam, pillars, garlands, lamps, floor
+ *   z-15   the curtain: two legs and the valance, mounted all evening
  *   z-20   FRONT — pre-show and count-in, in front of the closed cloth
  *   z-50   confetti, and the operator's panel
  *
  * So the curtain draws to uncover an address bar that was already standing
  * there, and the hall watches it be revealed rather than watching it fade in
- * onto an empty floor. Every content layer is inset to the same opening the
- * pavilion frames, so nothing ever strays over a pillar.
+ * onto an empty floor. The stage layer is inset to the proscenium: clear of
+ * the valance above and the two legs at the sides.
  *
  * `qr` is resolved on the server in `app/launch/page.tsx` and passed in: the
  * environment variable behind it is server-only.
@@ -85,22 +81,27 @@ export function LaunchCeremony({
       </div>
 
       {/* STAGE — behind the cloth, inside the proscenium. */}
-      <div
-        className="absolute z-[12] flex items-center justify-center"
-        style={contentInset}
-      >
+      <div className="absolute inset-0 z-[12] flex items-center justify-center overflow-y-auto px-[9vw] pb-[4vh] pt-[17vh]">
         {barOnStage && qr.ok && (
-          // No logo here: the mark already hangs in the pavilion's gable, and
-          // two of them on one screen is the same thing said twice.
-          <BrowserReveal url={displayUrl(qr.url)} active={state === "BROWSER"} />
+          <div className="flex w-full flex-col items-center gap-[5vmin]">
+            {/* The mark stays on stage through the typing, so the beat is
+                still visibly this association's and not a stray browser
+                floating in a dark room. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={config.branding.logoUrl || "/images/logo.png"}
+              alt=""
+              aria-hidden
+              className="h-[13vmin] w-auto opacity-90 drop-shadow-[0_1.5vmin_3vmin_rgba(0,0,0,0.6)]"
+            />
+            <BrowserReveal url={displayUrl(qr.url)} active={state === "BROWSER"} />
+          </div>
         )}
         {celebrating && <TitleCard config={config} />}
         {state === "SHOWCASE" && <ShowcasePanel config={config} qr={qr} />}
       </div>
 
       <Curtain state={state} />
-
-      <Pavilion siteName={config.siteName} logoUrl={config.branding.logoUrl} />
 
       {/* The fireworks do not stop. They carry the celebration and then keep
           going, quieter, behind the showcase, so the screen the hall is
@@ -112,12 +113,9 @@ export function LaunchCeremony({
       <ConfettiCanvas active={celebrating} originX={0.5} originY={0.4} />
 
       {/* FRONT — in front of the closed cloth. */}
-      <div
-        className="absolute z-20 flex flex-col items-center justify-center text-center"
-        style={contentInset}
-      >
+      <div className="relative z-20 flex h-svh flex-col items-center justify-center pt-[13vh] text-center">
         {state === "PRESHOW" && (
-          <PreShow armed={status.armed} onTrigger={trigger} />
+          <PreShow config={config} armed={status.armed} onTrigger={trigger} />
         )}
         {state === "COUNT_IN" && <CountIn count={status.count} />}
       </div>
