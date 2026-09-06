@@ -33,6 +33,19 @@ describe("getConfig", () => {
     vi.clearAllMocks();
   });
 
+  it("switches the launch ceremony off for a config saved before it existed", async () => {
+    const storedFeatures: Partial<typeof defaultConfig.features> = { ...defaultConfig.features };
+    delete storedFeatures.launchCeremony;
+    mockedFindUnique.mockResolvedValue({
+      key: "current",
+      value: { ...defaultConfig, features: storedFeatures },
+    } as any);
+
+    const config = await loadConfig();
+
+    expect(config.features.launchCeremony).toBe(false);
+  });
+
   it("returns the defaults when nothing is stored", async () => {
     mockedFindUnique.mockResolvedValue(null as any);
 

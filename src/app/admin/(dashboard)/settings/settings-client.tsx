@@ -92,6 +92,7 @@ const settingsSchema = z.object({
     enableGallery: z.boolean(),
     enableMembership: z.boolean(),
     maintenanceMode: z.boolean(),
+    launchCeremony: z.boolean(),
   }),
   // No `.default()` on these, for the same reason as `boardMembers` below:
   // getConfig() merges the defaults in, and a default here would split the
@@ -814,6 +815,18 @@ function SettingsPageContent() {
                         <Switch
                           checked={watch("features.enableGallery")}
                           onCheckedChange={(val) => setValue("features.enableGallery", val)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between gap-4 py-4">
+                        <div className="space-y-0.5">
+                          <h4 className="font-sans text-sm font-medium text-foreground">Launch ceremony</h4>
+                          <p className="max-w-md text-xs text-muted-foreground">
+                            Lets the home page stage the website-launch ceremony. With this on, Alt+Shift+L on the home page brings the curtain in; visitors see nothing until then. Turn it off after the event.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={watch("features.launchCeremony")}
+                          onCheckedChange={(val) => setValue("features.launchCeremony", val)}
                         />
                       </div>
                     </div>

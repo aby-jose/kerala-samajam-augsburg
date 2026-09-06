@@ -25,8 +25,13 @@ import { getAdminUser } from "./guards";
  *
  * `maintenanceMode` is deliberately excluded: it is not a module, it seals the
  * whole site, and it answers to `isMaintenanceLocked` instead.
+ * `launchCeremony` is excluded for the opposite reason: it gates no route and
+ * no action, only whether the home page listens for the operator's chord.
  */
-export type FeatureKey = Exclude<keyof SiteConfig["features"], "maintenanceMode">;
+export type FeatureKey = Exclude<
+  keyof SiteConfig["features"],
+  "maintenanceMode" | "launchCeremony"
+>;
 
 /**
  * What the visitor is told when a module is off.

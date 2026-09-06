@@ -15,6 +15,21 @@ interface ConfettiPiece {
   opacity: number;
 }
 
+/**
+ * Confetti, thrown at the moment the celebration begins.
+ *
+ * Three throws at once: a burst from the centre of the opening, and a cannon
+ * from each lower corner firing up and inward, so the whole opening fills
+ * rather than one spot in the middle. The canvas fills whatever box it is
+ * put in — the parent clips it to the opening, so nothing lands on the
+ * cloth. Pieces are cut small: at the sizes they were first drawn, each one
+ * was the width of a letter of the address from the back of the hall, and
+ * the burst read as a handful of cards thrown at the screen.
+ *
+ * The palette is a festival's, not a brand sheet's: the house crimson, gold
+ * and ivory, and with them emerald, turquoise, sky, violet and orange. One
+ * or two colours read as a logo; a dozen read as a celebration.
+ */
 export function ConfettiCanvas({
   active,
   originX = 0.5,
@@ -34,39 +49,64 @@ export function ConfettiCanvas({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const host = canvas.parentElement ?? document.body;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = (canvas.width = host.clientWidth);
+    let height = (canvas.height = host.clientHeight);
 
     const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      width = canvas.width = host.clientWidth;
+      height = canvas.height = host.clientHeight;
     };
     window.addEventListener("resize", handleResize);
 
-    // Four colours, all of them the house palette: crimson, kasavu gold, cream,
-    // white. The draft threw indigo and emerald in as well, which read as a
-    // birthday party rather than this association's brand.
-    const colors = ["#E11D48", "#D4A537", "#F5EFE6", "#FFFFFF"];
+    const colors = [
+      "#F43F5E", // crimson
+      "#FF7A45", // orange
+      "#FFC33D", // gold
+      "#FFE680", // pale gold
+      "#34D399", // emerald
+      "#2DD4BF", // turquoise
+      "#38BDF8", // sky
+      "#818CF8", // violet
+      "#F472B6", // pink
+      "#F6EEE0", // ivory
+      "#FFFFFF",
+    ];
 
     const pieces: ConfettiPiece[] = [];
-    const count = 620;
+    const count = 1100;
 
     const startX = width * originX;
     const startY = height * originY;
 
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 4 + Math.random() * 22;
+      // Which throw this piece belongs to: the centre burst, or one of the
+      // two corner cannons, which fire up and inward at a steep angle.
+      const throwFrom = i % 3;
+      let x: number, y: number, angle: number, speed: number;
+      if (throwFrom === 0) {
+        x = startX + (Math.random() - 0.5) * 80;
+        y = startY + (Math.random() - 0.5) * 40;
+        angle = Math.random() * Math.PI * 2;
+        speed = 4 + Math.random() * 20;
+      } else {
+        const left = throwFrom === 1;
+        x = left ? width * 0.03 : width * 0.97;
+        y = height * 1.02;
+        // Straight up is -PI/2; lean inward by 20-45 degrees.
+        const lean = (Math.PI / 180) * (20 + Math.random() * 25);
+        angle = -Math.PI / 2 + (left ? lean : -lean);
+        speed = 14 + Math.random() * 16;
+      }
       const shapeType = Math.random() > 0.4 ? "rect" : Math.random() > 0.5 ? "ribbon" : "circle";
 
       pieces.push({
-        x: startX + (Math.random() - 0.5) * 80,
-        y: startY + (Math.random() - 0.5) * 40,
+        x,
+        y,
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 6,
-        size: shapeType === "ribbon" ? 22 + Math.random() * 18 : 11 + Math.random() * 13,
+        vy: Math.sin(angle) * speed - (throwFrom === 0 ? 6 : 0),
+        size: shapeType === "ribbon" ? 11 + Math.random() * 9 : 5 + Math.random() * 6,
         color: colors[Math.floor(Math.random() * colors.length)],
         rotation: Math.random() * 360,
         rotationSpeed: (Math.random() - 0.5) * 12,
@@ -89,12 +129,14 @@ export function ConfettiCanvas({
 
         p.x += p.vx;
         p.y += p.vy;
-        p.vy += 0.28; // Gravity
+        p.vy += 0.24; // Gravity
         p.vx *= 0.985; // Air drag
+        // A little flutter as it falls, so a piece drifts rather than drops.
+        p.vx += Math.sin((frameCount + i) * 0.17) * 0.12;
         p.rotation += p.rotationSpeed;
 
-        if (frameCount > 80) {
-          p.opacity -= 0.007;
+        if (frameCount > 110) {
+          p.opacity -= 0.006;
         }
 
         if (p.opacity > 0 && p.y < height + 50) {
@@ -134,10 +176,5 @@ export function ConfettiCanvas({
 
   if (!active) return null;
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="pointer-events-none fixed inset-0 z-50 h-full w-full"
-    />
-  );
+  return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />;
 }

@@ -26,13 +26,15 @@ export const INITIAL_CEREMONY: CeremonyStatus = {
  * What each timed beat hands over to.
  *
  * COUNT_IN is absent on purpose: it advances a numeral at a time through TICK,
- * and only the last tick moves the state on. PRESHOW and SHOWCASE are absent
- * because they wait for a person.
+ * and only the last tick moves the state on. PRESHOW and HOLD are absent
+ * because they wait for a person; OFF because nothing follows it.
  */
 const NEXT: Partial<Record<CeremonyState, CeremonyState>> = {
-  PARTING: "BROWSER",
-  BROWSER: "CELEBRATING",
-  CELEBRATING: "SHOWCASE",
+  PARTING: "LIGHT_UP",
+  LIGHT_UP: "CELEBRATING",
+  CELEBRATING: "HOLD",
+  GROW: "AFTERGLOW",
+  AFTERGLOW: "OFF",
 };
 
 /**
@@ -57,6 +59,12 @@ export function ceremonyReducer(
       return { ...status, armed: action.armed };
 
     case "TRIGGER":
+      // The second press of the evening: with the site on the screen and the
+      // celebration done, the same key grows it to full screen. No arming
+      // check here — the show is already running, and there is nothing left
+      // to protect.
+      if (status.state === "HOLD") return { ...status, state: "GROW" };
+
       // Guards both the locked stage and the double press: a guest leaning on
       // the button, or a nervous double-click, must not restart the count.
       if (status.state !== "PRESHOW" || !status.armed) return status;

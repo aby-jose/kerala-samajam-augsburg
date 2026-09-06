@@ -7,6 +7,7 @@ import {
   type CeremonyStatus,
 } from "@/lib/ceremony-machine";
 import {
+  CEREMONY_ORDER,
   CEREMONY_TIMING,
   COUNT_IN_STEP_MS,
   type CeremonyState,
@@ -20,7 +21,12 @@ import { launchAudio } from "@/lib/launch-audio";
  * testable — see `tests/launch/ceremony-machine.test.ts`, which is the only
  * automated coverage this page gets.
  */
-export function useCeremony(): {
+export function useCeremony({
+  onDismiss,
+}: {
+  /** Take the overlay down: Alt+R from the pre-show, where a reset means "go away". */
+  onDismiss: () => void;
+}): {
   status: CeremonyStatus;
   arm: (armed: boolean) => void;
   trigger: () => void;
@@ -28,6 +34,12 @@ export function useCeremony(): {
   jump: (to: CeremonyState) => void;
 } {
   const [status, dispatch] = useReducer(ceremonyReducer, INITIAL_CEREMONY);
+
+  // The keyboard handler is registered once and needs the current beat.
+  const stateRef = useRef(status.state);
+  useEffect(() => {
+    stateRef.current = status.state;
+  }, [status.state]);
 
   const arm = useCallback((armed: boolean) => {
     // Arming is the operator's first click, so it doubles as the gesture that
@@ -60,8 +72,8 @@ export function useCeremony(): {
     return () => clearTimeout(id);
   }, [status.state, status.count]);
 
-  // Timed states advance themselves. PRESHOW and SHOWCASE have a null duration
-  // and wait for a person instead.
+  // Timed states advance themselves. PRESHOW, HOLD and OFF have a null
+  // duration and wait for a person instead.
   useEffect(() => {
     const duration = CEREMONY_TIMING[status.state];
     if (status.state === "COUNT_IN" || duration === null) return;
@@ -74,6 +86,8 @@ export function useCeremony(): {
   useEffect(() => {
     if (status.state === "PARTING") launchAudio.playCurtainSweep();
     if (status.state === "CELEBRATING") launchAudio.playLaunchFanfare();
+    // The curtain moves again — out, this time — so it makes its noise again.
+    if (status.state === "GROW") launchAudio.playCurtainSweep();
   }, [status.state]);
 
   // Screen wake lock through the pre-show, so a projector idling for twenty
@@ -126,21 +140,13 @@ export function useCeremony(): {
     };
   }, []);
 
-  // Keyboard. Space and Enter drive the ceremony. The rehearsal controls all
-  // require ALT — Alt+1 to Alt+6 jump to a beat, Alt+R resets — because a
+  // Keyboard. Space and Enter drive the ceremony: once to start it, and once
+  // more at the hold to take the site full screen. The rehearsal controls
+  // all require ALT — Alt+1 to Alt+8 jump to a beat, Alt+R resets — because a
   // single stray unmodified `r` mid-ceremony would drop the stage back to a
   // LOCKED pre-show, and the operator would then have to find and click Arm
   // while the hall watched.
   useEffect(() => {
-    const BEATS: CeremonyState[] = [
-      "PRESHOW",
-      "COUNT_IN",
-      "PARTING",
-      "BROWSER",
-      "CELEBRATING",
-      "SHOWCASE",
-    ];
-
     function onKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement) return;
       if (e.target instanceof HTMLTextAreaElement) return;
@@ -163,17 +169,19 @@ export function useCeremony(): {
       if (!e.altKey) return;
 
       if (e.key.toLowerCase() === "r") {
-        reset();
+        // From the pre-show, a reset is the operator saying "take it down".
+        if (stateRef.current === "PRESHOW") onDismiss();
+        else reset();
         return;
       }
 
-      const beat = BEATS[Number(e.key) - 1];
+      const beat = CEREMONY_ORDER[Number(e.key) - 1];
       if (beat) jump(beat);
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [trigger, reset, jump]);
+  }, [trigger, reset, jump, onDismiss]);
 
   return { status, arm, trigger, reset, jump };
 }

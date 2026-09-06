@@ -11,6 +11,8 @@ import { WhatsAppFab } from "@/components/layout/whatsapp-fab";
 import { ConsentGate } from "@/components/legal/consent-gate";
 import { MaintenanceScreen } from "@/components/layout/maintenance-screen";
 import { isMaintenanceLocked } from "@/lib/feature-gate";
+import { siteUrl } from "@/lib/site-url";
+import { Ceremony } from "@/components/launch/ceremony";
 
 /**
  * Required by the maintenance gate below, which is a runtime switch.
@@ -47,14 +49,19 @@ export default async function PublicLayout({
       <ConfigProvider initialConfig={config}>
         <ToastProvider>
           <ConsentGate>
-            <div className="flex flex-col min-h-screen">
-              <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
-              <Navbar />
-              <main className="flex-1">
-                {children}
-              </main>
-              <Footer />
-            </div>
+            {/* The launch ceremony wraps the page so it can scale the real
+                page into its stage screen. Off — the usual case — it is one
+                div doing nothing. */}
+            <Ceremony enabled={config.features.launchCeremony} config={config} siteUrl={siteUrl()}>
+              <div className="flex flex-col min-h-screen">
+                <NextTopLoader color="hsl(var(--primary))" showSpinner={false} height={2} />
+                <Navbar />
+                <main className="flex-1">
+                  {children}
+                </main>
+                <Footer />
+              </div>
+            </Ceremony>
             <CookieConsent />
             <WhatsAppFab />
           </ConsentGate>

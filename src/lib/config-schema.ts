@@ -59,6 +59,12 @@ export interface SiteConfig {
     enableGallery: boolean;
     enableMembership: boolean;
     maintenanceMode: boolean;
+    /**
+     * The website-launch ceremony, as an overlay on the home page. Off, the
+     * home page ships nothing extra; on, Alt+Shift+L on the home page brings
+     * the curtain in. See `components/launch/ceremony.tsx`.
+     */
+    launchCeremony: boolean;
   };
   /** Rules the membership application form enforces. */
   membership: MembershipConfig;
@@ -266,6 +272,7 @@ export const defaultConfig: SiteConfig = {
     enableGallery: true,
     enableMembership: true,
     maintenanceMode: false,
+    launchCeremony: false,
   },
   membership: defaultMembershipConfig,
   legal: defaultLegalEntity,

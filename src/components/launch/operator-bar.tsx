@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { QrTarget } from "@/lib/ceremony-showcase";
 import { launchAudio } from "@/lib/launch-audio";
 import type { CeremonyState } from "@/lib/ceremony-timing";
 import { cn } from "@/lib/utils";
@@ -21,13 +20,14 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
 }
 
 const SHORTCUTS: [string, string][] = [
-  ["Space", "Unveil"],
+  ["Alt+Shift+L", "curtain in / out (pre-show only)"],
+  ["Space", "unveil · then full screen"],
   ["Alt+O", "this panel"],
   ["Alt+A", "arm / lock"],
   ["Alt+S", "test sound"],
   ["Alt+F", "fullscreen"],
-  ["Alt+R", "reset"],
-  ["Alt+1..6", "jump to a beat"],
+  ["Alt+R", "reset · curtain out from pre-show"],
+  ["Alt+1..8", "jump to a beat"],
 ];
 
 function Shortcut({ keys, action }: { keys: string; action: string }) {
@@ -51,7 +51,7 @@ function Shortcut({ keys, action }: { keys: string; action: string }) {
  *
  * The pre-flight row is the most valuable thing on this page. Every item on it
  * is a failure that is otherwise completely silent until the moment it ruins:
- * a QR pointing nowhere, a muted stage, a projector that went to sleep. So the
+ * a muted stage, a projector that went to sleep, fonts still loading. So the
  * panel is worth opening once, before the hall fills up, and then dismissing.
  *
  * The keyboard handlers live here rather than in `use-ceremony` because this
@@ -61,14 +61,11 @@ function Shortcut({ keys, action }: { keys: string; action: string }) {
 export function OperatorBar({
   state,
   armed,
-  qr,
   onArm,
   onReset,
 }: {
   state: CeremonyState;
   armed: boolean;
-  /** Resolved on the server — the variable behind it is not in the client bundle. */
-  qr: QrTarget;
   onArm: (armed: boolean) => void;
   onReset: () => void;
 }) {
@@ -76,8 +73,6 @@ export function OperatorBar({
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [fontsReady, setFontsReady] = useState(false);
-
-  const target = qr;
 
   useEffect(() => {
     void document.fonts?.ready.then(() => setFontsReady(true));
@@ -149,10 +144,6 @@ export function OperatorBar({
             <span className="font-semibold uppercase tracking-[0.18em] text-white/35">
               Pre-flight
             </span>
-            <Check
-              ok={target.ok}
-              label={target.ok ? `QR → ${target.url.replace(/^https:\/\//, "")}` : "QR URL not configured"}
-            />
             <Check ok={audioUnlocked} label={audioUnlocked ? "Audio ready" : "Audio not tested"} />
             <Check ok={fullscreen} label={fullscreen ? "Fullscreen" : "Not fullscreen"} />
             <Check ok={fontsReady} label={fontsReady ? "Fonts loaded" : "Fonts loading"} />

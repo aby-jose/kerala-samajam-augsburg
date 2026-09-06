@@ -4,7 +4,7 @@ import {
   ceremonyReducer,
   type CeremonyStatus,
 } from "@/lib/ceremony-machine";
-import { CEREMONY_TIMING, ceremonyAt, COUNT_IN_FROM } from "@/lib/ceremony-timing";
+import { CEREMONY_ORDER, CEREMONY_TIMING, ceremonyAt, COUNT_IN_FROM } from "@/lib/ceremony-timing";
 
 const armed: CeremonyStatus = { ...INITIAL_CEREMONY, armed: true };
 
@@ -30,20 +30,18 @@ describe("ceremonyReducer", () => {
     expect(next.count).toBe(COUNT_IN_FROM);
   });
 
-  it("ignores a second trigger so a double press cannot restart the count", () => {
-    const started = ceremonyReducer(armed, { type: "TRIGGER" });
-    const ticked = ceremonyReducer(started, { type: "TICK" });
-    const again = ceremonyReducer(ticked, { type: "TRIGGER" });
-    expect(again).toEqual(ticked);
+  it("ignores a second trigger during the count-in", () => {
+    const s: CeremonyStatus = { ...armed, state: "COUNT_IN", count: 2 };
+    expect(ceremonyReducer(s, { type: "TRIGGER" })).toEqual(s);
   });
 
-  it("counts down from COUNT_IN_FROM to 1 and then parts the curtain", () => {
-    let s = ceremonyReducer(armed, { type: "TRIGGER" });
-    for (let expected = COUNT_IN_FROM; expected >= 1; expected--) {
-      expect(s.state).toBe("COUNT_IN");
-      expect(s.count).toBe(expected);
-      s = ceremonyReducer(s, { type: "TICK" });
-    }
+  it("counts down one numeral per tick and parts the curtain after 1", () => {
+    let s: CeremonyStatus = { ...armed, state: "COUNT_IN", count: 3 };
+    s = ceremonyReducer(s, { type: "TICK" });
+    expect(s.count).toBe(2);
+    s = ceremonyReducer(s, { type: "TICK" });
+    expect(s.count).toBe(1);
+    s = ceremonyReducer(s, { type: "TICK" });
     expect(s.state).toBe("PARTING");
   });
 
@@ -51,23 +49,52 @@ describe("ceremonyReducer", () => {
     expect(ceremonyReducer(armed, { type: "TICK" })).toEqual(armed);
   });
 
-  it("advances parting to browser to celebrating to showcase", () => {
+  it("advances parting to light-up to celebrating to hold", () => {
     let s: CeremonyStatus = { ...armed, state: "PARTING" };
     s = ceremonyReducer(s, { type: "ADVANCE" });
-    expect(s.state).toBe("BROWSER");
+    expect(s.state).toBe("LIGHT_UP");
     s = ceremonyReducer(s, { type: "ADVANCE" });
     expect(s.state).toBe("CELEBRATING");
     s = ceremonyReducer(s, { type: "ADVANCE" });
-    expect(s.state).toBe("SHOWCASE");
+    expect(s.state).toBe("HOLD");
   });
 
-  it("stays on the showcase forever", () => {
-    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+  it("holds until a person presses", () => {
+    const s: CeremonyStatus = { ...armed, state: "HOLD" };
     expect(ceremonyReducer(s, { type: "ADVANCE" })).toEqual(s);
   });
 
+  it("grows the site to full screen when the hold is triggered, armed or not", () => {
+    const s: CeremonyStatus = { ...INITIAL_CEREMONY, state: "HOLD", armed: false };
+    expect(ceremonyReducer(s, { type: "TRIGGER" }).state).toBe("GROW");
+  });
+
+  it("keeps the fireworks over the full-screen site after the grow, then switches off", () => {
+    let s: CeremonyStatus = { ...armed, state: "GROW" };
+    s = ceremonyReducer(s, { type: "ADVANCE" });
+    expect(s.state).toBe("AFTERGLOW");
+    s = ceremonyReducer(s, { type: "ADVANCE" });
+    expect(s.state).toBe("OFF");
+  });
+
+  it("ignores every press once off", () => {
+    const s: CeremonyStatus = { ...armed, state: "OFF" };
+    expect(ceremonyReducer(s, { type: "TRIGGER" })).toEqual(s);
+    expect(ceremonyReducer(s, { type: "ADVANCE" })).toEqual(s);
+  });
+
+  it("lists the eight visible beats in running order, without OFF", () => {
+    expect(CEREMONY_ORDER).toEqual([
+      "PRESHOW", "COUNT_IN", "PARTING", "LIGHT_UP", "CELEBRATING", "HOLD", "GROW", "AFTERGLOW",
+    ]);
+  });
+
+  it("counts in from five", () => {
+    expect(COUNT_IN_FROM).toBe(5);
+  });
+
   it("re-locks the stage on reset so a rehearsal cannot leave it live", () => {
-    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+    const s: CeremonyStatus = { ...armed, state: "HOLD" };
     const next = ceremonyReducer(s, { type: "RESET" });
     expect(next).toEqual(INITIAL_CEREMONY);
     expect(next.armed).toBe(false);
@@ -79,28 +106,32 @@ describe("ceremonyReducer", () => {
   });
 
   it("keeps the stage armed when jumping to a beat that is not PRESHOW", () => {
-    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+    const s: CeremonyStatus = { ...armed, state: "HOLD" };
     const next = ceremonyReducer(s, { type: "JUMP", to: "PARTING" });
     expect(next.state).toBe("PARTING");
     expect(next.armed).toBe(true);
   });
 
   it("re-locks the stage when jumping back to PRESHOW, matching RESET", () => {
-    const s: CeremonyStatus = { ...armed, state: "SHOWCASE" };
+    const s: CeremonyStatus = { ...armed, state: "HOLD" };
     const next = ceremonyReducer(s, { type: "JUMP", to: "PRESHOW" });
     expect(next.state).toBe("PRESHOW");
     expect(next.armed).toBe(false);
   });
 
-  it("leaves PRESHOW and SHOWCASE with no duration, since both wait for a person", () => {
+  it("leaves PRESHOW, HOLD and OFF with no duration, since all three wait for a person", () => {
     expect(CEREMONY_TIMING.PRESHOW).toBeNull();
-    expect(CEREMONY_TIMING.SHOWCASE).toBeNull();
+    expect(CEREMONY_TIMING.HOLD).toBeNull();
+    expect(CEREMONY_TIMING.OFF).toBeNull();
   });
 
-  it("gives COUNT_IN, PARTING and CELEBRATING a positive duration, since all three advance on their own", () => {
+  it("gives every timed beat a positive duration, since they advance on their own", () => {
     expect(CEREMONY_TIMING.COUNT_IN).toBeGreaterThan(0);
     expect(CEREMONY_TIMING.PARTING).toBeGreaterThan(0);
+    expect(CEREMONY_TIMING.LIGHT_UP).toBeGreaterThan(0);
     expect(CEREMONY_TIMING.CELEBRATING).toBeGreaterThan(0);
+    expect(CEREMONY_TIMING.GROW).toBeGreaterThan(0);
+    expect(CEREMONY_TIMING.AFTERGLOW).toBe(5000);
   });
 });
 

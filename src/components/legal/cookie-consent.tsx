@@ -7,6 +7,7 @@ import { Cookie, Loader2, Settings2, ShieldCheck, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { CEREMONY_EVENT } from "@/lib/ceremony-event";
 import { saveCookieConsent } from "@/lib/legal-actions";
 import {
   COOKIE_CONSENT_NAME,
@@ -125,6 +126,17 @@ export function CookieConsent() {
 
     window.addEventListener(OPEN_COOKIE_SETTINGS_EVENT, reopen);
     return () => window.removeEventListener(OPEN_COOKIE_SETTINGS_EVENT, reopen);
+  }, []);
+
+  // The launch ceremony's overlay is a stage in front of a hall that cannot
+  // click. The banner closes when the curtain goes up and stays closed; it
+  // asks again on the next real visit, since nothing was saved.
+  React.useEffect(() => {
+    const onCeremony = (e: Event) => {
+      if ((e as CustomEvent<{ active: boolean }>).detail?.active) setOpen(false);
+    };
+    window.addEventListener(CEREMONY_EVENT, onCeremony);
+    return () => window.removeEventListener(CEREMONY_EVENT, onCeremony);
   }, []);
 
   const persist = async (categories: Partial<CookieCategories>) => {
